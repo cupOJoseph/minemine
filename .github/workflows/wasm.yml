@@ -1,0 +1,20 @@
+name: Build pinned Luanti WASM (experimental)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: sudo apt-get update && sudo apt-get install -y build-essential cmake tcl git python3 curl unzip pkg-config
+      - run: bash scripts/build-wasm.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: luanti-browser-experimental
+          path: public/engine/

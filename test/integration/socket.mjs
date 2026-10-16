@@ -1,0 +1,30 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { once } from 'node:events';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { Wallet } from 'ethers';
+import { createApp } from '../../server/app.mjs';
+import { readConfig } from '../../server/config.mjs';
+
+test('real TCP listener serves launcher and accepts a wallet signature over HTTP', async t => {
+  const worldDir = mkdtempSync(path.join(tmpdir(), 'miners-socket-'));
+  const config = { ...readConfig({}), worldDir };
+  const server = createApp(config);
+  t.after(async () => { await new Promise(resolve => server.close(resolve)); rmSync(worldDir, { recursive: true, force: true }); });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const url = `http://127.0.0.1:${server.address().port}`;
+  const headers = { Host: 'localhost:3000', Origin: config.origin, 'Content-Type': 'application/json' };
+  const page = await fetch(url, { headers });
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /Enter the world/);
+  const wallet = new Wallet('0x' + '11'.repeat(32));
+  const challengeResponse = await fetch(url + '/api/auth/challenge', { method: 'POST', headers, body: JSON.stringify({ address: wallet.address, chainId: config.chainId }) });
+  const challenge = await challengeResponse.json();
+  const signature = await wallet.signMessage(challenge.message);
+  const response = await fetch(url + '/api/auth/verify', { method: 'POST', headers: { ...headers, Cookie: challengeResponse.headers.getSetCookie()[0].split(';')[0] }, body: JSON.stringify({ signature }) });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).address, wallet.address);
+});

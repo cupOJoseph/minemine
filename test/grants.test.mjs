@@ -1,0 +1,33 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { createHash } from 'node:crypto';
+import { Wallet } from 'ethers';
+import { createGrants } from '../server/grants.mjs';
+import { playerName } from '../server/auth.mjs';
+
+test('join grants are random, expire quickly, do not store raw passwords, and revoke by session', t => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'miners-grants-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const grants = createGrants(dir, () => 1_800_000_000_000);
+  const address = new Wallet('0x' + '11'.repeat(32)).address;
+  const session = { address, playerName: playerName(address) };
+  const first = grants.issue(session, 'session-a');
+  const second = grants.issue(session, 'session-b');
+  assert.notEqual(first.password, second.password);
+  assert.equal(second.expiresAt, 1_800_000_120_000);
+  const file = path.join(dir, 'wallet_grants', `${second.name}.json`);
+  const contents = readFileSync(file, 'utf8');
+  assert.ok(!contents.includes(second.password));
+  assert.ok(!contents.includes('session-b'));
+  assert.equal(JSON.parse(contents).password_hash, createHash('sha1').update(second.name + second.password).digest('base64'));
+  grants.revoke(session, 'session-a');
+  assert.equal(readdirSync(path.dirname(file)).length, 1);
+  grants.revoke(session, 'session-b');
+  assert.equal(readdirSync(path.dirname(file)).length, 0);
+  grants.issue(session, 'session-c');
+  grants.clear();
+  assert.equal(readdirSync(path.dirname(file)).length, 0);
+});

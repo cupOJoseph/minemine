@@ -1,0 +1,106 @@
+# Build and deployment runbook
+
+This is a prepared path, not a record of a deployment. There is currently no public URL or running game server.
+
+## 1. GitHub and local environment
+
+The only authorized project repository is `https://github.com/cupOJoseph/minemine`. The user supplied this destination on 2026-10-16. Use a fine-grained credential limited to that repository; do not authenticate with a general account-wide credential or create another repository.
+
+A credential was supplied in the conversation, and the user explicitly authorized its use. It was passed through hidden stdin into a temporary process environment for a read-only request to this repository; the request failed to connect to GitHub, so its validity and permissions have not been verified. It was not saved to disk. Contents and Pull requests read/write plus Workflows write cover the intended code/CI work; Administration is unnecessary. Do not put credentials in remote URLs, source files, command arguments, or logs.
+
+Run from this workspace on a machine/session with Git writes and network enabled. First inspect the destination for existing commits and preserve any remote work; the remote could not be inspected from the restricted environment. For a confirmed empty remote:
+
+```sh
+git init -b main
+git remote add origin https://github.com/cupOJoseph/minemine.git
+git config --local credential.useHttpPath true
+git add .
+git status --short
+git commit -m "Establish browser Luanti and wallet-auth foundation"
+git push -u origin main
+```
+
+Review staged files first: `.env`, private keys, `runtime/`, `node_modules/`, and generated artifacts must not be committed. Use only the repository-scoped credential through a temporary process environment or local credential manager when pushing. No Git initialization or push has succeeded in the restricted environment. Do not force-push over existing remote work.
+
+```sh
+npm ci --ignore-scripts
+npm test
+npm run test:http
+npm run contracts:compile
+cp .env.example .env
+npm start
+```
+
+Visit `http://localhost:3000`, connect a Sepolia wallet and sign the login message. Verify cancellation, invalid-signature rejection, account switching, logout and refresh. Confirm the Play button remains disabled while the engine is absent.
+
+## 2. Fetch and lock upstream
+
+```sh
+npm run upstream:fetch -- --resolve
+```
+
+Inspect every downloaded repository and nested dependency lock. `--resolve` intentionally updates root commit pins from their specified refs and is not run automatically by CI. Review the diff and commit the completed source lock. Native engine ref `5.16.1` is an initial candidate observed in official package metadata; it still needs local resolution and compatibility testing against the WASM fork. No script silently falls back to another version.
+
+## 3. Build WASM on Linux
+
+Upstream documents Ubuntu and dependencies `build-essential`, `cmake`, and `tclsh`. The manual GitHub workflow installs the surrounding fetch/build utilities and invokes:
+
+```sh
+bash scripts/build-wasm.sh
+```
+
+The upstream script installs its patched Emscripten SDK. Expect a large initial build. Capture the log and disk/memory usage before assigning time budgets. If the build output changes from `www/index.html`, inspect the pinned upstream scripts and update staging explicitly.
+
+Engine files remain ignored in Git. Publish build artifacts together with checksums, license notices and corresponding source references. The build script refuses to overwrite an existing `public/engine` directory.
+
+## 4. Native server and game
+
+Build the pinned official engine using its own platform instructions with client disabled and server enabled; follow that commit's dependency requirements. Use a run-in-place build if retaining the `vendor/native` layout. Install the pinned Minetest Game into its game search path as `minetest`. Do not assume the browser-client and native-server version/protocol match without a connection test.
+
+Create the test world and install the auth mod:
+
+```sh
+node scripts/setup-world.mjs
+```
+
+Run the resulting server binary using `game/minetest.conf`, the configured `WORLD_DIR`, and game ID `minetest`. Native executable naming varies by engine version; confirm the name from that build. The config binds UDP to loopback and disables server-list advertising. Keep it private until the restricted proxy is working.
+
+The Node service and Luanti must run as the same dedicated OS user (or use carefully scoped directory permissions) so Lua can read grant files with mode 0600. `WORLD_DIR/wallet_grants` must never be a static web directory. Keep mod security enabled; the mod reads only its world directory and needs no insecure environment or outbound HTTP permissions.
+
+## 5. Implement the engine adapter and proxy
+
+Read the pinned `static/launcher.js` and `webshims/src/emsocket/proxy.js`. Build a compatible restricted proxy with one fixed private Luanti target. Do not point wallet-authenticated play at third-party public proxies.
+
+Create `public/engine/adapter.js` exporting:
+
+```js
+export async function launch({ container, ticket }) {
+  // Implement against inspected upstream APIs.
+  // ticket: { name, password, expiresAt, address, port }
+  // Mount the engine, apply the ephemeral credentials in memory, connect.
+}
+```
+
+This interface is a local contract, not an assertion that upstream has this API. Never send credentials via URL parameters or to an upstream demo. Ensure the engine does not persist the temporary password while saving its settings. Update CSP narrowly if the verified engine requires additional same-origin resources.
+
+Complete B04/B05/S03/A05 in ROADMAP.md, then set `GAME_ENABLED=true` and `ENGINE_ADAPTER_READY=true`. The `/api/health` readiness flag checks configuration and adapter files; it does **not** probe native UDP availability. Add actual game/proxy liveness before production monitoring.
+
+## 6. Host the tested stack
+
+Use a Linux host with persistent disk, adequate memory for the measured build/world, and HTTPS/WSS ingress. Start with a single region and single auth process. A public domain, provider account and budget are still needed.
+
+The included `deploy/Dockerfile` can package the **Node launcher/auth service only**. It does not package a working native game server or proxy. Build from project root:
+
+```sh
+docker build -f deploy/Dockerfile -t miners-auth:dev .
+```
+
+Configure `PUBLIC_ORIGIN=https://your-domain`, TLS termination, same-origin WSS routing, and a private world directory shared with the native game process. Preserve the original Host header; the app validates it against PUBLIC_ORIGIN. Do not trust arbitrary forwarded headers. The current limiter groups clients behind a reverse proxy by proxy IP; replace it with a limiter at the trusted ingress before a multi-user launch.
+
+Only expose web ports; native UDP remains private. Run a backup/restore drill, test restarts and disk exhaustion, and verify remote access from two browsers before advertising the server.
+
+## 7. Testnet currency
+
+First execute the local-EVM tests tracked in E02. Set an isolated testnet RPC/key/treasury in `.env`, then run `npm run contracts:deploy`. Never paste a key into an issue, chat, shell command argument, or frontend file. The service itself does not use a deployment key.
+
+Record deployment receipt and verify the source. Set `TOKEN_ADDRESS` and confirm authenticated balances against the configured chain. Reward minting, shops, escrow, deposit indexing and reorg recovery remain E05–E08 tasks; this deployment alone does not complete the in-game currency goal.

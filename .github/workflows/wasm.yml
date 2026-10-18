@@ -19,12 +19,14 @@ jobs:
         id: source
         run: |
           node scripts/fetch-upstream.mjs
-          echo "directory=$(node scripts/prepare-wasm.mjs)" >> "$GITHUB_OUTPUT"
+          directory="$(node scripts/prepare-wasm.mjs)"
+          echo "directory=$directory" >> "$GITHUB_OUTPUT"
+          echo "profile=$(basename "$directory")" >> "$GITHUB_OUTPUT"
       - uses: actions/cache/restore@v4
         id: sdk
         with:
           path: ${{ steps.source.outputs.directory }}/emsdk
-          key: wasm-sdk-linux-6.0.8-${{ hashFiles('upstream.sources.json', 'scripts/prepare-wasm.mjs') }}
+          key: wasm-sdk-linux-6.0.8-${{ hashFiles('upstream.sources.json') }}-${{ steps.source.outputs.profile }}
       - run: bash scripts/build-wasm.sh
       - name: Cache prepared compiler for a subsequent attempt
         if: always() && steps.sdk.outputs.cache-hit != 'true'

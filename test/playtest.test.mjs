@@ -107,7 +107,7 @@ test('adapter contract matches the actual downloaded Luanti classes', { skip: !f
     fs.readFileSync(new URL('../vendor/wasm/build_libarchive.sh', import.meta.url), 'utf8'),
     fs.readFileSync(new URL('../vendor/wasm/build_libzip.sh', import.meta.url), 'utf8'),
   );
-  assert.match(patched['build_libarchive.sh'], /--host=wasm32-unknown-emscripten/);
+  assert.match(patched['build_libarchive.sh'], /--host=wasm32-unknown-none/);
   assert.match(patched['build_libzip.sh'], /-DBUILD_SHARED_LIBS=OFF/);
   assert.throws(() => patchDependencyScripts('different', 'different'), /changed/);
 });

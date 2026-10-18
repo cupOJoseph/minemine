@@ -11,7 +11,7 @@ export function patchDependencyScripts(libarchive, libzip) {
     return source.replace(from, to);
   }
   return {
-    'build_libarchive.sh': replaceOnce(libarchive, 'emconfigure ./configure \\\n', 'emconfigure ./configure --host=wasm32-unknown-emscripten \\\n'),
+    'build_libarchive.sh': replaceOnce(libarchive, 'emconfigure ./configure \\\n', 'emconfigure ./configure --host=wasm32-unknown-none \\\n'),
     'build_libzip.sh': replaceOnce(libzip, 'emcmake cmake \\\n', 'emcmake cmake -DBUILD_SHARED_LIBS=OFF -DBUILD_TOOLS=OFF -DBUILD_REGRESS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_DOC=OFF \\\n'),
   };
 }
@@ -37,7 +37,9 @@ export function prepareWasm(root = project, env = process.env) {
   const scripts = { 'build_luanti.sh': patched, ...dependencies };
   const scriptHashes = Object.fromEntries(Object.entries(scripts).map(([name, text]) => [name, createHash('sha256').update(text).digest('hex')]));
   const profile = { schema: 2, wrapperCommit: expected, memoryMiB, threads, patchHash: scriptHashes['build_luanti.sh'], scriptHashes };
-  const profileId = createHash('sha256').update(JSON.stringify(profile)).digest('hex').slice(0, 16);
+  // Compiler placement stays stable across dependency-script corrections so
+  // the runner can reuse its SDK; the full profile is still checked below.
+  const profileId = createHash('sha256').update(JSON.stringify({ schema: 2, wrapperCommit: expected, memoryMiB, threads, patchHash: profile.patchHash })).digest('hex').slice(0, 16);
   const buildSource = path.join(root, 'runtime', 'wasm-' + profileId);
   const stamp = path.join(buildSource, 'miners-build-profile.json');
   if (fs.existsSync(stamp)) {

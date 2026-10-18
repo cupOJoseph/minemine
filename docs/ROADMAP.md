@@ -17,9 +17,9 @@ Updated: 2026-10-18 UTC. `DONE` means the stated acceptance criteria have been c
 | ID | Status | Task and acceptance criteria | Depends on |
 | --- | --- | --- | --- |
 | B01 | DONE | Browser wrapper, official engine, and Minetest Game are locally downloaded with matching remotes and pinned HEADs. Nested source pins and major license files have been inspected. Complete binary license notices remain a release gate. | — |
-| B02 | IN PROGRESS | Linux Actions runs compile dependencies. Fixes cover fresh checkout, libarchive cross-compilation target, static libzip and fail-fast execution. A successful engine binary, logs, checksums and notices remain required. | B01 |
+| B02 | DONE | Linux Actions run 39147984307 produced the real engine/game bundle, build profile, checksums and initial license notices. Emscripten 6.0.8 compiler identity and the full build log are retained. Complete dependency/license release review remains B03. | B01 |
 | B03 | TODO | Review bundled OpenSSL/curl/libarchive versions; update or explicitly justify each exposed dependency. Rebuild with compatible patches and run dependency scanning. | B01 |
-| B04 | IN PROGRESS | Public Pages prerequisite check passes HTTPS/isolation/shared-memory/JSPI/WebGL2 in Chromium. Actual engine world creation, walking, digging, placing and saved reload remain pending. Record browser limitations. | B02 |
+| B04 | IN PROGRESS | Actual engine release 96f0d5d5fc25 is published on Pages; public WASM hash matches. Prerequisite checks passed in Chromium. Browser control disconnected before world creation/walking/digging/placing/save tests; reconnect it to finish QA. | B02 |
 | B05 | TODO | Add a version-specific same-origin adapter implementing `launch({container, ticket})`. Inspect upstream `setConf`/launch API and credential handling. No passwords in URLs, IndexedDB, localStorage, console, or analytics. | B04 |
 | B06 | TODO | Capture initial download size, decompression/compile time, peak memory, FPS/frame-time percentiles, and first controllable frame on specified hardware. | B04 |
 | B07 | TODO | Tune viewing range, textures, shaders, chunk queues, caching, and compression based on B06. Regression benchmarks must improve measured bottlenecks. | B06 |
@@ -69,9 +69,9 @@ Start with Minetest Game for low complexity. Evaluate Mineclonia/VoxeLibre only 
 
 ## Resume order
 
-1. Finish the manual Linux WASM build and fix failures using its retained logs; preserve reviewed pins.
-2. Download the successful engine artifact and publish it through the manual Pages workflow with its numeric build run ID.
-3. Verify solo movement, digging, building, inventory, quit and saved reload at the final HTTPS URL; record startup/frame/memory measurements.
+1. Reconnect browser control; the engine is already compiled, downloaded and published. Do not rebuild just to resume QA.
+2. Verify solo movement, digging, building, inventory, quit and saved reload at https://cupojoseph.github.io/minemine/; use console logs to diagnose real failures. Keep browserVerified false until those checks pass.
+3. Record startup/frame/memory measurements and resolve dependency/license release review.
 4. Reach native multiplayer and then wallet-gated multiplayer. Agree a persistent Linux hosting budget before provisioning additional infrastructure.
 5. Execute local EVM tests, arrange an isolated testnet deployment and then integrate token spending/rewards. Keep incomplete functionality disabled.
 

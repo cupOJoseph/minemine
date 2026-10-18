@@ -1,6 +1,6 @@
 # Build and deployment runbook
 
-The source is published at cupOJoseph/minemine and foundation CI passes. A corrected Linux WASM build is running as of 2026-10-18. There is currently no verified public playtest URL or running shared game server.
+The source is published at cupOJoseph/minemine and foundation CI passes. Linux WASM run 39147984307 succeeded and Pages deployment 39149469057 published the experimental solo bundle at https://cupojoseph.github.io/minemine/. Gameplay is unverified because browser control disconnected after deployment. There is no running shared game server.
 
 ## 1. GitHub and local environment
 

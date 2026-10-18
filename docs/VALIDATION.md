@@ -1,5 +1,13 @@
 # Validation record
 
+## Successful WASM build and public deployment — 2026-10-18 UTC
+
+Actions run [39147984307](https://github.com/cupOJoseph/minemine/actions/runs/39147984307) succeeded, including the real dependency/engine compilation, game packaging and artifact upload. The compiler log identifies Emscripten 6.0.8 (aeb67926e7de656da38bc807d83050af93578758) and clang 24.0.0git. Full log: runtime/wasm-build-39147984307.log, plus GitHub's retained run log. The downloaded artifact is installed in ignored public/engine; every recorded local asset size and SHA-256 matched its build manifest.
+
+Pages run [39149469057](https://github.com/cupOJoseph/minemine/actions/runs/39149469057) successfully published release 96f0d5d5fc25 at https://cupojoseph.github.io/minemine/. The published build.json reports solo-engine-playtest. Public index.html, lockworker.js and luanti.wasm returned successfully; the public WASM SHA-256 matches the built artifact. WASM size: 13,926,500 bytes. Recorded asset total: 21,300,742 bytes before HTTP compression. Configured initial heap: 512 MiB; worker pool: 8. These are artifact/configuration facts, not startup, FPS or peak-memory measurements.
+
+Immediately after publication, both terminal and browser tool transports disconnected. Terminal access recovered and allowed public asset verification. Browser navigation and its session reset returned Transport closed. No real engine first frame, movement, mining, placement, inventory, quit/reload or persistence result is claimed. browserVerified remains false. The earlier seven-pass compatibility page checks are still the only real-browser runtime results. Reconnect browser control to resume QA against the deployed URL; no further repository or hosting permissions are needed.
+
 ## Local Ethereum execution — 2026-10-18 UTC
 
 `npm run test:evm` passes 8 tests (parent plus 7 subtests) with pinned @foundry-rs/anvil 1.7.1 and the existing Solidity 0.8.26 compiler. Anvil binds a temporary loopback port on chain 31337, uses disposable development accounts and is terminated after the test. There is no chain fork, external RPC, public deployment or use of a user wallet/key.

@@ -2,9 +2,9 @@
 
 A browser-first Luanti (formerly Minetest) project with Ethereum wallet identity and an ERC-20 game-currency prototype.
 
-**Status: engine integration in progress, not a playable release.** Source is pushed to [cupOJoseph/minemine](https://github.com/cupOJoseph/minemine), foundation CI passes, and the Linux engine build is being debugged. The browser wrapper, official engine, and Minetest Game are pinned. No multiplayer server is online and no token is deployed.
+**Status: compiled experimental build; gameplay verification pending.** Source is pushed to [cupOJoseph/minemine](https://github.com/cupOJoseph/minemine), foundation CI passes, and the Linux WASM build succeeded. The browser wrapper, official engine, and Minetest Game are pinned. No multiplayer server is online and no public token is deployed.
 
-The [public browser compatibility check](https://cupojoseph.github.io/minemine/) passes the hosting/runtime prerequisites in Chromium, including cross-origin isolation, shared memory, JSPI and WebGL 2. It currently contains no playable engine. A successful compile and real movement/digging/building/save test are required before a playtest release.
+The [experimental solo build](https://cupojoseph.github.io/minemine/) now contains the actual compiled engine and bundled game. Its published WASM matches the build's SHA-256 hash. The [compatibility check](https://cupojoseph.github.io/minemine/compatibility.html) previously passed isolation, shared memory, JSPI and WebGL 2 in Chromium. Browser control disconnected after deployment, before gameplay QA: movement, digging, building and saved-world reload remain unverified. The build manifest deliberately retains browserVerified: false.
 
 See [the first browser playtest build](docs/PLAYTEST.md) for the prepared Linux workflow, bundle contents, and checks required before a playable link can be sent.
 
@@ -47,7 +47,7 @@ npm run upstream:fetch
 bash scripts/build-wasm.sh
 ```
 
-The WASM build uses upstream's scripts on Linux with Node 24. It is unverified here. It stages the engine and a bundled local game at `public/engine/`; shared multiplayer still needs the wallet adapter and restricted proxy. Do not enable `GAME_ENABLED` or `ENGINE_ADAPTER_READY` to bypass the disabled shared-world Play button.
+The WASM build uses upstream's scripts on Linux with Node 24 and Emscripten 6.0.8. Its first successful run is [39147984307](https://github.com/cupOJoseph/minemine/actions/runs/39147984307). It stages the engine and a bundled local game at `public/engine/`; shared multiplayer still needs the wallet adapter and restricted proxy. Do not enable `GAME_ENABLED` or `ENGINE_ADAPTER_READY` to bypass the disabled shared-world Play button.
 
 ## Currency
 

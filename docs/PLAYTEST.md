@@ -1,6 +1,6 @@
 # Browser playtest build
 
-Current status: engine source is pinned; solo launcher and packaging are implemented and tested at the JavaScript level. The engine has not been compiled or played in this environment. There is no verified playtest URL yet.
+Current status: the real engine compiled successfully on Linux in Actions run 39147984307 and was published by Pages run 39149469057. The experimental solo build is at https://cupojoseph.github.io/minemine/. Release 96f0d5d5fc25 contains a 13,926,500-byte WASM and 21,300,742 bytes of recorded assets. All downloaded asset hashes were checked locally; the public WASM also matches its manifest. Browser control disconnected after deployment, so actual gameplay and saved-world reload remain unverified. browserVerified remains false.
 
 ## First playtest scope
 
@@ -53,4 +53,4 @@ The artifact records browserVerified: false because packaging cannot establish t
 
 ## Current build status
 
-GitHub access was restored on 2026-10-18 and the project was pushed to cupOJoseph/minemine. The first Linux Actions run passed the JavaScript tests, then exposed a fresh-checkout error in the source downloader before compilation. The downloader now handles an unborn HEAD; a corrected build is the next validation step. Local real-HTTP wallet login also passes after correcting the test client's Host handling. No engine compile or playable deployment is claimed yet.
+GitHub access was restored on 2026-10-18. After correcting fresh-checkout handling, libarchive cross-compilation, static libzip and fail-fast execution, run 39147984307 compiled and packaged the engine successfully. Its full build log is retained by GitHub and locally at runtime/wasm-build-39147984307.log. Published assets were checked after deployment. The remaining immediate gate is real browser gameplay QA; the computer/browser tool connection closed during that transition and its reset also failed. Terminal access recovered. Reconnect browser control to continue testing the already-deployed build; no additional GitHub or hosting scope is required.

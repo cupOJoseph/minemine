@@ -1,0 +1,64 @@
+name: Publish Miners solo playtest
+on:
+  workflow_dispatch:
+    inputs:
+      build_run:
+        description: 'Successful WASM build run ID, or 0 for browser prerequisites only'
+        required: true
+        default: '0'
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: minemine-pages
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-22.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate build run
+        if: inputs.build_run != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN: ${{ inputs.build_run }}
+        run: |
+          node --input-type=module -e '
+            import { execFileSync } from "node:child_process";
+            if (!/^[0-9]+$/.test(process.env.BUILD_RUN)) throw new Error("Expected a numeric build run ID.");
+            const run = JSON.parse(execFileSync("gh", ["run", "view", process.env.BUILD_RUN, "--repo", "cupOJoseph/minemine", "--json", "conclusion,workflowName"], {encoding:"utf8"}));
+            if (run.conclusion !== "success" || run.workflowName !== "Build Luanti browser playtest (experimental)") throw new Error("A successful engine build is required.");
+          '
+      - uses: actions/download-artifact@v4
+        if: inputs.build_run != '0'
+        with:
+          name: miners-solo-playtest
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.build_run }}
+          path: runtime/downloaded-build
+      - name: Prepare public bundle
+        env:
+          BUILD_RUN: ${{ inputs.build_run }}
+        run: |
+          if [ "$BUILD_RUN" = '0' ]; then
+            node scripts/prepare-pages-playtest.mjs --preflight
+          else
+            mkdir -p public
+            cp -a runtime/downloaded-build/public/engine public/engine
+            node scripts/prepare-pages-playtest.mjs
+          fi
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: runtime/pages-site
+      - name: Publish this repository's site
+        id: deployment
+        uses: actions/deploy-pages@v4

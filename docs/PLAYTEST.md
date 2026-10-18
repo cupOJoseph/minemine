@@ -36,6 +36,8 @@ A public host needs HTTPS, application/wasm for the binary, COOP same-origin, an
 
 For personal Vercel hosting, `node scripts/prepare-vercel-playtest.mjs` validates the recorded engine asset hashes and prepares an isolated static deployment folder with the necessary headers. It uploads no auth server or wallet state. Account selection and a successful deployment remain separate steps; preparation alone does not publish anything.
 
+GitHub Pages is the other authorized host. The manual Publish Miners solo playtest workflow accepts a successful WASM build run ID and downloads only that repository's public build artifact. A value of 0 publishes a clearly labeled prerequisite check, with no engine or gameplay claim. Pages cannot set the required response headers directly; a pinned MIT-licensed coi-serviceworker is scoped to this project's path and applies COOP/COEP to fetched responses. Its credentialless fallback is disabled. The first visit can reload once, and its effectiveness must be verified in the real browser before relying on Pages. No wallets, backend credentials or world data are uploaded. Browser-saved worlds stay on the user's device.
+
 ## Acceptance before sending a playtest link
 
 - Real WASM compile succeeds; retain the compiler version and full build log.

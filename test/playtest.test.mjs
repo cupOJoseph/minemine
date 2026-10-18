@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
-import { patchBuildScript } from '../scripts/prepare-wasm.mjs';
+import { patchBuildScript, patchDependencyScripts } from '../scripts/prepare-wasm.mjs';
 import { releaseId, validateWasm } from '../scripts/stage-playtest.mjs';
 import { configureSoloLauncher, makeSoloArgs, makeSoloSession } from '../playtest/session.mjs';
 
@@ -103,4 +103,11 @@ test('adapter contract matches the actual downloaded Luanti classes', { skip: !f
   assert.deepEqual(Array.from(args.toArray()), ['--go', '--name', 'singleplayer', '--gameid', 'minetest', '--world', '/luanti/worlds/miners-playtest']);
   const build = fs.readFileSync(new URL('../vendor/wasm/build_luanti.sh', import.meta.url), 'utf8');
   assert.match(patchBuildScript(build), /-sINITIAL_MEMORY=536870912/);
+  const patched = patchDependencyScripts(
+    fs.readFileSync(new URL('../vendor/wasm/build_libarchive.sh', import.meta.url), 'utf8'),
+    fs.readFileSync(new URL('../vendor/wasm/build_libzip.sh', import.meta.url), 'utf8'),
+  );
+  assert.match(patched['build_libarchive.sh'], /--host=wasm32-unknown-emscripten/);
+  assert.match(patched['build_libzip.sh'], /-DBUILD_SHARED_LIBS=OFF/);
+  assert.throws(() => patchDependencyScripts('different', 'different'), /changed/);
 });

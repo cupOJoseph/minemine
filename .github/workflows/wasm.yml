@@ -15,7 +15,23 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y build-essential cmake tcl git python3 curl wget unzip zip zstd gettext pkg-config
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm test
+      - name: Prepare pinned build directory
+        id: source
+        run: |
+          node scripts/fetch-upstream.mjs
+          echo "directory=$(node scripts/prepare-wasm.mjs)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@v4
+        id: sdk
+        with:
+          path: ${{ steps.source.outputs.directory }}/emsdk
+          key: wasm-sdk-linux-6.0.8-${{ hashFiles('upstream.sources.json', 'scripts/prepare-wasm.mjs') }}
       - run: bash scripts/build-wasm.sh
+      - name: Cache prepared compiler for a subsequent attempt
+        if: always() && steps.sdk.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.source.outputs.directory }}/emsdk
+          key: ${{ steps.sdk.outputs.cache-primary-key }}
       - uses: actions/upload-artifact@v4
         with:
           name: miners-solo-playtest
@@ -31,3 +47,7 @@ jobs:
           path: |
             runtime/wasm-*/miners-build-profile.json
             runtime/wasm-*/build*/luanti/CMakeFiles/CMake*.log
+            runtime/wasm-*/build*/luanti/CMakeFiles/CMakeConfigureLog.yaml
+            runtime/wasm-*/build*/libarchive/config.log
+            runtime/wasm-*/build*/libzip/CMakeFiles/CMake*.log
+            runtime/wasm-*/build*/libzip/CMakeFiles/CMakeConfigureLog.yaml

@@ -8,6 +8,8 @@ Foundation CI exposed that Node's fetch replaced the integration test's Host hea
 
 The historical access failures below no longer describe current GitHub connectivity. Engine compilation and browser gameplay remain unverified.
 
+The corrected remote build (39146557489) reached dependency compilation. It exposed libarchive's configure trying to execute a WASM test program and libzip attempting shared linking against non-PIC static zlib. The prepared source copy now explicitly sets libarchive's cross-compilation host and disables shared/tool/test builds for libzip. The parent build now runs bash with -e so dependency failures stop immediately. Dependency script hashes are recorded in the build profile and guarded against changes; diagnostic artifacts now include libarchive config.log and CMake YAML logs. These corrections pass JavaScript/source-contract tests but still need a successful Linux build. Prepared Emscripten SDKs are cached on the runner to reduce repeated downloads.
+
 ## Engine integration update — 2026-10-18 UTC
 
 The three pinned source repositories are now present and their HEADs/remotes were checked. Local Git commits work in the nested minemine clone. The original root-folder Git-write restriction is no longer the relevant build blocker.

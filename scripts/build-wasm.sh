@@ -18,6 +18,8 @@ fi
 miners_build_source="$(node scripts/prepare-wasm.mjs)"
 (
   cd "$miners_build_source"
-  bash build_all.sh
+  # Explicit bash options are needed: invoking bash directly ignores the
+  # upstream shebang's -e and otherwise continues after dependency failures.
+  bash -eux build_all.sh
 )
 node scripts/stage-playtest.mjs "$miners_build_source"

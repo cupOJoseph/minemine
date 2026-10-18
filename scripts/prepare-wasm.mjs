@@ -5,6 +5,16 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const project = path.resolve(fileURLToPath(new URL('../', import.meta.url)));
+export function patchDependencyScripts(libarchive, libzip) {
+  function replaceOnce(source, from, to) {
+    if (source.split(from).length !== 2) throw new Error('Pinned dependency build script has changed; review before patching.');
+    return source.replace(from, to);
+  }
+  return {
+    'build_libarchive.sh': replaceOnce(libarchive, 'emconfigure ./configure \\\n', 'emconfigure ./configure --host=wasm32-unknown-emscripten \\\n'),
+    'build_libzip.sh': replaceOnce(libzip, 'emcmake cmake \\\n', 'emcmake cmake -DBUILD_SHARED_LIBS=OFF -DBUILD_TOOLS=OFF -DBUILD_REGRESS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_DOC=OFF \\\n'),
+  };
+}
 export function patchBuildScript(source, { memoryMiB = 512, threads = 8 } = {}) {
   if (!Number.isInteger(memoryMiB) || memoryMiB < 256 || memoryMiB > 1024) throw new Error('WASM_INITIAL_MEMORY_MIB must be an integer from 256 to 1024.');
   if (!Number.isInteger(threads) || threads < 4 || threads > 16) throw new Error('WASM_PTHREAD_POOL_SIZE must be an integer from 4 to 16.');
@@ -23,13 +33,18 @@ export function prepareWasm(root = project, env = process.env) {
   const memoryMiB = Number(env.WASM_INITIAL_MEMORY_MIB || 512);
   const threads = Number(env.WASM_PTHREAD_POOL_SIZE || 8);
   const patched = patchBuildScript(fs.readFileSync(path.join(source, 'build_luanti.sh'), 'utf8'), { memoryMiB, threads });
-  const profile = { wrapperCommit: expected, memoryMiB, threads, patchHash: createHash('sha256').update(patched).digest('hex') };
+  const dependencies = patchDependencyScripts(fs.readFileSync(path.join(source, 'build_libarchive.sh'), 'utf8'), fs.readFileSync(path.join(source, 'build_libzip.sh'), 'utf8'));
+  const scripts = { 'build_luanti.sh': patched, ...dependencies };
+  const scriptHashes = Object.fromEntries(Object.entries(scripts).map(([name, text]) => [name, createHash('sha256').update(text).digest('hex')]));
+  const profile = { schema: 2, wrapperCommit: expected, memoryMiB, threads, patchHash: scriptHashes['build_luanti.sh'], scriptHashes };
   const profileId = createHash('sha256').update(JSON.stringify(profile)).digest('hex').slice(0, 16);
   const buildSource = path.join(root, 'runtime', 'wasm-' + profileId);
   const stamp = path.join(buildSource, 'miners-build-profile.json');
   if (fs.existsSync(stamp)) {
     if (fs.readFileSync(stamp, 'utf8') !== JSON.stringify(profile, null, 2) + '\n') throw new Error('Build profile differs from its recorded configuration.');
-    if (createHash('sha256').update(fs.readFileSync(path.join(buildSource, 'build_luanti.sh'))).digest('hex') !== profile.patchHash) throw new Error('Prepared build script has been changed after preparation.');
+    for (const [name, expectedHash] of Object.entries(scriptHashes)) {
+      if (createHash('sha256').update(fs.readFileSync(path.join(buildSource, name))).digest('hex') !== expectedHash) throw new Error('Prepared build script has been changed after preparation: ' + name);
+    }
     return buildSource;
   }
   if (fs.existsSync(buildSource)) throw new Error('Incomplete build source already exists. Review/archive it before retrying.');
@@ -37,7 +52,7 @@ export function prepareWasm(root = project, env = process.env) {
     const parts = path.relative(source, file).split(path.sep);
     return !parts.includes('.git') && !['emsdk', 'www'].includes(parts[0]) && !/^build(?:-|$)/.test(parts[0]);
   } });
-  fs.writeFileSync(path.join(buildSource, 'build_luanti.sh'), patched);
+  for (const [name, text] of Object.entries(scripts)) fs.writeFileSync(path.join(buildSource, name), text);
   fs.writeFileSync(stamp, JSON.stringify(profile, null, 2) + '\n');
   return buildSource;
 }

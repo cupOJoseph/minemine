@@ -47,6 +47,6 @@ A public host needs HTTPS, application/wasm for the binary, COOP same-origin, an
 
 The artifact records browserVerified: false because packaging cannot establish those results. Do not convert that flag to true or call the playtest ready until the checks have been performed.
 
-## Current execution blocker
+## Current build status
 
-This local session cannot fetch the remaining build dependencies and has no Node 24, CMake, patched Emscripten, or Docker. A narrow network escalation request was rejected by the configured approval policy. A Linux GitHub Actions run is the prepared next step; its permission to download build tools is separate from this local session. No broader GitHub repository scope is needed.
+GitHub access was restored on 2026-10-18 and the project was pushed to cupOJoseph/minemine. The first Linux Actions run passed the JavaScript tests, then exposed a fresh-checkout error in the source downloader before compilation. The downloader now handles an unborn HEAD; a corrected build is the next validation step. Local real-HTTP wallet login also passes after correcting the test client's Host handling. No engine compile or playable deployment is claimed yet.

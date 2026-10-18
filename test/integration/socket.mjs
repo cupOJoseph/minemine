@@ -4,9 +4,26 @@ import { once } from 'node:events';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { request } from 'node:http';
 import { Wallet } from 'ethers';
 import { createApp } from '../../server/app.mjs';
 import { readConfig } from '../../server/config.mjs';
+
+// Use HTTP directly: Node's fetch can replace a supplied Host header with the
+// ephemeral listener address, which would correctly fail the app's host check.
+function send(url, { method = 'GET', headers, body } = {}) {
+  return new Promise((resolve, reject) => {
+    const req = request(url, { method, headers }, res => {
+      let text = '';
+      res.setEncoding('utf8');
+      res.on('data', chunk => { text += chunk; });
+      res.on('error', reject);
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, text, json: () => JSON.parse(text) }));
+    });
+    req.on('error', reject);
+    req.end(body);
+  });
+}
 
 test('real TCP listener serves launcher and accepts a wallet signature over HTTP', async t => {
   const worldDir = mkdtempSync(path.join(tmpdir(), 'miners-socket-'));
@@ -17,14 +34,17 @@ test('real TCP listener serves launcher and accepts a wallet signature over HTTP
   await once(server, 'listening');
   const url = `http://127.0.0.1:${server.address().port}`;
   const headers = { Host: 'localhost:3000', Origin: config.origin, 'Content-Type': 'application/json' };
-  const page = await fetch(url, { headers });
+  const rejectedHost = await send(url, { headers: { ...headers, Host: 'unexpected.example' } });
+  assert.equal(rejectedHost.status, 400);
+  const page = await send(url, { headers });
   assert.equal(page.status, 200);
-  assert.match(await page.text(), /Enter the world/);
+  assert.match(page.text, /Enter the world/);
   const wallet = new Wallet('0x' + '11'.repeat(32));
-  const challengeResponse = await fetch(url + '/api/auth/challenge', { method: 'POST', headers, body: JSON.stringify({ address: wallet.address, chainId: config.chainId }) });
+  const challengeResponse = await send(url + '/api/auth/challenge', { method: 'POST', headers, body: JSON.stringify({ address: wallet.address, chainId: config.chainId }) });
+  assert.equal(challengeResponse.status, 200);
   const challenge = await challengeResponse.json();
   const signature = await wallet.signMessage(challenge.message);
-  const response = await fetch(url + '/api/auth/verify', { method: 'POST', headers: { ...headers, Cookie: challengeResponse.headers.getSetCookie()[0].split(';')[0] }, body: JSON.stringify({ signature }) });
+  const response = await send(url + '/api/auth/verify', { method: 'POST', headers: { ...headers, Cookie: challengeResponse.headers['set-cookie'][0].split(';')[0] }, body: JSON.stringify({ signature }) });
   assert.equal(response.status, 200);
   assert.equal((await response.json()).address, wallet.address);
 });

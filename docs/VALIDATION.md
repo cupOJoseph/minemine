@@ -1,5 +1,13 @@
 # Validation record
 
+## GitHub access restored — 2026-10-18 UTC
+
+Both source commits were pushed to the sole authorized repository, cupOJoseph/minemine. The first remote WASM run (39146391458) installed the Linux prerequisites and passed npm test, then failed before compilation because the downloader queried HEAD in a newly initialized checkout. The downloader now checks whether HEAD exists before reusing a pinned checkout.
+
+Foundation CI exposed that Node's fetch replaced the integration test's Host header with its ephemeral TCP address. The test now uses node:http directly, checks rejection of an unexpected host, and completes challenge/signature/login over a real local TCP listener. npm run test:http passes locally (1 test). Production Host validation was retained.
+
+The historical access failures below no longer describe current GitHub connectivity. Engine compilation and browser gameplay remain unverified.
+
 ## Engine integration update — 2026-10-18 UTC
 
 The three pinned source repositories are now present and their HEADs/remotes were checked. Local Git commits work in the nested minemine clone. The original root-folder Git-write restriction is no longer the relevant build blocker.

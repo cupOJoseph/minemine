@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)));
 const file = path.join(root, 'upstream.sources.json');
@@ -17,7 +17,9 @@ for (const [name, source] of Object.entries(manifest.sources)) {
   }
   if (git(['remote', 'get-url', 'origin'], destination) !== source.url) throw new Error(`Unexpected remote for ${name}.`);
   if (git(['status', '--porcelain'], destination)) throw new Error(`Local changes in ${name}; refusing to overwrite.`);
-  if (!resolving && git(['rev-parse', '--verify', 'HEAD'], destination) === source.commit) {
+  const head = spawnSync('git', ['rev-parse', '--verify', 'HEAD'], { cwd: destination, encoding: 'utf8' });
+  if (head.error) throw head.error;
+  if (!resolving && head.status === 0 && head.stdout.trim() === source.commit) {
     console.log(name + ': ' + source.commit + ' (already present)');
     continue;
   }

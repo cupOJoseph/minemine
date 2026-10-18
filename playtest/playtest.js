@@ -1,4 +1,4 @@
-import { makeSoloSession } from './session.mjs';
+import { makeSoloSession } from './session.mjs?v=solo-mode-1';
 const start = document.getElementById('start');
 const status = document.getElementById('status');
 const loading = document.getElementById('loading');

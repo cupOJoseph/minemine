@@ -9,7 +9,7 @@ import { releaseId, validateWasm } from '../scripts/stage-playtest.mjs';
 import { configureSoloLauncher, makeSoloArgs, makeSoloSession } from '../playtest/session.mjs';
 
 class Args {
-  constructor() { this.password = ''; this.address = ''; this.packs = []; }
+  constructor() { this.name = ''; this.password = ''; this.address = ''; this.packs = []; }
 }
 function fakeLauncher() {
   return {
@@ -32,6 +32,7 @@ test('solo playtest uses a local world and never requests a remote wallet creden
   assert.equal(args.world, '/luanti/worlds/miners-playtest');
   assert.equal(args.gameid, 'minetest');
   assert.equal(args.go, true);
+  assert.equal(args.name, '', 'An explicit name selects local multiplayer and rejects the reserved singleplayer name');
   assert.equal(args.password, '');
   assert.equal(args.address, '');
 });
@@ -100,7 +101,7 @@ test('adapter contract matches the actual downloaded Luanti classes', { skip: !f
   vm.runInContext(source + '\nglobalThis.inspected = { LuantiArgs, LuantiLauncher };', context);
   for (const method of ['setProxy', 'setConf', 'overrideConf', 'setLang', 'isReady', 'isPersistent', 'addPack', 'launch']) assert.equal(typeof context.inspected.LuantiLauncher.prototype[method], 'function', method);
   const args = makeSoloArgs(context.inspected.LuantiArgs);
-  assert.deepEqual(Array.from(args.toArray()), ['--go', '--name', 'singleplayer', '--gameid', 'minetest', '--world', '/luanti/worlds/miners-playtest']);
+  assert.deepEqual(Array.from(args.toArray()), ['--go', '--gameid', 'minetest', '--world', '/luanti/worlds/miners-playtest']);
   const build = fs.readFileSync(new URL('../vendor/wasm/build_luanti.sh', import.meta.url), 'utf8');
   assert.match(patchBuildScript(build), /-sINITIAL_MEMORY=536870912/);
   const patched = patchDependencyScripts(

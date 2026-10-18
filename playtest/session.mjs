@@ -19,7 +19,8 @@ export function configureSoloLauncher(launcher) {
 export function makeSoloArgs(LuantiArgs) {
   const args = new LuantiArgs();
   args.go = true;
-  args.name = 'singleplayer';
+  // With --go and --world, an explicit name selects local multiplayer.
+  // Leave it empty so the engine selects true singleplayer itself.
   args.gameid = 'minetest';
   args.world = '/luanti/worlds/miners-playtest';
   return args;

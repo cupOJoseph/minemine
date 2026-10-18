@@ -17,6 +17,10 @@ for (const [name, source] of Object.entries(manifest.sources)) {
   }
   if (git(['remote', 'get-url', 'origin'], destination) !== source.url) throw new Error(`Unexpected remote for ${name}.`);
   if (git(['status', '--porcelain'], destination)) throw new Error(`Local changes in ${name}; refusing to overwrite.`);
+  if (!resolving && git(['rev-parse', '--verify', 'HEAD'], destination) === source.commit) {
+    console.log(name + ': ' + source.commit + ' (already present)');
+    continue;
+  }
   git(['fetch', '--depth=1', 'origin', resolving ? source.ref : source.commit], destination);
   const commit = git(['rev-parse', 'FETCH_HEAD^{commit}'], destination);
   if (!resolving && commit !== source.commit) throw new Error(`Commit mismatch for ${name}.`);

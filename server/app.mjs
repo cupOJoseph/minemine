@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
-import { readFile, realpath, stat } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { realpath, stat } from 'node:fs/promises';
+import { existsSync, createReadStream, readFileSync } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Contract, FetchRequest, JsonRpcProvider, formatUnits } from 'ethers';
@@ -39,6 +40,13 @@ export function createApp(config) {
   const cookie = (name, value, age) => `${name}=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${age}${secureSuffix}`;
   const json = (res, status, data) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(data)); };
   const available = () => config.gameEnabled && config.adapterReady && existsSync(path.join(publicRoot, 'engine/adapter.js')) && existsSync(path.join(publicRoot, 'engine/index.html'));
+  const soloAvailable = () => {
+    try {
+      const build = JSON.parse(readFileSync(path.join(publicRoot, 'engine/build.json'), 'utf8'));
+      if (build.kind !== 'solo-engine-playtest' || !/^[a-f0-9]{12}$/.test(build.release)) return false;
+      return ['index.html', build.release + '/luanti.wasm', build.release + '/packs/minetest.pack'].every(file => existsSync(path.join(publicRoot, 'engine', file)));
+    } catch { return false; }
+  };
   let provider;
   if (config.rpcUrl) {
     const request = new FetchRequest(config.rpcUrl);
@@ -66,7 +74,10 @@ export function createApp(config) {
     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
     res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
     res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
+    // Upstream engine builds its own runtime styles and menu event attributes.
+    // Keep those permissions scoped to the engine; wallet pages retain strict CSP.
+    const enginePage = req.url?.startsWith('/engine/');
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; " + (enginePage ? "script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " : "style-src 'self'; ") + "img-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
     if (config.secure) res.setHeader('Strict-Transport-Security', 'max-age=31536000');
     try {
       if (req.headers.host !== new URL(config.origin).host) throw new AuthError('Unexpected host.', 400);
@@ -87,7 +98,7 @@ export function createApp(config) {
         const jar = cookies(req);
         const sessionToken = jar[sessionCookie];
         const session = auth.get(sessionToken);
-        if (req.method === 'GET' && url.pathname === '/api/config') return json(res, 200, { chainId: config.chainId, tokenAddress: config.tokenAddress, currencySymbol: 'MINE', gameReady: available(), enginePresent: existsSync(path.join(publicRoot, 'engine/index.html')), milestone: 'foundation', walletSupport: 'EOA' });
+        if (req.method === 'GET' && url.pathname === '/api/config') return json(res, 200, { chainId: config.chainId, tokenAddress: config.tokenAddress, currencySymbol: 'MINE', gameReady: available(), soloPlaytestAvailable: soloAvailable(), enginePresent: existsSync(path.join(publicRoot, 'engine/index.html')), milestone: 'foundation', walletSupport: 'EOA' });
         if (req.method === 'GET' && url.pathname === '/api/health') return json(res, 200, { ok: true, gameReady: available(), currencyConfigured: Boolean(config.tokenAddress && config.rpcUrl) });
         if (req.method === 'POST' && url.pathname === '/api/auth/challenge') {
           const data = await body(req);
@@ -127,10 +138,11 @@ export function createApp(config) {
       let file;
       try { file = await realpath(requested); } catch { throw new AuthError('Not found.', 404); }
       if (!file.startsWith(publicRoot + path.sep)) throw new AuthError('Not found.', 404);
-      if (!(await stat(file)).isFile()) throw new AuthError('Not found.', 404);
-      const data = await readFile(file);
-      res.writeHead(200, { 'Content-Type': mime[path.extname(file)] || 'application/octet-stream', 'Content-Length': data.length });
-      res.end(req.method === 'HEAD' ? undefined : data);
+      const info = await stat(file);
+      if (!info.isFile()) throw new AuthError('Not found.', 404);
+      res.writeHead(200, { 'Content-Type': mime[path.extname(file)] || 'application/octet-stream', 'Content-Length': info.size });
+      if (req.method === 'HEAD') res.end();
+      else await pipeline(createReadStream(file), res);
     } catch (error) {
       if (!res.headersSent) json(res, error.status || 500, { error: error.status ? error.message : 'Server could not complete this request.' });
       else res.end();

@@ -2,7 +2,9 @@
 
 A browser-first Luanti (formerly Minetest) project with Ethereum wallet identity and an ERC-20 game-currency prototype.
 
-**Status: foundation implementation, not a playable release.** No Luanti engine has been downloaded or compiled, no multiplayer server is online, and no token has been deployed. The user selected [cupOJoseph/minemine](https://github.com/cupOJoseph/minemine) as the sole authorized GitHub destination; local source has not been pushed. The launcher deliberately disables Play until a verified local engine adapter is installed and explicitly enabled.
+**Status: engine integration in progress, not a playable release.** The browser wrapper, official engine, and Minetest Game are downloaded and pinned. A solo launcher and game-content packaging path are implemented, but the engine is not compiled or browser-tested. No multiplayer server is online and no token is deployed. [cupOJoseph/minemine](https://github.com/cupOJoseph/minemine) is the sole authorized GitHub destination; local source has not been pushed.
+
+See [the first browser playtest build](docs/PLAYTEST.md) for the prepared Linux workflow, bundle contents, and checks required before a playable link can be sent.
 
 ## What exists
 
@@ -43,7 +45,7 @@ npm run upstream:fetch -- --resolve
 bash scripts/build-wasm.sh
 ```
 
-The WASM build uses upstream's scripts on Linux. It is unverified here. It stages the engine at `public/engine/`; a **same-origin wallet adapter and restricted networking proxy still need implementation against the pinned build**. Do not enable `GAME_ENABLED` or `ENGINE_ADAPTER_READY` just to bypass the disabled Play button.
+The WASM build uses upstream's scripts on Linux with Node 24. It is unverified here. It stages the engine and a bundled local game at `public/engine/`; shared multiplayer still needs the wallet adapter and restricted proxy. Do not enable `GAME_ENABLED` or `ENGINE_ADAPTER_READY` to bypass the disabled shared-world Play button.
 
 ## Currency
 

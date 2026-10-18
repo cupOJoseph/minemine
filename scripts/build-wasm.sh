@@ -2,17 +2,22 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 node scripts/fetch-upstream.mjs
-# Upstream documents Ubuntu as its tested build environment. Use a Linux runner.
-# This script downloads its own patched Emscripten toolchain and pinned libraries.
-(
-  cd vendor/wasm
-  bash build_all.sh
-)
-test -f vendor/wasm/www/index.html
-if [ -e public/engine ]; then
-  echo 'public/engine already exists. Archive/review it before replacing the engine.' >&2
+if [ "$(uname -s)" != "Linux" ]; then
+  echo 'This pinned upstream build requires Linux. Use the manual GitHub Actions WASM workflow.' >&2
   exit 1
 fi
-mkdir -p public/engine
-cp -R vendor/wasm/www/. public/engine/
-echo 'Engine staged. Adapter and private proxy integration still need verification; GAME_ENABLED remains false.'
+node -e 'if (Number(process.versions.node.split(".")[0]) !== 24) throw new Error("This pinned Emscripten installer requires Node 24.")'
+for tool in cmake tclsh wget zstd gettext git make python3; do
+  command -v "$tool" >/dev/null || { echo "Required build tool missing: $tool" >&2; exit 1; }
+done
+if [ -e public/engine ]; then
+  echo 'public/engine already exists. Archive/review it before another build.' >&2
+  exit 1
+fi
+# Build from a separate copy. Keep downloaded source pins and working trees intact.
+miners_build_source="$(node scripts/prepare-wasm.mjs)"
+(
+  cd "$miners_build_source"
+  bash build_all.sh
+)
+node scripts/stage-playtest.mjs "$miners_build_source"

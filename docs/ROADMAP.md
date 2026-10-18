@@ -1,6 +1,6 @@
 # Roadmap and task tracker
 
-Updated: 2026-10-16. `DONE` means the stated acceptance criteria have been checked. `IMPLEMENTED` means code exists but its necessary integration gate has not passed. Blocked tasks are not complete.
+Updated: 2026-10-18 UTC. `DONE` means the stated acceptance criteria have been checked. `IMPLEMENTED` means code exists but its necessary integration gate has not passed. Blocked tasks are not complete.
 
 ## Milestone 0 — Reproducible project foundation
 
@@ -8,7 +8,7 @@ Updated: 2026-10-16. `DONE` means the stated acceptance criteria have been check
 | --- | --- | --- | --- |
 | F01 | DONE | Research an existing Luanti WASM port and identify UDP/browser transport and isolation-header requirements. Findings linked in ARCHITECTURE.md. | — |
 | F02 | DONE | Establish Node package, exact dependency lock, launcher source, tests, and token compilation. Offline clean install succeeds. | — |
-| F03 | BLOCKED | User selected `https://github.com/cupOJoseph/minemine` as the sole authorized repository and explicitly authorized a repo-scoped credential. Authenticated API connection failed. Inspect remote history, initialize Git and push reviewed source when access works. | Network access and writable git metadata |
+| F03 | BLOCKED | The user cloned the sole authorized repository at the nested minemine directory; local Git metadata and commits work there. Foundation commit exists. Remote push and Actions startup remain blocked by this session's network policy. | GitHub network access or user-run push |
 | F04 | IMPLEMENTED | CI runs offline-capable tests, real HTTP tests, and contract compiler on a clean Linux runner. YAML exists; remote run awaits F03. | F03 |
 | F05 | DONE | Record bespoke tasks with dependencies, explicit acceptance criteria, and resume instructions. | F01 |
 
@@ -16,13 +16,15 @@ Updated: 2026-10-16. `DONE` means the stated acceptance criteria have been check
 
 | ID | Status | Task and acceptance criteria | Depends on |
 | --- | --- | --- | --- |
-| B01 | BLOCKED | Download candidate WASM wrapper, official engine, and Minetest Game; resolve every root ref to a commit; inspect nested pins and licenses. Preserve source hashes. | Network and Git access |
+| B01 | DONE | Browser wrapper, official engine, and Minetest Game are locally downloaded with matching remotes and pinned HEADs. Nested source pins and major license files have been inspected. Complete binary license notices remain a release gate. | — |
 | B02 | BLOCKED | Build the pinned WASM wrapper on Linux. Retain compiler version, complete build log, checksums, licenses, and artifacts. Do not hotlink someone else's binaries. | B01, Linux build environment |
 | B03 | TODO | Review bundled OpenSSL/curl/libarchive versions; update or explicitly justify each exposed dependency. Rebuild with compatible patches and run dependency scanning. | B01 |
 | B04 | TODO | Load self-hosted engine under HTTPS/COOP/COEP. Create world, walk, dig, place, save, reload. Check Chrome, Firefox, Safari; record unsupported combinations rather than assuming support. | B02 |
 | B05 | TODO | Add a version-specific same-origin adapter implementing `launch({container, ticket})`. Inspect upstream `setConf`/launch API and credential handling. No passwords in URLs, IndexedDB, localStorage, console, or analytics. | B04 |
 | B06 | TODO | Capture initial download size, decompression/compile time, peak memory, FPS/frame-time percentiles, and first controllable frame on specified hardware. | B04 |
 | B07 | TODO | Tune viewing range, textures, shaders, chunk queues, caching, and compression based on B06. Regression benchmarks must improve measured bottlenecks. | B06 |
+
+The first solo playtest path is implemented: `playtest/session.mjs` uses the inspected upstream API; `scripts/pack-game.mjs` exports the pinned game plus starter inventory/world metadata; staging records binary hashes and build provenance. The workflow now uses the inspected Node 24 requirement and Linux tools. Initial heap/worker configuration is reduced in a separate build copy; performance is unmeasured. See [PLAYTEST.md](PLAYTEST.md). Network escalation was rejected in this local session, so the actual compile, browser QA, and public URL remain blocked.
 
 Start with Minetest Game for low complexity. Evaluate Mineclonia/VoxeLibre only after the same engine, network, and auth smoke tests pass with a small game. Record game licensing, load sizes, and content downloads separately from engine performance.
 

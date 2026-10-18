@@ -1,11 +1,23 @@
 {
   "schema": 1,
   "reviewedAt": "2026-10-16",
-  "status": "unresolved: network access required; no engine has been downloaded",
+  "status": "pinned; build and dependency review still required",
   "sources": {
-    "wasm": { "url": "https://github.com/paradust7/luanti-wasm.git", "ref": "main", "commit": null },
-    "native": { "url": "https://github.com/luanti-org/luanti.git", "ref": "5.16.1", "commit": null },
-    "game": { "url": "https://github.com/luanti-org/minetest_game.git", "ref": "master", "commit": null }
+    "wasm": {
+      "url": "https://github.com/paradust7/luanti-wasm.git",
+      "ref": "main",
+      "commit": "3d6796615a8f42ddee7b169589025d167d3181d6"
+    },
+    "native": {
+      "url": "https://github.com/luanti-org/luanti.git",
+      "ref": "5.16.1",
+      "commit": "5ebd9b57984d5854e0a37fd0125da48e9e59e190"
+    },
+    "game": {
+      "url": "https://github.com/luanti-org/minetest_game.git",
+      "ref": "master",
+      "commit": "c42e4d0c0ff9d27ff7b9b308c3cfc14098dd3a0f"
+    }
   },
   "observedWasmDependencies": {
     "note": "Observed in upstream fetch_sources.sh via GitHub; recheck after wrapper commit is pinned.",

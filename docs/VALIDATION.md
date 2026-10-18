@@ -1,5 +1,20 @@
 # Validation record
 
+## Engine integration update — 2026-10-18 UTC
+
+The three pinned source repositories are now present and their HEADs/remotes were checked. Local Git commits work in the nested minemine clone. The original root-folder Git-write restriction is no longer the relevant build blocker.
+
+- `npm test`: 20 passed, 0 failed, 0 skipped with the downloaded source present. This includes loading the actual upstream launcher classes in an inert JavaScript context, checking their public API, and exercising ready/pack/failure/timeout behavior with an engine test double. It does not execute WASM.
+- `npm run upstream:fetch`: verified all already-present pinned sources without making network requests.
+- `node scripts/prepare-wasm.mjs`: prepared a separate source copy and verified guarded build-flag patching. Downloaded upstream sources remain untouched. Configured heap/worker reductions have not been compiled or benchmarked.
+- `node scripts/pack-game.mjs`: built the actual pinned Minetest Game content pack, 2,349,977 compressed bytes. Archive inspection confirmed game.conf, game licensing, the starter mod, and local world metadata. No engine binary was built.
+- Syntax checks passed for the new JavaScript modules and Bash build entrypoint. The HTTP handler suite exercises streaming and confirms the relaxed engine styling/menu CSP stays separate from wallet pages.
+- The workflow was corrected to use Node 24 and install the inspected Linux prerequisites. It has not run remotely.
+
+A narrow GitHub network escalation was attempted through the tool's supported approval mechanism. It was rejected because sandbox_approval/rules/request_permissions are disabled in the configured granular approval policy. The local environment still lacks Node 24, CMake, patched Emscripten, and Docker. No build, live-browser verification, or public deployment is claimed. The concrete next step is the prepared Linux Actions workflow described in PLAYTEST.md.
+
+The record below describes earlier foundation validation and historical blockers.
+
 Date: 2026-10-16. Host: macOS arm64, Node v22.16.0.
 
 ## Passed

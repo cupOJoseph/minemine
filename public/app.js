@@ -76,6 +76,8 @@ window.ethereum?.on?.('accountsChanged', () => { if (!busy && session) signOut()
 window.ethereum?.on?.('chainChanged', () => { if (!busy && session) signOut().catch(e => status(e.message, true)); });
 try {
   config = await api('config');
+  $('solo-playtest').hidden = !config.soloPlaytestAvailable;
+  if (config.soloPlaytestAvailable) status('A solo engine build is available from the playtest link above. Shared multiplayer is not enabled.');
   $('network').textContent = config.chainId === 11155111 ? 'SEPOLIA TESTNET' : 'LOCAL TESTNET';
   $('engine-status').textContent = config.gameReady ? 'ENGINE READY' : config.enginePresent ? 'ADAPTER PENDING' : 'ENGINE PENDING';
   if (config.tokenAddress) $('currency-status').textContent = 'Sign in to read your token balance.';

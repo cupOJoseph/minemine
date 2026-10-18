@@ -1,0 +1,58 @@
+import { makeSoloSession } from './session.mjs';
+const start = document.getElementById('start');
+const status = document.getElementById('status');
+const loading = document.getElementById('loading');
+const say = (message, error = false) => { status.textContent = message; status.classList.toggle('error', error); };
+function checkBrowser() {
+  if (!isSecureContext) throw new Error('Open this playtest over HTTPS or localhost.');
+  if (!crossOriginIsolated || typeof SharedArrayBuffer === 'undefined') throw new Error('Hosting must send COOP and COEP headers for the threaded engine.');
+  if (typeof WebAssembly.Suspending !== 'function' || typeof WebAssembly.promising !== 'function') throw new Error('This engine build requires WebAssembly JSPI. Try an up-to-date desktop Chromium browser.');
+  const canvas = document.createElement('canvas');
+  const gl = canvas.getContext('webgl2');
+  if (!gl) throw new Error('WebGL 2 is unavailable. Enable hardware acceleration or try another browser.');
+  gl.getExtension('WEBGL_lose_context')?.loseContext();
+}
+function loadLauncher() {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    const url = new URL(document.body.dataset.launcher, location.href);
+    if (url.origin !== location.origin) return reject(new Error('The engine must be hosted on the same origin.'));
+    script.src = url.href;
+    script.onload = () => resolve(globalThis.MinersEngine);
+    script.onerror = () => reject(new Error('The engine launcher could not be downloaded.'));
+    document.head.appendChild(script);
+  });
+}
+try {
+  checkBrowser();
+  start.disabled = false;
+  start.textContent = 'Start playtest →';
+  say('The first launch downloads the engine and game. Your browser may ask to keep the saved world.');
+  fetch('./build.json').then(r => r.ok ? r.json() : null).then(build => {
+    if (build) document.getElementById('build').textContent = 'Engine wrapper ' + build.wrapperCommit.slice(0, 12) + ' · game ' + build.gameCommit.slice(0, 12) + ' · initial heap ' + build.profile.memoryMiB + ' MiB';
+  }).catch(() => {});
+} catch (error) { say(error.message, true); start.textContent = 'Browser setup required'; }
+start.addEventListener('click', async () => {
+  start.disabled = true;
+  loading.hidden = false;
+  say('Loading the Luanti engine…');
+  try {
+    const engine = await loadLauncher();
+    if (!engine?.LuantiLauncher || !engine?.LuantiArgs) throw new Error('Engine adapter version mismatch. Rebuild the playtest bundle.');
+    const launcher = new engine.LuantiLauncher();
+    launcher.onexit = () => location.reload();
+    const session = makeSoloSession({ launcher, LuantiArgs: engine.LuantiArgs, report(kind, data) {
+      if (kind === 'progress') {
+        loading.value = Math.max(0, Math.min(1, data.fraction || 0));
+        say(data.task + ': ' + Math.round(loading.value * 100) + '%');
+      } else if (kind === 'error') say(String(data), true);
+    } });
+    engine.onMainStarted(() => {
+      const overlay = document.createElement('div');
+      overlay.id = 'miners-playtest-overlay';
+      overlay.textContent = 'MINERS SOLO PLAYTEST · ' + (launcher.isPersistent() ? 'Browser storage active' : 'Temporary world — storage unavailable') + ' · Esc: menu';
+      document.body.appendChild(overlay);
+    });
+    await session.start();
+  } catch (error) { loading.hidden = true; say(error.message + ' Reload this page to retry.', true); start.textContent = 'Reload to retry'; }
+});

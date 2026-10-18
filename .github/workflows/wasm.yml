@@ -1,4 +1,4 @@
-name: Build pinned Luanti WASM (experimental)
+name: Build Luanti browser playtest (experimental)
 on:
   workflow_dispatch:
 permissions:
@@ -6,15 +6,28 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-      - run: sudo apt-get update && sudo apt-get install -y build-essential cmake tcl git python3 curl unzip pkg-config
+          node-version: '24'
+      - run: sudo apt-get update && sudo apt-get install -y build-essential cmake tcl git python3 curl wget unzip zip zstd gettext pkg-config
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm test
       - run: bash scripts/build-wasm.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: luanti-browser-experimental
-          path: public/engine/
+          name: miners-solo-playtest
+          path: |
+            public/engine/
+            docs/PLAYTEST.md
+          if-no-files-found: error
+      - name: Retain build profile when a compile fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-build-diagnostics
+          path: |
+            runtime/wasm-*/miners-build-profile.json
+            runtime/wasm-*/build*/luanti/CMakeFiles/CMake*.log

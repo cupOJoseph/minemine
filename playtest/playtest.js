@@ -60,7 +60,10 @@ start.addEventListener('click', async () => {
       engineLog.push(String(line));
       if (engineLog.length > 100) engineLog.shift();
     };
-    launcher.onexit = code => showStopped('Engine stopped (exit ' + code + ')');
+    launcher.onexit = code => {
+      if (code === 0) location.reload();
+      else showStopped('Engine stopped (exit ' + code + ')');
+    };
     const session = makeSoloSession({ launcher, LuantiArgs: engine.LuantiArgs, report(kind, data) {
       if (kind === 'progress') {
         loading.value = Math.max(0, Math.min(1, data.fraction || 0));

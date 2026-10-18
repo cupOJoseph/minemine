@@ -34,6 +34,8 @@ Use an up-to-date desktop browser that passes the runtime WebGL 2, SharedArrayBu
 
 A public host needs HTTPS, application/wasm for the binary, COOP same-origin, and COEP require-corp. Do not use an arbitrary static host without checking those headers and asset-size limits.
 
+For personal Vercel hosting, `node scripts/prepare-vercel-playtest.mjs` validates the recorded engine asset hashes and prepares an isolated static deployment folder with the necessary headers. It uploads no auth server or wallet state. Account selection and a successful deployment remain separate steps; preparation alone does not publish anything.
+
 ## Acceptance before sending a playtest link
 
 - Real WASM compile succeeds; retain the compiler version and full build log.

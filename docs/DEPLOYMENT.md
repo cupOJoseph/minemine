@@ -1,26 +1,22 @@
 # Build and deployment runbook
 
-This is a prepared path, not a record of a deployment. There is currently no public URL or running game server.
+The source is published at cupOJoseph/minemine and foundation CI passes. A corrected Linux WASM build is running as of 2026-10-18. There is currently no verified public playtest URL or running shared game server.
 
 ## 1. GitHub and local environment
 
 The only authorized project repository is `https://github.com/cupOJoseph/minemine`. The user supplied this destination on 2026-10-16. Use a fine-grained credential limited to that repository; do not authenticate with a general account-wide credential or create another repository.
 
-A credential was supplied in the conversation, and the user explicitly authorized its use. It was passed through hidden stdin into a temporary process environment for a read-only request to this repository; the request failed to connect to GitHub, so its validity and permissions have not been verified. It was not saved to disk. Contents and Pull requests read/write plus Workflows write cover the intended code/CI work; Administration is unnecessary. Do not put credentials in remote URLs, source files, command arguments, or logs.
+A repository-scoped credential was supplied and authorized by the user. GitHub access is now working and commits have been pushed successfully. Contents and Pull requests read/write plus Workflows write cover code/CI work; Administration is unnecessary. Do not put credentials in remote URLs, source files, command arguments, or logs.
 
-Run from this workspace on a machine/session with Git writes and network enabled. First inspect the destination for existing commits and preserve any remote work; the remote could not be inspected from the restricted environment. For a confirmed empty remote:
+The active checkout is the nested minemine directory. Its main branch tracks origin/main. For subsequent source changes:
 
 ```sh
-git init -b main
-git remote add origin https://github.com/cupOJoseph/minemine.git
-git config --local credential.useHttpPath true
-git add .
 git status --short
-git commit -m "Establish browser Luanti and wallet-auth foundation"
-git push -u origin main
+git diff --check
+git push origin main
 ```
 
-Review staged files first: `.env`, private keys, `runtime/`, `node_modules/`, and generated artifacts must not be committed. Use only the repository-scoped credential through a temporary process environment or local credential manager when pushing. No Git initialization or push has succeeded in the restricted environment. Do not force-push over existing remote work.
+Review staged files before each commit: `.env`, private keys, `runtime/`, `node_modules/`, and generated artifacts must not be committed. Use only access authorized for this repository. Do not force-push over existing remote work.
 
 ```sh
 npm ci --ignore-scripts
@@ -86,6 +82,12 @@ This interface is a local contract, not an assertion that upstream has this API.
 Complete B04/B05/S03/A05 in ROADMAP.md, then set `GAME_ENABLED=true` and `ENGINE_ADAPTER_READY=true`. The `/api/health` readiness flag checks configuration and adapter files; it does **not** probe native UDP availability. Add actual game/proxy liveness before production monitoring.
 
 ## 6. Host the tested stack
+
+For the first solo browser test, native server hosting is unnecessary: both client and local world run in WASM. After downloading and verifying the engine artifact, `node scripts/prepare-vercel-playtest.mjs` creates an isolated deployment folder under runtime. Only the public engine bundle is copied; the server, auth state, world grants, dependencies and parent workspace are excluded. The generated Vercel configuration supplies COOP/COEP, engine CSP, WASM MIME type, and cache rules. The script verifies recorded asset sizes and SHA-256 hashes and refuses to replace an existing deployment folder. Deploy that generated folder only after explicitly selecting the verified personal Vercel scope. The account's existing CLI credential currently fails API authorization; no Vercel project has been created.
+
+The user's approved hosting choices are their personal Vercel account or GitHub Pages. Do not deploy into a work team or provision additional paid services without an agreed budget. Standard Pages hosting cannot configure arbitrary response headers; any service-worker isolation approach would need a separate real-browser check before adopting it.
+
+The remaining instructions apply to the future shared-server milestone:
 
 Use a Linux host with persistent disk, adequate memory for the measured build/world, and HTTPS/WSS ingress. Start with a single region and single auth process. A public domain, provider account and budget are still needed.
 

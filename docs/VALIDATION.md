@@ -1,5 +1,13 @@
 # Validation record
 
+## Public hosting prerequisite check — 2026-10-18 UTC
+
+GitHub Pages is configured only for cupOJoseph/minemine. The manual Pages workflow run 39147878181 succeeded and published a prerequisite check at https://cupojoseph.github.io/minemine/. In the real in-app Chromium browser (reported Chrome 155), the page showed PASS for HTTPS, cross-origin isolation, SharedArrayBuffer, WebAssembly JSPI, WebGL 2, OffscreenCanvas and Web Workers. The pinned isolation worker is scoped to /minemine/ and the initial navigation successfully reloaded under its headers. This is a browser/host check, not an engine playtest or a gameplay result.
+
+Vercel's existing CLI access token was rejected, and its existing refresh credential returned invalid_grant. No new Vercel permissions, project or paid service were created. GitHub Pages is the user's other authorized host and avoids dependence on that expired login.
+
+WASM run 39147600484 stopped promptly at libarchive's bundled config.sub, which does not recognize the emscripten OS name. The build now uses wasm32-unknown-none for that Autoconf cross-compilation check. The actual bundled config.sub was executed locally with that target and returned wasm32-unknown-none successfully. Emscripten remains the compiler; this changes the configure target label, not the compiler. A new Linux run is required to validate the full dependency build.
+
 ## GitHub access restored — 2026-10-18 UTC
 
 Both source commits were pushed to the sole authorized repository, cupOJoseph/minemine. The first remote WASM run (39146391458) installed the Linux prerequisites and passed npm test, then failed before compilation because the downloader queried HEAD in a newly initialized checkout. The downloader now checks whether HEAD exists before reusing a pinned checkout.

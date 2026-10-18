@@ -1,0 +1,2 @@
+#miners-engine-stopped{position:fixed;inset:5%;z-index:1000;padding:24px;background:#19251f;color:#edf0dd;border:1px solid #c6e490;overflow:auto;font:14px Arial,sans-serif}
+#miners-engine-stopped pre{max-height:65vh;overflow:auto;white-space:pre-wrap;font:12px monospace;color:#edf0dd}

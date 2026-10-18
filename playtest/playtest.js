@@ -3,6 +3,22 @@ const start = document.getElementById('start');
 const status = document.getElementById('status');
 const loading = document.getElementById('loading');
 const say = (message, error = false) => { status.textContent = message; status.classList.toggle('error', error); };
+const engineLog = [];
+function showStopped(message) {
+  document.getElementById('miners-engine-stopped')?.remove();
+  const panel = document.createElement('section');
+  panel.id = 'miners-engine-stopped';
+  panel.setAttribute('role', 'alert');
+  const title = document.createElement('h2');
+  title.textContent = message;
+  const log = document.createElement('pre');
+  log.textContent = engineLog.join('\n') || 'No engine output was received.';
+  const retry = document.createElement('button');
+  retry.textContent = 'Return to launcher';
+  retry.addEventListener('click', () => location.reload());
+  panel.append(title, log, retry);
+  document.body.appendChild(panel);
+}
 function checkBrowser() {
   if (!isSecureContext) throw new Error('Open this playtest over HTTPS or localhost.');
   if (!crossOriginIsolated || typeof SharedArrayBuffer === 'undefined') throw new Error('Hosting must send COOP and COEP headers for the threaded engine.');
@@ -40,12 +56,16 @@ start.addEventListener('click', async () => {
     const engine = await loadLauncher();
     if (!engine?.LuantiLauncher || !engine?.LuantiArgs) throw new Error('Engine adapter version mismatch. Rebuild the playtest bundle.');
     const launcher = new engine.LuantiLauncher();
-    launcher.onexit = () => location.reload();
+    launcher.onprint = line => {
+      engineLog.push(String(line));
+      if (engineLog.length > 100) engineLog.shift();
+    };
+    launcher.onexit = code => showStopped('Engine stopped (exit ' + code + ')');
     const session = makeSoloSession({ launcher, LuantiArgs: engine.LuantiArgs, report(kind, data) {
       if (kind === 'progress') {
         loading.value = Math.max(0, Math.min(1, data.fraction || 0));
         say(data.task + ': ' + Math.round(loading.value * 100) + '%');
-      } else if (kind === 'error') say(String(data), true);
+      } else if (kind === 'error') { say(String(data), true); showStopped(String(data)); }
     } });
     engine.onMainStarted(() => {
       const overlay = document.createElement('div');

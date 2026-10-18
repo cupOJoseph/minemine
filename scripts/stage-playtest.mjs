@@ -44,7 +44,7 @@ export function stagePlaytest(buildSource, root = project) {
   const template = fs.readFileSync(path.join(root, 'playtest/index.html'), 'utf8');
   if (template.split('%__MINERS_RELEASE__%').length !== 2) throw new Error('Playtest template release marker is missing or duplicated.');
   fs.writeFileSync(path.join(staged, 'index.html'), template.replace('%__MINERS_RELEASE__%', release));
-  for (const file of ['playtest.js', 'playtest.css', 'session.mjs']) fs.copyFileSync(path.join(root, 'playtest', file), path.join(staged, file));
+  for (const file of ['playtest.js', 'playtest.css', 'diagnostics.css', 'session.mjs']) fs.copyFileSync(path.join(root, 'playtest', file), path.join(staged, file));
   const launcherFile = path.join(staged, release, 'launcher.js');
   fs.appendFileSync(launcherFile, '\n// Miners adapter: expose inspected APIs without eval or credential URLs.\nglobalThis.MinersEngine = Object.freeze({ LuantiLauncher, LuantiArgs, onMainStarted(callback) { mtScheduler.addCondition("miners-main-started", callback, ["main_called"]); } });\n');
   const assets = {};

@@ -28,12 +28,13 @@ npm ci --ignore-scripts
 cp .env.example .env
 npm test
 npm run test:http
+npm run test:evm
 npm start
 ```
 
 Open `http://localhost:3000` (use that exact hostname to match `PUBLIC_ORIGIN`). For testing, enable an Ethereum browser wallet and switch to Sepolia when prompted. Signing in requests a message signature, not a transaction. No private key is ever requested by the website.
 
-`npm test` runs in-process handler, signature, grant, configuration, and contract-compilation checks without opening a network port. `npm run test:http` separately tests actual HTTP sockets. Neither substitutes for browser or native-engine testing.
+`npm test` runs in-process handler, signature, grant, configuration, and contract-compilation checks without opening a network port. `npm run test:http` separately tests actual HTTP sockets. `npm run test:evm` executes token transfers, allowances, burns and authenticated balance reads on an isolated local Anvil chain. These checks do not substitute for browser or native-engine testing.
 
 This implementation supports EOA wallets. Contract wallets/ERC-1271, WalletConnect, mobile wallet deep links, multiple injected-provider discovery, and multi-server sessions are future tasks.
 

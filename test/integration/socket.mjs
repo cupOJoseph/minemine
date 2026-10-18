@@ -4,26 +4,10 @@ import { once } from 'node:events';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { request } from 'node:http';
 import { Wallet } from 'ethers';
 import { createApp } from '../../server/app.mjs';
 import { readConfig } from '../../server/config.mjs';
-
-// Use HTTP directly: Node's fetch can replace a supplied Host header with the
-// ephemeral listener address, which would correctly fail the app's host check.
-function send(url, { method = 'GET', headers, body } = {}) {
-  return new Promise((resolve, reject) => {
-    const req = request(url, { method, headers }, res => {
-      let text = '';
-      res.setEncoding('utf8');
-      res.on('data', chunk => { text += chunk; });
-      res.on('error', reject);
-      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, text, json: () => JSON.parse(text) }));
-    });
-    req.on('error', reject);
-    req.end(body);
-  });
-}
+import { send } from '../helpers/http.mjs';
 
 test('real TCP listener serves launcher and accepts a wallet signature over HTTP', async t => {
   const worldDir = mkdtempSync(path.join(tmpdir(), 'miners-socket-'));

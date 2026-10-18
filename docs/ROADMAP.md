@@ -59,9 +59,9 @@ Start with Minetest Game for low complexity. Evaluate Mineclonia/VoxeLibre only 
 | ID | Status | Task and acceptance criteria | Depends on |
 | --- | --- | --- | --- |
 | E01 | IMPLEMENTED | Fixed-supply MINE prototype compiles with OpenZeppelin. Naming, supply, allocation and chain are provisional. | F02 |
-| E02 | TODO | Execute local EVM tests: constructor treasury and supply, zero-address rejection, transfers/allowances, burning, and no additional minting. Compilation/ABI checks do not count as execution tests. | E01, local EVM |
+| E02 | DONE | Local Anvil execution verifies constructor/treasury/supply, zero-address rejection, transfers/allowances, direct/delegated burning, unauthorized spending rejection and rejection of a mint selector. | E01 |
 | E03 | BLOCKED | Deploy to Sepolia using explicitly configured isolated test wallet and treasury; verify source and record chain/address/block. Script exists; no key, treasury or RPC supplied. | E02, testnet wallet/RPC |
-| E04 | IMPLEMENTED | Read token balance on configured chain for signed-in wallet; preserve integers and return observation block/time. Test against deployed contract and wrong-chain RPC. | E03 |
+| E04 | IMPLEMENTED | Authenticated balance endpoint is verified against a locally deployed contract, including exact integers/block/time and wrong-chain RPC rejection. Sepolia deployment/read validation remains pending. | E03 |
 | E05 | TODO | Add Lua balance UI backed by authenticated server reads. Distinguish observed on-chain balances from spendable gameplay credit. | A05, E04 |
 | E06 | TODO | Implement reward eligibility from authoritative game events, deduplicated event IDs and issuance limits. Never mint from client-reported mining. Decide treasury distribution vs future capped emissions. | A05, economic rules |
 | E07 | TODO | Implement one real in-game purchase with chain confirmation, idempotent delivery, retries and reorg handling. No transaction per block mined. | E05, transaction/indexer design |

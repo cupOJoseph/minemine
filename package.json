@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Browser Luanti research build with Ethereum wallet authentication and testnet currency",
-  "engines": { "node": ">=22.16.0" },
+  "engines": {
+    "node": ">=22.16.0"
+  },
   "scripts": {
     "start": "node --env-file-if-exists=.env server/index.mjs",
     "dev": "node --env-file-if-exists=.env --watch server/index.mjs",
@@ -13,8 +15,15 @@
     "contracts:compile": "node scripts/compile-contracts.mjs",
     "contracts:deploy": "node --env-file-if-exists=.env scripts/deploy-token.mjs",
     "doctor": "node scripts/doctor.mjs",
-    "upstream:fetch": "node scripts/fetch-upstream.mjs"
+    "upstream:fetch": "node scripts/fetch-upstream.mjs",
+    "test:evm": "node --test test/integration/token-evm.mjs"
   },
-  "dependencies": { "ethers": "6.16.0" },
-  "devDependencies": { "@openzeppelin/contracts": "4.9.6", "solc": "0.8.26" }
+  "dependencies": {
+    "ethers": "6.16.0"
+  },
+  "devDependencies": {
+    "@foundry-rs/anvil": "1.7.1",
+    "@openzeppelin/contracts": "4.9.6",
+    "solc": "0.8.26"
+  }
 }

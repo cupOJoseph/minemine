@@ -1,5 +1,11 @@
 # Validation record
 
+## Local Ethereum execution — 2026-10-18 UTC
+
+`npm run test:evm` passes 8 tests (parent plus 7 subtests) with pinned @foundry-rs/anvil 1.7.1 and the existing Solidity 0.8.26 compiler. Anvil binds a temporary loopback port on chain 31337, uses disposable development accounts and is terminated after the test. There is no chain fork, external RPC, public deployment or use of a user wallet/key.
+
+Executed behavior covers zero-treasury rejection, constructor supply/metadata/balances, transfers with supply preservation, overdraft and zero-address rejection, allowance consumption, unauthorized delegated transfers, direct/delegated burns with supply reduction, over-burning rejection and rejection of a mint selector. The test then signs in through the real HTTP auth service, reads the deployed contract through /api/currency/balance, checks exact raw/formatted balance and observation metadata, and verifies a mismatched configured chain returns HTTP 503. `npm run test:http` also passes after extracting the common HTTP test helper. These tests do not establish Sepolia deployment or in-game spending/rewards.
+
 ## Public hosting prerequisite check — 2026-10-18 UTC
 
 GitHub Pages is configured only for cupOJoseph/minemine. The manual Pages workflow run 39147878181 succeeded and published a prerequisite check at https://cupojoseph.github.io/minemine/. In the real in-app Chromium browser (reported Chrome 155), the page showed PASS for HTTPS, cross-origin isolation, SharedArrayBuffer, WebAssembly JSPI, WebGL 2, OffscreenCanvas and Web Workers. The pinned isolation worker is scoped to /minemine/ and the initial navigation successfully reloaded under its headers. This is a browser/host check, not an engine playtest or a gameplay result.

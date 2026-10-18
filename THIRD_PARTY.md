@@ -7,6 +7,7 @@ This source snapshot does not include a downloaded Luanti engine, WASM binary, o
 | ethers 6.16.0 | Wallet-signature verification and RPC reads | MIT; exact transitive versions/integrities in package-lock.json |
 | OpenZeppelin Contracts 4.9.6 | Prototype ERC-20 implementation | MIT; older pinned line chosen from available cache, review before release |
 | solc 0.8.26 | Local Solidity compiler | Compiler package and bundled compiler notices retained in installation; review exact distribution licenses |
+| @foundry-rs/anvil 1.7.1 | Development-only local Ethereum test node | MIT OR Apache-2.0; platform packages/integrities are pinned in package-lock.json; excluded from production dependencies |
 | paradust7/luanti-wasm | Candidate build wrapper | Repository reports MIT for wrapper; bundled dependencies have separate licenses |
 | Luanti engine | Actual native/WASM game engine | Preserve its LGPL notices and applicable source/relinking obligations; inspect pinned distribution |
 | Minetest Game | Initial reference game/content | Code and media licenses vary; inspect pinned game notices before redistribution |

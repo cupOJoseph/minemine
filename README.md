@@ -2,7 +2,9 @@
 
 A browser-first Luanti (formerly Minetest) project with Ethereum wallet identity and an ERC-20 game-currency prototype.
 
-**Status: engine integration in progress, not a playable release.** The browser wrapper, official engine, and Minetest Game are downloaded and pinned. A solo launcher and game-content packaging path are implemented, but the engine is not compiled or browser-tested. No multiplayer server is online and no token is deployed. [cupOJoseph/minemine](https://github.com/cupOJoseph/minemine) is the sole authorized GitHub destination; local source has not been pushed.
+**Status: engine integration in progress, not a playable release.** Source is pushed to [cupOJoseph/minemine](https://github.com/cupOJoseph/minemine), foundation CI passes, and the Linux engine build is being debugged. The browser wrapper, official engine, and Minetest Game are pinned. No multiplayer server is online and no token is deployed.
+
+The [public browser compatibility check](https://cupojoseph.github.io/minemine/) passes the hosting/runtime prerequisites in Chromium, including cross-origin isolation, shared memory, JSPI and WebGL 2. It currently contains no playable engine. A successful compile and real movement/digging/building/save test are required before a playtest release.
 
 See [the first browser playtest build](docs/PLAYTEST.md) for the prepared Linux workflow, bundle contents, and checks required before a playable link can be sent.
 
@@ -37,11 +39,10 @@ This implementation supports EOA wallets. Contract wallets/ERC-1271, WalletConne
 
 ## Build the actual game
 
-Read [architecture and upstream findings](docs/ARCHITECTURE.md), then [build and deployment](docs/DEPLOYMENT.md). Initial source refs must be resolved and reviewed before builds:
+Read [architecture and upstream findings](docs/ARCHITECTURE.md), then [build and deployment](docs/DEPLOYMENT.md). Fetch the reviewed source lock without updating its pins:
 
 ```sh
-npm run upstream:fetch -- --resolve
-# Review and commit upstream.sources.json once the download succeeds.
+npm run upstream:fetch
 bash scripts/build-wasm.sh
 ```
 

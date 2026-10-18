@@ -8,8 +8,8 @@ Updated: 2026-10-18 UTC. `DONE` means the stated acceptance criteria have been c
 | --- | --- | --- | --- |
 | F01 | DONE | Research an existing Luanti WASM port and identify UDP/browser transport and isolation-header requirements. Findings linked in ARCHITECTURE.md. | — |
 | F02 | DONE | Establish Node package, exact dependency lock, launcher source, tests, and token compilation. Offline clean install succeeds. | — |
-| F03 | BLOCKED | The user cloned the sole authorized repository at the nested minemine directory; local Git metadata and commits work there. Foundation commit exists. Remote push and Actions startup remain blocked by this session's network policy. | GitHub network access or user-run push |
-| F04 | IMPLEMENTED | CI runs offline-capable tests, real HTTP tests, and contract compiler on a clean Linux runner. YAML exists; remote run awaits F03. | F03 |
+| F03 | DONE | The sole authorized repository is pushed and main tracks origin/main. GitHub Actions runs have started successfully. | — |
+| F04 | DONE | Foundation CI passes the signature/handler tests, real HTTP wallet-login test and Solidity compiler on a clean Linux runner. | F03 |
 | F05 | DONE | Record bespoke tasks with dependencies, explicit acceptance criteria, and resume instructions. | F01 |
 
 ## Milestone 1 — Actual Luanti in a browser
@@ -17,14 +17,14 @@ Updated: 2026-10-18 UTC. `DONE` means the stated acceptance criteria have been c
 | ID | Status | Task and acceptance criteria | Depends on |
 | --- | --- | --- | --- |
 | B01 | DONE | Browser wrapper, official engine, and Minetest Game are locally downloaded with matching remotes and pinned HEADs. Nested source pins and major license files have been inspected. Complete binary license notices remain a release gate. | — |
-| B02 | BLOCKED | Build the pinned WASM wrapper on Linux. Retain compiler version, complete build log, checksums, licenses, and artifacts. Do not hotlink someone else's binaries. | B01, Linux build environment |
+| B02 | IN PROGRESS | Linux Actions runs compile dependencies. Fixes cover fresh checkout, libarchive cross-compilation target, static libzip and fail-fast execution. A successful engine binary, logs, checksums and notices remain required. | B01 |
 | B03 | TODO | Review bundled OpenSSL/curl/libarchive versions; update or explicitly justify each exposed dependency. Rebuild with compatible patches and run dependency scanning. | B01 |
-| B04 | TODO | Load self-hosted engine under HTTPS/COOP/COEP. Create world, walk, dig, place, save, reload. Check Chrome, Firefox, Safari; record unsupported combinations rather than assuming support. | B02 |
+| B04 | IN PROGRESS | Public Pages prerequisite check passes HTTPS/isolation/shared-memory/JSPI/WebGL2 in Chromium. Actual engine world creation, walking, digging, placing and saved reload remain pending. Record browser limitations. | B02 |
 | B05 | TODO | Add a version-specific same-origin adapter implementing `launch({container, ticket})`. Inspect upstream `setConf`/launch API and credential handling. No passwords in URLs, IndexedDB, localStorage, console, or analytics. | B04 |
 | B06 | TODO | Capture initial download size, decompression/compile time, peak memory, FPS/frame-time percentiles, and first controllable frame on specified hardware. | B04 |
 | B07 | TODO | Tune viewing range, textures, shaders, chunk queues, caching, and compression based on B06. Regression benchmarks must improve measured bottlenecks. | B06 |
 
-The first solo playtest path is implemented: `playtest/session.mjs` uses the inspected upstream API; `scripts/pack-game.mjs` exports the pinned game plus starter inventory/world metadata; staging records binary hashes and build provenance. The workflow now uses the inspected Node 24 requirement and Linux tools. Initial heap/worker configuration is reduced in a separate build copy; performance is unmeasured. See [PLAYTEST.md](PLAYTEST.md). Network escalation was rejected in this local session, so the actual compile, browser QA, and public URL remain blocked.
+The first solo playtest path is implemented: `playtest/session.mjs` uses the inspected upstream API; `scripts/pack-game.mjs` exports the pinned game plus starter inventory/world metadata; staging records binary hashes and build provenance. Linux Actions uses Node 24 and the inspected toolchain. Initial heap/worker configuration is reduced in a separate build copy; performance is unmeasured. GitHub connectivity and public Pages hosting now work. See [PLAYTEST.md](PLAYTEST.md) and [VALIDATION.md](VALIDATION.md) for build failures, corrections and the verified public prerequisite check. The public page is not yet gameplay.
 
 Start with Minetest Game for low complexity. Evaluate Mineclonia/VoxeLibre only after the same engine, network, and auth smoke tests pass with a small game. Record game licensing, load sizes, and content downloads separately from engine performance.
 
@@ -47,7 +47,7 @@ Start with Minetest Game for low complexity. Evaluate Mineclonia/VoxeLibre only 
 | --- | --- | --- | --- |
 | A01 | DONE | Issue server-generated SIWE messages with origin, URI, chain, random nonce and expiry; verify actual EOA signatures. Replay, wrong signer, changed domain, missing browser binding and expiry tests pass. | F02 |
 | A02 | DONE | HttpOnly SameSite sessions, same-origin POST checks, request-size limits, bounded session/challenge stores, and rate limiting verified at handler level. | A01 |
-| A03 | IMPLEMENTED | Browser-wallet UI connects, requests a signature, restores sessions, switches testnet and signs out on account/chain changes. Real browser-wallet test is blocked by local listening restrictions. | A01, browser QA |
+| A03 | IMPLEMENTED | Browser-wallet UI connects, requests a signature, restores sessions, switches testnet and signs out on account/chain changes. Real HTTP signing/login passes; wallet-extension interaction still needs browser QA. | A01, browser QA |
 | A04 | IMPLEMENTED | Issue random two-minute Luanti credentials and read grants through a wallet-only auth mod. JS grant tests pass. Native legacy-hash/SRP compatibility, registration rejection and privilege behavior are unverified. | S02 |
 | A05 | TODO | End-to-end: two distinct wallets get different persistent characters; reconnect restores inventory; signature/ticket replay and expired grants are rejected; registration, password changes and privilege escalation fail. | B05, S04, A04 |
 | A06 | TODO | Decide whether logout should disconnect live gameplay; add revocation and bans without allowing reconnect after logout. Current logout revokes outstanding matching grants but does not kick an already-connected player. | A05 |
@@ -69,10 +69,10 @@ Start with Minetest Game for low complexity. Evaluate Mineclonia/VoxeLibre only 
 
 ## Resume order
 
-1. Restore local network/listener and Git permissions. Use only the authorized fine-grained credential limited to `cupOJoseph/minemine` through a temporary process environment or secure local credential storage; do not use general account-wide login.
-2. Run the foundation locally and execute `npm run test:http`; verify the wallet UI in an actual browser.
-3. Resolve upstream refs and read the pinned code before implementing the adapter/proxy. Use the manual WASM workflow for the first long build.
-4. Reach single-player browser gameplay, then native multiplayer, then wallet-gated multiplayer. Keep incomplete functionality disabled.
-5. Choose a hosting account and deploy the tested stack; only then integrate token spending/rewards.
+1. Finish the manual Linux WASM build and fix failures using its retained logs; preserve reviewed pins.
+2. Download the successful engine artifact and publish it through the manual Pages workflow with its numeric build run ID.
+3. Verify solo movement, digging, building, inventory, quit and saved reload at the final HTTPS URL; record startup/frame/memory measurements.
+4. Reach native multiplayer and then wallet-gated multiplayer. Agree a persistent Linux hosting budget before provisioning additional infrastructure.
+5. Execute local EVM tests, arrange an isolated testnet deployment and then integrate token spending/rewards. Keep incomplete functionality disabled.
 
 Milestone boundaries track completed behavior rather than calendar guesses. The first build and multiplayer compatibility spike should determine the engine schedule.

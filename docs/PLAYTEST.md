@@ -1,12 +1,12 @@
 # Browser playtest build
 
-Current status: the real engine compiled successfully on Linux in Actions run 39147984307 and was published by Pages run 39149469057. The experimental solo build is at https://cupojoseph.github.io/minemine/. Release 96f0d5d5fc25 contains a 13,926,500-byte WASM and 21,300,742 bytes of recorded assets. All downloaded asset hashes were checked locally; the public WASM also matches its manifest. Browser control disconnected after deployment, so actual gameplay and saved-world reload remain unverified. browserVerified remains false.
+Current status: the solo playtest works at https://cupojoseph.github.io/minemine/. The real engine compiled successfully in Actions run 39147984307. Release 96f0d5d5fc25 contains a 13,926,500-byte WASM and 21,300,742 bytes of recorded assets. Local asset hashes and the public WASM match the manifest. Startup, movement, mouse look, inventory, digging, building, clean exit and saved-world reload passed in Chromium on 2026-10-18 after correcting a reserved-name startup error. See VALIDATION.md for exact evidence and remaining QA.
 
 ## First playtest scope
 
 The first engine test is a small local creative world using the actual Luanti engine and Minetest Game. The starter inventory includes a steel pickaxe, dirt, wood, and torches. Browser storage is used when supported. Shared multiplayer, wallet-gated characters, and token rewards/spending remain separate milestones.
 
-The playtest launcher uses the downloaded upstream LuantiLauncher/LuantiArgs classes. It waits for engine readiness and the bundled game pack, supplies a fixed local world path, and passes no wallet credentials or URL passwords. External network proxies and the ContentDB endpoint are disabled. Singleplayer behavior without a proxy still needs to be tested in the real engine; this is not established by the adapter tests.
+The playtest launcher uses the downloaded upstream LuantiLauncher/LuantiArgs classes. It waits for engine readiness and the bundled game pack, supplies a fixed local world path, and passes no wallet credentials or URL passwords. External network proxies and the ContentDB endpoint are disabled. The real engine's singleplayer mode worked without a proxy. Leave the name argument empty: supplying a name selects local multiplayer, which rejects the reserved singleplayer name.
 
 ## Build on GitHub Actions
 
@@ -16,7 +16,7 @@ The WASM workflow is prepared for the exact source revision recorded in upstream
 2. Open Actions → Build Luanti browser playtest (experimental) → Run workflow.
 3. A successful run produces the miners-solo-playtest artifact. Failed builds retain diagnostic profile/CMake files when available.
 
-The Linux workflow installs Node 24, CMake, Tcl, wget, zstd, gettext, and other build tools. Upstream installs Emscripten 6.0.8 and its patches; this still needs a real compile. The former Node 22 workflow could not satisfy the inspected installer.
+The Linux workflow installs Node 24, CMake, Tcl, wget, zstd, gettext, and other build tools. Upstream installs Emscripten 6.0.8 and its patches; the real compile succeeded. The former Node 22 workflow could not satisfy the inspected installer.
 
 The build copies the pinned wrapper into an ignored runtime directory and patches that copy, preserving the downloaded checkout. Its default profile requests a 512 MiB initial heap with growth to at most 2 GiB and eight pre-created worker threads. The upstream settings were a 1,920 MiB initial heap and 22 workers. These are build configuration changes, not measured performance results. Runtime stability and memory growth must be tested.
 
@@ -38,7 +38,7 @@ For personal Vercel hosting, `node scripts/prepare-vercel-playtest.mjs` validate
 
 GitHub Pages is the other authorized host. The manual Publish Miners solo playtest workflow accepts a successful WASM build run ID and downloads only that repository's public build artifact. A value of 0 publishes a clearly labeled prerequisite check, with no engine or gameplay claim. Pages cannot set the required response headers directly; a pinned MIT-licensed coi-serviceworker is scoped to this project's path and applies COOP/COEP to fetched responses. Its credentialless fallback is disabled. The first visit can reload once, and its effectiveness must be verified in the real browser before relying on Pages. No wallets, backend credentials or world data are uploaded. Browser-saved worlds stay on the user's device.
 
-## Acceptance before sending a playtest link
+## Core smoke test and remaining QA
 
 - Real WASM compile succeeds; retain the compiler version and full build log.
 - All engine/game requests succeed and no third-party network proxy is contacted.
@@ -49,8 +49,8 @@ GitHub Pages is the other authorized host. The manual Publish Miners solo playte
 - Record hardware, browser version, cold/warm start duration, real game frame times, and memory.
 - Publish to HTTPS and repeat the core smoke test at the final URL.
 
-The artifact records browserVerified: false because packaging cannot establish those results. Do not convert that flag to true or call the playtest ready until the checks have been performed.
+The core gameplay smoke test above passed at the public URL. Unsupported-browser behavior, second-tab/storage-lock contention, performance measurements and extended stability remain additional QA. The artifact records browserVerified: false because packaging cannot establish browser behavior; consult VALIDATION.md for runtime results tied to a specific launcher revision.
 
 ## Current build status
 
-GitHub access was restored on 2026-10-18. After correcting fresh-checkout handling, libarchive cross-compilation, static libzip and fail-fast execution, run 39147984307 compiled and packaged the engine successfully. Its full build log is retained by GitHub and locally at runtime/wasm-build-39147984307.log. Published assets were checked after deployment. The remaining immediate gate is real browser gameplay QA; the computer/browser tool connection closed during that transition and its reset also failed. Terminal access recovered. Reconnect browser control to continue testing the already-deployed build; no additional GitHub or hosting scope is required.
+GitHub access was restored on 2026-10-18. After correcting fresh-checkout handling, libarchive cross-compilation, static libzip and fail-fast execution, run 39147984307 compiled and packaged the engine successfully. Its full build log is retained by GitHub and locally at runtime/wasm-build-39147984307.log. Browser control recovered and the core public gameplay/persistence smoke test passed. Launcher/configuration fixes can now be published against that engine artifact without recompiling WASM. No additional GitHub or hosting scope is required.

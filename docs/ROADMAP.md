@@ -19,12 +19,12 @@ Updated: 2026-10-18 UTC. `DONE` means the stated acceptance criteria have been c
 | B01 | DONE | Browser wrapper, official engine, and Minetest Game are locally downloaded with matching remotes and pinned HEADs. Nested source pins and major license files have been inspected. Complete binary license notices remain a release gate. | — |
 | B02 | DONE | Linux Actions run 39147984307 produced the real engine/game bundle, build profile, checksums and initial license notices. Emscripten 6.0.8 compiler identity and the full build log are retained. Complete dependency/license release review remains B03. | B01 |
 | B03 | TODO | Review bundled OpenSSL/curl/libarchive versions; update or explicitly justify each exposed dependency. Rebuild with compatible patches and run dependency scanning. | B01 |
-| B04 | IN PROGRESS | Actual engine release 96f0d5d5fc25 is published on Pages; public WASM hash matches. Prerequisite checks passed in Chromium. Browser control disconnected before world creation/walking/digging/placing/save tests; reconnect it to finish QA. | B02 |
+| B04 | CORE PASSED | Actual release 96f0d5d5fc25 is published on Pages. Startup crash fixed; movement, mouse look, starter inventory, digging, placement, clean exit and saved-world reload passed in Chromium. Extended stability, storage-lock and cross-browser QA remain. | B02 |
 | B05 | TODO | Add a version-specific same-origin adapter implementing `launch({container, ticket})`. Inspect upstream `setConf`/launch API and credential handling. No passwords in URLs, IndexedDB, localStorage, console, or analytics. | B04 |
 | B06 | TODO | Capture initial download size, decompression/compile time, peak memory, FPS/frame-time percentiles, and first controllable frame on specified hardware. | B04 |
 | B07 | TODO | Tune viewing range, textures, shaders, chunk queues, caching, and compression based on B06. Regression benchmarks must improve measured bottlenecks. | B06 |
 
-The first solo playtest path is implemented: `playtest/session.mjs` uses the inspected upstream API; `scripts/pack-game.mjs` exports the pinned game plus starter inventory/world metadata; staging records binary hashes and build provenance. Linux Actions uses Node 24 and the inspected toolchain. Initial heap/worker configuration is reduced in a separate build copy; performance is unmeasured. GitHub connectivity and public Pages hosting now work. See [PLAYTEST.md](PLAYTEST.md) and [VALIDATION.md](VALIDATION.md) for build failures, corrections and the verified public prerequisite check. The public page is not yet gameplay.
+The first solo playtest works: `playtest/session.mjs` uses the inspected upstream API; `scripts/pack-game.mjs` exports the pinned game plus starter inventory/world metadata; staging records binary hashes and build provenance. Linux Actions uses Node 24 and the inspected toolchain. Initial heap/worker configuration is reduced in a separate build copy; performance benchmarking remains pending. See [PLAYTEST.md](PLAYTEST.md) and [VALIDATION.md](VALIDATION.md) for build/startup corrections and verified public gameplay.
 
 Start with Minetest Game for low complexity. Evaluate Mineclonia/VoxeLibre only after the same engine, network, and auth smoke tests pass with a small game. Record game licensing, load sizes, and content downloads separately from engine performance.
 
@@ -69,10 +69,10 @@ Start with Minetest Game for low complexity. Evaluate Mineclonia/VoxeLibre only 
 
 ## Resume order
 
-1. Reconnect browser control; the engine is already compiled, downloaded and published. Do not rebuild just to resume QA.
-2. Verify solo movement, digging, building, inventory, quit and saved reload at https://cupojoseph.github.io/minemine/; use console logs to diagnose real failures. Keep browserVerified false until those checks pass.
+1. Keep the working solo playtest available at https://cupojoseph.github.io/minemine/. Core gameplay and persisted edits passed; do not rebuild just to resume QA.
+2. Finish storage-lock contention, extended stability and cross-browser checks. Preserve visible failure diagnostics.
 3. Record startup/frame/memory measurements and resolve dependency/license release review.
 4. Reach native multiplayer and then wallet-gated multiplayer. Agree a persistent Linux hosting budget before provisioning additional infrastructure.
-5. Execute local EVM tests, arrange an isolated testnet deployment and then integrate token spending/rewards. Keep incomplete functionality disabled.
+5. Local EVM tests already pass. Arrange an isolated testnet deployment and then integrate token spending/rewards. Keep incomplete functionality disabled.
 
 Milestone boundaries track completed behavior rather than calendar guesses. The first build and multiplayer compatibility spike should determine the engine schedule.

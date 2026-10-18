@@ -2,11 +2,11 @@
 
 A browser-first Luanti (formerly Minetest) project with Ethereum wallet identity and an ERC-20 game-currency prototype.
 
-**Status: compiled experimental build; gameplay verification pending.** Source is pushed to [cupOJoseph/minemine](https://github.com/cupOJoseph/minemine), foundation CI passes, and the Linux WASM build succeeded. The browser wrapper, official engine, and Minetest Game are pinned. No multiplayer server is online and no public token is deployed.
+**Status: solo browser playtest working.** Source is pushed to [cupOJoseph/minemine](https://github.com/cupOJoseph/minemine), foundation CI passes, and the Linux WASM build succeeded. The browser wrapper, official engine, and Minetest Game are pinned. No multiplayer server is online and no public token is deployed.
 
-The [experimental solo build](https://cupojoseph.github.io/minemine/) now contains the actual compiled engine and bundled game. Its published WASM matches the build's SHA-256 hash. The [compatibility check](https://cupojoseph.github.io/minemine/compatibility.html) previously passed isolation, shared memory, JSPI and WebGL 2 in Chromium. Browser control disconnected after deployment, before gameplay QA: movement, digging, building and saved-world reload remain unverified. The build manifest deliberately retains browserVerified: false.
+The [solo playtest](https://cupojoseph.github.io/minemine/) runs the actual compiled engine and bundled game. Movement, inventory, digging, placement, clean exit and saved-world reload passed in the in-app Chromium browser on 2026-10-18. The reserved-name startup failure is fixed. Its published WASM matches the build's SHA-256 hash. Performance benchmarking, other browsers and extended QA remain pending; see [the validation record](docs/VALIDATION.md). The build-time browserVerified flag remains false because packaging itself does not execute browser QA.
 
-See [the first browser playtest build](docs/PLAYTEST.md) for the prepared Linux workflow, bundle contents, and checks required before a playable link can be sent.
+See [the first browser playtest build](docs/PLAYTEST.md) for controls, the Linux workflow, bundle contents and remaining checks.
 
 ## What exists
 

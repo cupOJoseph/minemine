@@ -89,7 +89,7 @@ jobs:
           set -euo pipefail
           (cd vendor/native && bin/luantiserver --info --world "$GITHUB_WORKSPACE/runtime/native-world" --config "$GITHUB_WORKSPACE/game/minetest.conf" --logfile "$GITHUB_WORKSPACE/runtime/browser-native-engine.log") > runtime/browser-native.log 2>&1 &
           native_pid=$!
-          GAME_ENABLED=true ENGINE_ADAPTER_READY=true WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" node server/index.mjs > runtime/browser-api.log 2>&1 &
+          GAME_ENABLED=true ENGINE_ADAPTER_READY=true DEBUG_GAME_PROXY=true WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" node server/index.mjs > runtime/browser-api.log 2>&1 &
           api_pid=$!
           trap 'kill "$native_pid" "$api_pid" 2>/dev/null || true' EXIT
           for attempt in {1..30}; do

@@ -7,6 +7,8 @@ const MAGIC = 0x778b4cf6;
 const HEADER = 24;
 const MAX_FRAME = HEADER + 65507;
 const ASSIGNMENT_MS = 5 * 60_000;
+const MAX_BUFFERED_BYTES = 8 * 1024 * 1024;
+const MAX_CONNECTIONS = 64;
 // The browser's virtual destination is distinct from the private UDP target.
 // Webshims handles 127.0.0.1 within the browser and never sends it to us.
 const VIRTUAL_GAME_ADDRESS = Buffer.from([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 10, 0, 0, 1]);
@@ -43,7 +45,7 @@ export function attachGameProxy(server, config, tokenFromRequest, activeToken) {
     let trafficPackets = 0;
     let trafficBytes = 0;
     const peers = connections.get(token) || new Set();
-    if (peers.size >= 16 || wss.clients.size > 512) return ws.close(1008, 'Too many game connections');
+    if (peers.size >= 16 || wss.clients.size > MAX_CONNECTIONS) return ws.close(1008, 'Too many game connections');
     peers.add(ws);
     connections.set(token, peers);
     ws.on('pong', () => { lastPong = Date.now(); });
@@ -76,7 +78,7 @@ export function attachGameProxy(server, config, tokenFromRequest, activeToken) {
         udp.on('error', () => ws.close(1011, 'Game socket error'));
         udp.on('message', packet => {
           if (ws.readyState !== WebSocket.OPEN || packet.length > 65507) return;
-          if (ws.bufferedAmount > 2_000_000) return ws.close(1009, 'Slow game connection');
+          if (ws.bufferedAmount > MAX_BUFFERED_BYTES) return ws.close(1009, 'Slow game connection');
           const frame = Buffer.allocUnsafe(HEADER + packet.length);
           frame.writeUInt32BE(MAGIC, 0);
           VIRTUAL_GAME_ADDRESS.copy(frame, 4);
@@ -102,7 +104,8 @@ export function attachGameProxy(server, config, tokenFromRequest, activeToken) {
       if (trafficPackets > 400 || trafficBytes > 512 * 1024) return ws.close(1008, 'Game traffic limit');
       udp.send(message.subarray(HEADER));
     });
-    ws.on('close', () => {
+    ws.on('close', (code, reason) => {
+      if (process.env.DEBUG_GAME_PROXY === 'true') console.log('Game proxy link closed:', { code, reason: reason.toString(), bound: Boolean(bound), bufferedBytes: ws.bufferedAmount, ingressPackets: trafficPackets, ingressBytes: trafficBytes });
       peers.delete(ws);
       if (!peers.size) connections.delete(token);
       if (udp) udp.close();

@@ -8,6 +8,7 @@ import { chromium } from 'playwright';
 const origin = process.env.PUBLIC_ORIGIN || 'http://localhost:3000';
 const logPath = process.env.NATIVE_LOG || 'runtime/browser-native.log';
 const artifacts = process.env.BROWSER_ARTIFACTS || 'runtime/browser-artifacts';
+const worldDir = process.env.WORLD_DIR || 'runtime/native-world';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function signedSession(wallet) {
@@ -94,6 +95,12 @@ try {
   const secondSigned = await signedSession(secondWallet);
   secondSession = secondSigned.session;
   assert.notEqual(secondSession.playerName, session.playerName, 'distinct wallets need distinct characters');
+  for (const character of [session, secondSession]) {
+    await writeFile(path.join(worldDir, 'town_quotas', `${character.playerName}.json`),
+      JSON.stringify({ name: character.playerName, blocks: 9 }), { mode: 0o600 });
+  }
+  await writeFile(path.join(worldDir, 'town-probe-config.json'),
+    JSON.stringify({ owner: session.playerName, guest: secondSession.playerName }), { mode: 0o600 });
   secondContext = await browser.newContext({ viewport: { width: 1280, height: 720 } });
   const [secondName, secondValue] = secondSigned.cookie.split('=');
   await secondContext.addCookies([{ name: secondName, value: secondValue, url: origin, httpOnly: true, sameSite: 'Strict' }]);
@@ -106,6 +113,13 @@ try {
   if (!new RegExp(`${session.playerName} \\[.*\\] joins game\\.`).test(log)) throw new Error(`Native join absent for ${session.playerName}.`);
   if (!new RegExp(`${secondSession.playerName} \\[.*\\] joins game\\.`).test(log)) throw new Error(`Native join absent for ${secondSession.playerName}.`);
   assert.equal(page.isClosed(), false, 'first browser remains open while second joins');
+  let townProbe = '';
+  for (let attempt = 0; attempt < 30; attempt++) {
+    townProbe = await readFile(path.join(worldDir, 'town-probe-result.txt'), 'utf8').catch(() => '');
+    if (townProbe) break;
+    await sleep(1000);
+  }
+  assert.match(townProbe, /^PASS /, `native town probe failed: ${townProbe || 'no result'}`);
   assert.equal(errors.length, 0, `browser console errors: ${errors.join(' | ')}`);
   assert.equal(leakedCredential, false, 'browser console exposed the short-lived game credential');
 } catch (error) {
@@ -119,12 +133,12 @@ try {
     await failedPage.screenshot({ path: artifacts + '/failure.png' }).catch(() => {});
   }
   const nativeLog = await readFile(logPath, 'utf8').catch(() => '');
-  const grantsDir = process.env.WORLD_DIR || 'runtime/native-world';
-  const grantRaw = await readFile(path.join(grantsDir, 'wallet_grants', `${session?.playerName}.json`), 'utf8').catch(() => '');
+  const grantRaw = await readFile(path.join(worldDir, 'wallet_grants', `${session?.playerName}.json`), 'utf8').catch(() => '');
   const grant = grantRaw ? JSON.parse(grantRaw) : null;
   const expectedHash = ticketSecrets[0] ? createHash('sha1').update(session.playerName + ticketSecrets[0]).digest('base64').replace(/=+$/, '') : null;
   const grantHashMatches = Boolean(grant && expectedHash && grant.password_hash === expectedHash);
-  await writeFile(artifacts + '/diagnostics.json', JSON.stringify({ error: redact(error.message), events, grantExists: Boolean(grant), ticketCaptured: ticketSecrets.length > 0, grantHashMatches, nativeTail: nativeLog.slice(-5000) }, null, 2));
+  const townProbe = await readFile(path.join(worldDir, 'town-probe-result.txt'), 'utf8').catch(() => '');
+  await writeFile(artifacts + '/diagnostics.json', JSON.stringify({ error: redact(error.message), events, grantExists: Boolean(grant), ticketCaptured: ticketSecrets.length > 0, grantHashMatches, townProbe, nativeTail: nativeLog.slice(-5000) }, null, 2));
   console.error('Browser diagnostics:', JSON.stringify(events));
   throw error;
 } finally {

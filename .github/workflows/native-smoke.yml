@@ -8,6 +8,7 @@ on:
       - 'server/**'
       - 'playtest/**'
       - 'test/integration/browser-native.mjs'
+      - 'test/integration/town_probe/**'
       - 'scripts/setup-world.mjs'
       - 'upstream.sources.json'
 permissions:
@@ -90,6 +91,8 @@ jobs:
       - name: Two browser wallets join native world
         run: |
           set -euo pipefail
+          cp -a test/integration/town_probe runtime/native-world/worldmods/town_probe
+          printf '\nload_mod_town_probe = true\n' >> runtime/native-world/world.mt
           (cd vendor/native && bin/luantiserver --info --world "$GITHUB_WORKSPACE/runtime/native-world" --config "$GITHUB_WORKSPACE/game/minetest.conf" --logfile "$GITHUB_WORKSPACE/runtime/browser-native-engine.log") > runtime/browser-native.log 2>&1 &
           native_pid=$!
           GAME_ENABLED=true ENGINE_ADAPTER_READY=true DEBUG_GAME_PROXY=true WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" node server/index.mjs > runtime/browser-api.log 2>&1 &
@@ -99,7 +102,7 @@ jobs:
             if curl -fsS http://localhost:3000/api/health > /dev/null; then break; fi
             sleep 1
           done
-          NATIVE_LOG=runtime/browser-native.log node test/integration/browser-native.mjs
+          WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" NATIVE_LOG=runtime/browser-native.log node test/integration/browser-native.mjs
       - name: Retain native startup diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -114,5 +117,6 @@ jobs:
             runtime/browser-native.log
             runtime/browser-native-engine.log
             runtime/browser-api.log
+            runtime/native-world/town-probe-result.txt
             runtime/browser-artifacts/
           if-no-files-found: ignore

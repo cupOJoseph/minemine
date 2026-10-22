@@ -9,6 +9,7 @@ on:
       - 'upstream.sources.json'
 permissions:
   contents: read
+  actions: read
 jobs:
   native:
     runs-on: ubuntu-22.04
@@ -69,6 +70,33 @@ jobs:
             echo 'Restored world logged an error.'
             exit 1
           fi
+      - name: Install browser test dependencies
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: miners-solo-playtest
+          github-token: ${{ github.token }}
+          run-id: '39147984307'
+          path: runtime/downloaded-build
+      - name: Stage pinned browser engine and adapter
+        run: |
+          cp -a runtime/downloaded-build/public/engine public/engine
+          npm run adapter:install
+      - name: Browser joins native wallet world
+        run: |
+          set -euo pipefail
+          (cd vendor/native && bin/luantiserver --info --world "$GITHUB_WORKSPACE/runtime/native-world" --config "$GITHUB_WORKSPACE/game/minetest.conf" --logfile "$GITHUB_WORKSPACE/runtime/browser-native-engine.log") > runtime/browser-native.log 2>&1 &
+          native_pid=$!
+          GAME_ENABLED=true ENGINE_ADAPTER_READY=true WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" node server/index.mjs > runtime/browser-api.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$native_pid" "$api_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl -fsS http://localhost:3000/api/health > /dev/null; then break; fi
+            sleep 1
+          done
+          NATIVE_LOG=runtime/browser-native.log node test/integration/browser-native.mjs
       - name: Retain native startup diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -80,4 +108,8 @@ jobs:
             runtime/restore-smoke.log
             runtime/restore-console.log
             runtime/native-world/debug.txt
+            runtime/browser-native.log
+            runtime/browser-native-engine.log
+            runtime/browser-api.log
+            runtime/browser-artifacts/
           if-no-files-found: ignore

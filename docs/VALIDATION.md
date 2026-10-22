@@ -1,5 +1,11 @@
 # Validation record
 
+## Invited member browser edits and removal — 2026-10-22 EDT
+
+[Actions run 39839625595](https://github.com/cupOJoseph/minemine/actions/runs/39839625595) passed the pinned Luanti and two-wallet Chromium workflow. After the outsider's browser dig/place was denied and the owner's browser place/dig was allowed, the CI-only probe reinvited the second wallet to the same nine-column town. The browser client placed `default:wood` at `(1,20,0)` and dug it there; the native log and retained `town-packet-member-place-result.txt` and `town-packet-member-dig-result.txt` both report PASS. The probe then removed that wallet from the town. Its next browser placement reached Luanti at the same `(1,20,0)` target, logged a protected-position denial, and left the node air; `town-packet-removed-place-result.txt` reports PASS. The run also passed wallet reconnect and a clean Luanti/Node restart that retained inventory, the claim, and a separate owner-placed node.
+
+The town quota was written as a controlled CI fixture. This run verifies browser packet authorization and revocation in a local native world; it does not verify a confirmed MINE purchase, a public host, overlapping claims, or interactions from other mods.
+
 ## In-game observed MINE balance — 2026-10-22 EDT
 
 The local Anvil HTTP/EVM suite passed nine tests after a real MINE deployment. An authenticated `POST /api/currency/sync` read the connected wallet's balance at a fresh block, wrote a 0600 world snapshot with the matching wallet, token, chain, raw amount, formatted amount, block and 60-second expiry, and returned the observed value. An unauthenticated sync was rejected; a wrong-chain RPC wrote no snapshot. The 29 source tests also passed. [Actions run 39835786761](https://github.com/cupOJoseph/minemine/actions/runs/39835786761) passed the pinned native server and two-wallet Chromium smoke test. Its `town-probe-result.txt` says PASS; that CI-only probe calls `/wallet balance` in Luanti and asserts the missing, current and expired snapshot cases. The retained run also passed outsider browser dig/place denial, owner browser dig/place, wallet reconnect, and native/Node restart.

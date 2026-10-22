@@ -13,7 +13,7 @@ MineMine is a browser-first voxel crafting MMO project built on Luanti (formerly
 | MINE ERC-20 | Fixed-supply source and local-EVM transfers tested; no public token deployed |
 | In-game MINE balance | Wallet-panel refresh makes a fresh authenticated chain read; `/wallet balance` displays its short-lived private snapshot with chain and block. This observed balance cannot be spent as town credit. The native command passed CI with a synthetic snapshot; live testnet QA remains. |
 | Wallet transfers | Direct browser-wallet transaction UI implemented; needs deployed testnet token and browser-wallet QA |
-| Town protection | Payment contract and confirmed quota sync implemented; a quota fixture passed two-wallet native dig/place handler, member, browser outsider denial, owner browser dig/place, and restart checks. Live paid claims and invited-member browser edits remain |
+| Town protection | Payment contract and confirmed quota sync implemented; a quota fixture passed two-wallet native and browser protection checks. The browser denied outsider dig/place, allowed owner and invited-member dig/place, and denied member placement after removal. Live paid claims and public-host QA remain |
 | SpacetimeDB | [Migration plan](docs/SPACETIMEDB.md) for the next scaling phase; not yet integrated |
 
 The landing page distinguishes playable features from planned ones and uses two actual playtest captures plus an attributed Minetest Game screenshot. The large Play Now link starts solo mode without a wallet.

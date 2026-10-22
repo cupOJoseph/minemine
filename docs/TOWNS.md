@@ -1,6 +1,6 @@
 # Town land credits and protection protocol
 
-Status: **local-EVM contract and API verified; Luanti mod integration unverified**. This is a Sepolia/local-chain prototype, not a mainnet economy. A purchased “block” means one **x/z land column protected at every height**. A town owner can combine purchases to claim multiple square areas. The contract uses a one-time, non-refundable price chosen at deployment. Price, treasury, token allocation, and permanence need a game-economy review before any real-value launch.
+Status: **local-EVM contract and API verified; fixture-backed Luanti owner, outsider, and member browser edits verified**. [Native run 39839625595](https://github.com/cupOJoseph/minemine/actions/runs/39839625595) proved that a claimed world denied an outsider's browser dig/place, accepted the owner's and invited member's browser dig/place, and denied that member's placement after removal. Inventory and claim state survived a clean Luanti/Node restart. The credits came from a CI fixture, not a token purchase. This is a Sepolia/local-chain prototype, not a mainnet economy. A purchased “block” means one **x/z land column protected at every height**. A town owner can combine purchases to claim multiple square areas. The contract uses a one-time, non-refundable price chosen at deployment. Price, treasury, token allocation, and permanence need a game-economy review before any real-value launch.
 
 ## Data flow
 
@@ -31,12 +31,12 @@ The owner creates one town with `/town create <name>`, then stands at a desired 
 
 `/town info` shows protected and purchased columns. `/town invite <wallet player name>` creates an invitation; the invited player uses `/town accept <owner wallet player name>`. Owners use `/town kick <member>`; members use `/town leave`. A player belongs to at most one town. Membership lets players build within the town but never bypasses another mod's protection.
 
-The mod is installed by `node scripts/setup-world.mjs` in a **new** development world alongside `wallet_auth`. For an existing world, review and copy the mod manually, enable `load_mod_town_claims = true`, and back up `world.mt`, mod storage, and world data first. Node and Luanti must share `WORLD_DIR` privately under a dedicated user. Neither `wallet_grants` nor `town_quotas` belongs in a public web root. Keep Luanti mod security enabled.
+The mod is installed by `node scripts/setup-world.mjs` in a **new** development world alongside `wallet_auth`. For an existing world, review and copy the mod manually, enable `load_mod_town_claims = true`, and back up `world.mt`, mod storage, and world data first. Node and Luanti must share `WORLD_DIR` privately under a dedicated user. `wallet_grants`, `wallet_balances`, and `town_quotas` must stay outside the public web root. Keep Luanti mod security enabled.
 
 ## Verification still required
 
-- Run the Lua mod in the pinned native engine and check protection for digging, placing, formspec interactions, bucket/liquid behavior, explosions, pistons/machines, and other mods. `core.is_protected` covers standard protection-aware actions; custom mods may need their own checks.
-- Test two wallets buying credits, creating towns, inviting a member, overlapping claims, reconnecting, saving/reloading, and quota sync after a real Sepolia purchase.
+- Check formspec interactions, bucket/liquid behavior, explosions, pistons/machines, and other mods. `core.is_protected` covers standard protection-aware actions; custom mods may need their own checks.
+- Test two wallets buying credits on Sepolia and syncing confirmed quotas into the native world, then repeat town creation, member access, overlap checks, reconnect, and save/reload against those purchased credits.
 - Confirm the wallet UI handles approval success, purchase failure, page close, changed wallet account, and delayed confirmations without claiming success early.
 - Review treasury custody, price, refund policy, land scarcity, anti-griefing, moderation, and contract security before real-value deployment.
 

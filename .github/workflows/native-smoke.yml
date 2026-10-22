@@ -105,15 +105,25 @@ jobs:
           done
           WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" NATIVE_LOG=runtime/browser-native.log node test/integration/browser-native.mjs
           kill -TERM "$native_pid"
+          kill -TERM "$api_pid"
           wait "$native_pid"
+          wait "$api_pid"
           (cd vendor/native && exec bin/luantiserver --info --world "$GITHUB_WORKSPACE/runtime/native-world" --config "$GITHUB_WORKSPACE/game/minetest.conf" --logfile "$GITHUB_WORKSPACE/runtime/browser-native-restart-engine.log") > runtime/browser-native-restart.log 2>&1 &
           native_pid=$!
+          GAME_ENABLED=true ENGINE_ADAPTER_READY=true DEBUG_GAME_PROXY=true WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" node server/index.mjs > runtime/browser-api-restart.log 2>&1 &
+          api_pid=$!
           for attempt in {1..30}; do
             if grep -Fq 'listening on 127.0.0.1:30000' runtime/browser-native-restart.log; then break; fi
             if ! kill -0 "$native_pid" 2>/dev/null; then cat runtime/browser-native-restart.log; exit 1; fi
             sleep 1
           done
           grep -Fq 'listening on 127.0.0.1:30000' runtime/browser-native-restart.log
+          for attempt in {1..30}; do
+            if curl -fsS http://localhost:3000/api/health > /dev/null; then break; fi
+            if ! kill -0 "$api_pid" 2>/dev/null; then cat runtime/browser-api-restart.log; exit 1; fi
+            sleep 1
+          done
+          curl -fsS http://localhost:3000/api/health > /dev/null
           WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" NATIVE_LOG=runtime/browser-native-restart.log node test/integration/browser-native-restart.mjs
       - name: Retain native startup diagnostics
         if: always()
@@ -129,6 +139,7 @@ jobs:
             runtime/browser-native.log
             runtime/browser-native-engine.log
             runtime/browser-api.log
+            runtime/browser-api-restart.log
             runtime/browser-native-restart.log
             runtime/browser-native-restart-engine.log
             runtime/native-world/town-probe-result.txt

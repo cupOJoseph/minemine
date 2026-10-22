@@ -253,6 +253,44 @@ try {
   }
   assert.match(ownerPlace, /^PASS /, `owner browser place packet did not edit own claim: ${ownerPlace || 'no result'}`);
 
+  await writeFile(path.join(worldDir, 'town-packet-owner-dig-arm.txt'), 'dig\n', { mode: 0o600 });
+  let ownerDigReady = '';
+  for (let attempt = 0; attempt < 30; attempt++) {
+    ownerDigReady = await readFile(path.join(worldDir, 'town-packet-owner-dig-ready.txt'), 'utf8').catch(() => '');
+    if (ownerDigReady) break;
+    await sleep(500);
+  }
+  assert.match(ownerDigReady, /^PASS /, `native owner-dig target failed: ${ownerDigReady || 'no result'}`);
+  await sleep(2500);
+  await writeFile(path.join(worldDir, 'town-packet-owner-dig-aim.txt'), 'aim\n', { mode: 0o600 });
+  let ownerDigAimReady = '';
+  for (let attempt = 0; attempt < 30; attempt++) {
+    ownerDigAimReady = await readFile(path.join(worldDir, 'town-packet-owner-dig-aim-ready.txt'), 'utf8').catch(() => '');
+    if (ownerDigAimReady) break;
+    await sleep(500);
+  }
+  assert.match(ownerDigAimReady, /^PASS /, `owner dig camera reset failed: ${ownerDigAimReady || 'no result'}`);
+  await sleep(2000);
+  let ownerDig = await readFile(path.join(worldDir, 'town-packet-owner-dig-result.txt'), 'utf8').catch(() => '');
+  for (let attempt = 0; attempt < 3 && !ownerDig; attempt++) {
+    await page.mouse.down({ button: 'left' });
+    if (attempt === 0) {
+      await writeFile(path.join(worldDir, 'town-packet-owner-dig-reaim.txt'), 'aim\n', { mode: 0o600 });
+      let ownerDigReaimReady = '';
+      for (let check = 0; check < 30; check++) {
+        ownerDigReaimReady = await readFile(path.join(worldDir, 'town-packet-owner-dig-reaim-ready.txt'), 'utf8').catch(() => '');
+        if (ownerDigReaimReady) break;
+        await sleep(500);
+      }
+      assert.match(ownerDigReaimReady, /^PASS /, `held owner-dig camera reset failed: ${ownerDigReaimReady || 'no result'}`);
+    }
+    await sleep(2500);
+    await page.mouse.up({ button: 'left' });
+    await sleep(1000);
+    ownerDig = await readFile(path.join(worldDir, 'town-packet-owner-dig-result.txt'), 'utf8').catch(() => '');
+  }
+  assert.match(ownerDig, /^PASS /, `owner browser dig packet did not edit own claim: ${ownerDig || 'no result'}`);
+
   await page.close();
   let disconnected = false;
   for (let attempt = 0; attempt < 45; attempt++) {
@@ -312,8 +350,12 @@ try {
   const ownerPlaceReady = await readFile(path.join(worldDir, 'town-packet-owner-place-ready.txt'), 'utf8').catch(() => '');
   const ownerPlaceAimReady = await readFile(path.join(worldDir, 'town-packet-owner-place-aim-ready.txt'), 'utf8').catch(() => '');
   const ownerPlace = await readFile(path.join(worldDir, 'town-packet-owner-place-result.txt'), 'utf8').catch(() => '');
+  const ownerDigReady = await readFile(path.join(worldDir, 'town-packet-owner-dig-ready.txt'), 'utf8').catch(() => '');
+  const ownerDigAimReady = await readFile(path.join(worldDir, 'town-packet-owner-dig-aim-ready.txt'), 'utf8').catch(() => '');
+  const ownerDigReaimReady = await readFile(path.join(worldDir, 'town-packet-owner-dig-reaim-ready.txt'), 'utf8').catch(() => '');
+  const ownerDig = await readFile(path.join(worldDir, 'town-packet-owner-dig-result.txt'), 'utf8').catch(() => '');
   const packetDebug = await readFile(path.join(worldDir, 'town-packet-debug.json'), 'utf8').catch(() => '');
-  await writeFile(artifacts + '/diagnostics.json', JSON.stringify({ error: redact(error.message), events, grantExists: Boolean(grant), ticketCaptured: ticketSecrets.length > 0, grantHashMatches, townProbe, reconnectProbe, packetReady, aimReady, reaimReady, packetDig, placeReady, placeAimReady, packetPlace, ownerPlaceReady, ownerPlaceAimReady, ownerPlace, packetDebug, nativeTail: nativeLog.slice(-5000) }, null, 2));
+  await writeFile(artifacts + '/diagnostics.json', JSON.stringify({ error: redact(error.message), events, grantExists: Boolean(grant), ticketCaptured: ticketSecrets.length > 0, grantHashMatches, townProbe, reconnectProbe, packetReady, aimReady, reaimReady, packetDig, placeReady, placeAimReady, packetPlace, ownerPlaceReady, ownerPlaceAimReady, ownerPlace, ownerDigReady, ownerDigAimReady, ownerDigReaimReady, ownerDig, packetDebug, nativeTail: nativeLog.slice(-5000) }, null, 2));
   console.error('Browser diagnostics:', JSON.stringify(events));
   throw error;
 } finally {

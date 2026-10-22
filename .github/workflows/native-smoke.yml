@@ -156,5 +156,9 @@ jobs:
             runtime/native-world/town-packet-owner-place-ready.txt
             runtime/native-world/town-packet-owner-place-aim-ready.txt
             runtime/native-world/town-packet-owner-place-result.txt
+            runtime/native-world/town-packet-owner-dig-ready.txt
+            runtime/native-world/town-packet-owner-dig-aim-ready.txt
+            runtime/native-world/town-packet-owner-dig-reaim-ready.txt
+            runtime/native-world/town-packet-owner-dig-result.txt
             runtime/browser-artifacts/
           if-no-files-found: ignore

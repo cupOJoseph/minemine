@@ -8,6 +8,7 @@ local owner_left = false
 local packet_pos, packet_guest, packet_ready, packet_aimed, packet_reaimed, packet_done
 local packet_phase, packet_place_ready, packet_place_aimed, packet_place_done
 local owner_place_ready, owner_place_aimed, owner_place_done
+local owner_dig_ready, owner_dig_aimed, owner_dig_reaimed, owner_dig_done
 
 local function write_result(filename, status, ok)
     local file = assert(io.open(world .. "/" .. filename, "w"))
@@ -167,6 +168,16 @@ core.register_on_placenode(function(pos, node, player)
             or "FAIL owner browser place did not create wood", placed)
 end)
 
+core.register_on_dignode(function(pos, node, player)
+    if not owner_dig_ready or owner_dig_done or not player or player:get_player_name() ~= owner_name then return end
+    if pos.x ~= packet_pos.x or pos.y ~= packet_pos.y or pos.z ~= packet_pos.z then return end
+    owner_dig_done = true
+    local removed = node.name == "default:wood" and core.get_node(pos).name == "air"
+    write_result("town-packet-owner-dig-result.txt",
+        removed and "PASS owner browser dig removed own claimed node"
+            or "FAIL owner browser dig did not remove wood", removed)
+end)
+
 local packet_elapsed = 0
 core.register_globalstep(function(dtime)
     if not finished or packet_ready then return end
@@ -301,6 +312,48 @@ core.register_globalstep(function()
     owner:set_look_horizontal(math.pi / 2)
     owner:set_look_vertical(0)
     write_result("town-packet-owner-place-aim-ready.txt", "PASS owner browser camera aimed at claimed place target", true)
+end)
+
+core.register_globalstep(function()
+    if not owner_place_done or owner_dig_ready then return end
+    local arm = io.open(world .. "/town-packet-owner-dig-arm.txt", "r")
+    if not arm then return end
+    arm:close()
+    owner_dig_ready = true
+    local ok, result = pcall(function()
+        local owner = core.get_player_by_name(owner_name)
+        check(owner ~= nil, "owner disconnected before browser dig probe")
+        check(core.get_node(packet_pos).name == "default:wood", "owner place target missing before browser dig")
+        check(owner:set_wielded_item("default:axe_steel"), "could not equip owner steel axe")
+        return "PASS owner browser dig target armed"
+    end)
+    write_result("town-packet-owner-dig-ready.txt", ok and result or "FAIL " .. tostring(result), ok)
+end)
+
+core.register_globalstep(function()
+    if not owner_dig_ready or owner_dig_aimed then return end
+    local arm = io.open(world .. "/town-packet-owner-dig-aim.txt", "r")
+    if not arm then return end
+    arm:close()
+    owner_dig_aimed = true
+    local owner = core.get_player_by_name(owner_name)
+    if not owner then return end
+    owner:set_look_horizontal(math.pi / 2)
+    owner:set_look_vertical(0)
+    write_result("town-packet-owner-dig-aim-ready.txt", "PASS owner browser camera aimed at claimed dig target", true)
+end)
+
+core.register_globalstep(function()
+    if not owner_dig_aimed or owner_dig_reaimed then return end
+    local arm = io.open(world .. "/town-packet-owner-dig-reaim.txt", "r")
+    if not arm then return end
+    arm:close()
+    owner_dig_reaimed = true
+    local owner = core.get_player_by_name(owner_name)
+    if not owner then return end
+    owner:set_look_horizontal(math.pi / 2)
+    owner:set_look_vertical(0)
+    write_result("town-packet-owner-dig-reaim-ready.txt", "PASS owner browser camera reset during held dig", true)
 end)
 
 core.register_globalstep(function()

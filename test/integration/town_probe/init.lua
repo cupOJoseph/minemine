@@ -227,9 +227,13 @@ core.register_globalstep(function()
         for dy = -1, 1 do
             for dz = -1, 1 do
                 core.set_node({ x = packet_pos.x, y = packet_pos.y + dy, z = packet_pos.z + dz }, { name = "air" })
-                core.set_node({ x = packet_pos.x - 1, y = packet_pos.y + dy, z = packet_pos.z + dz }, { name = "default:stone" })
+                if dy ~= 0 or dz ~= 0 then
+                    core.set_node({ x = packet_pos.x - 1, y = packet_pos.y + dy, z = packet_pos.z + dz }, { name = "default:stone" })
+                end
             end
         end
+        check(core.get_node({ x = packet_pos.x - 1, y = packet_pos.y, z = packet_pos.z }).name == "default:wood",
+            "owner's persisted wood backing was unexpectedly changed")
         check(guest:set_wielded_item("default:wood 3"), "could not equip outsider placeable block")
         packet_phase = "place"
         return "PASS protected browser place target armed"

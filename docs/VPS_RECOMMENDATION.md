@@ -22,7 +22,7 @@ DigitalOcean's [spend alerts](https://docs.digitalocean.com/platform/billing/spe
 
 ## Prepared host configuration
 
-The repository includes a [Caddyfile example](../deploy/vps/Caddyfile.example) and separate [web](../deploy/vps/minemine-web.service) and [native](../deploy/vps/minemine-native.service) systemd units. They assume an Ubuntu VM with a dedicated `minemine` user, the reviewed checkout at `/srv/minemine/app`, the world at `/srv/minemine/world`, Node 24 at `/usr/bin/node`, and the pinned run-in-place Luanti binary at `/srv/minemine/app/vendor/native/bin/luantiserver`. The current [native CI workflow](../.github/workflows/native-smoke.yml) shows the tested Linux build commands. These templates have not been run on a public host.
+The repository includes a [Caddyfile example](../deploy/vps/Caddyfile.example) and separate [web](../deploy/vps/minemine-web.service) and [native](../deploy/vps/minemine-native.service) systemd units. They assume an Ubuntu VM with a dedicated `minemine` user, the reviewed checkout at `/srv/minemine/app`, the world at `/srv/minemine/world`, Node 24 at `/usr/bin/node`, and the pinned run-in-place Luanti binary at `/srv/minemine/app/vendor/native/bin/luantiserver`. The [native game config](../game/minetest.conf) caps the technical alpha at two concurrent players; raise that cap only after measuring the actual host. The current [native CI workflow](../.github/workflows/native-smoke.yml) shows the tested Linux build commands. These templates have not been run on a public host.
 
 After the account owner connects DigitalOcean and a temporary HTTPS host has been selected:
 

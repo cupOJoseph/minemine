@@ -38,6 +38,7 @@ let session;
 let secondContext;
 let secondPage;
 let secondSession;
+let reconnectContext;
 const events = [];
 const ticketSecrets = [];
 let leakedCredential = false;
@@ -65,12 +66,13 @@ function observe(page) {
     socket.on('socketerror', error => record(`WebSocket error ${String(error)}`));
   });
 }
-async function waitForJoin(character, gamePage) {
+const joinCount = (log, name) => [...log.matchAll(new RegExp(`${name} \\[.*\\] joins game\\.`, 'g'))].length;
+async function waitForJoin(character, gamePage, minimumCount = 1) {
   const deadline = Date.now() + 240_000;
   while (Date.now() < deadline) {
     const log = await readFile(logPath, 'utf8').catch(() => '');
-    if (new RegExp(`${character.playerName} \\[.*\\] joins game\\.`).test(log)) {
-      console.log(`Native Luanti accepted wallet character ${character.playerName}.`);
+    if (joinCount(log, character.playerName) >= minimumCount) {
+      console.log(`Native Luanti accepted wallet character ${character.playerName} (join ${minimumCount}).`);
       return;
     }
     const alert = await gamePage.locator('[role="alert"]').first().textContent({ timeout: 1000 }).catch(() => '');
@@ -120,6 +122,28 @@ try {
     await sleep(1000);
   }
   assert.match(townProbe, /^PASS /, `native town probe failed: ${townProbe || 'no result'}`);
+
+  await page.close();
+  let disconnected = false;
+  for (let attempt = 0; attempt < 45; attempt++) {
+    const currentLog = await readFile(logPath, 'utf8').catch(() => '');
+    if (currentLog.includes(`${session.playerName} leaves game.`) || currentLog.includes(`${session.playerName} times out.`)) {
+      disconnected = true;
+      break;
+    }
+    await sleep(1000);
+  }
+  assert.equal(disconnected, true, 'native server did not disconnect the closed browser');
+  const reSigned = await signedSession(wallet);
+  assert.equal(reSigned.session.playerName, session.playerName, 'wallet reconnect must retain character identity');
+  reconnectContext = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  const [reconnectName, reconnectValue] = reSigned.cookie.split('=');
+  await reconnectContext.addCookies([{ name: reconnectName, value: reconnectValue, url: origin, httpOnly: true, sameSite: 'Strict' }]);
+  const reconnectPage = await reconnectContext.newPage();
+  observe(reconnectPage);
+  await reconnectPage.goto(origin + '/engine/connect.html', { waitUntil: 'domcontentloaded' });
+  await waitForJoin(reSigned.session, reconnectPage, 2);
+
   assert.equal(errors.length, 0, `browser console errors: ${errors.join(' | ')}`);
   assert.equal(leakedCredential, false, 'browser console exposed the short-lived game credential');
 } catch (error) {
@@ -142,6 +166,7 @@ try {
   console.error('Browser diagnostics:', JSON.stringify(events));
   throw error;
 } finally {
+  if (reconnectContext) await reconnectContext.close();
   if (secondContext) await secondContext.close();
   await context.close();
   await browser.close();

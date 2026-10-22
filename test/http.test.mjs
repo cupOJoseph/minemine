@@ -83,7 +83,11 @@ test('static files supply isolation headers; private paths and invalid bodies ar
   const remoteFrame = await request('/engine/connect.html');
   assert.ok(remoteFrame.headers.get('Content-Security-Policy').includes("frame-ancestors 'self'"));
   const config = await request('/api/config');
-  assert.equal(typeof (await config.json()).soloPlaytestAvailable, 'boolean');
+  const { soloPlaytestAvailable } = await config.json();
+  assert.equal(typeof soloPlaytestAvailable, 'boolean');
+  const play = await request('/play/');
+  assert.equal(play.status, 302);
+  assert.equal(play.headers.get('Location'), soloPlaytestAvailable ? '/engine/index.html' : 'https://cupojoseph.github.io/minemine/play/');
   for (const route of ['/.env', '/%2e%2e%2fpackage.json', '/server/auth.mjs', '/%00']) assert.equal((await request(route)).status, 404);
   const tooBig = await request('/api/auth/challenge', { data: 'x'.repeat(9000) });
   assert.equal(tooBig.status, 413);

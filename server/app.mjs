@@ -144,6 +144,11 @@ export function createApp(config) {
         throw new AuthError('Unknown API route.', 404);
       }
       if (!['GET', 'HEAD'].includes(req.method)) throw new AuthError('Method not allowed.', 405);
+      if (url.pathname === '/play' || url.pathname === '/play/') {
+        res.writeHead(302, { Location: soloAvailable() ? '/engine/index.html' : 'https://cupojoseph.github.io/minemine/play/' });
+        res.end();
+        return;
+      }
       let relative;
       try { relative = decodeURIComponent(url.pathname); } catch { throw new AuthError('Invalid path.', 400); }
       if (relative.includes('\0') || relative.split('/').some(s => s.startsWith('.') || s.includes('\\'))) throw new AuthError('Not found.', 404);

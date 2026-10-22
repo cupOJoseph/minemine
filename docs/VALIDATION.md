@@ -1,5 +1,9 @@
 # Validation record
 
+## Native server build and startup — 2026-10-22 EDT
+
+[Actions run 39724031818](https://github.com/cupOJoseph/minemine/actions/runs/39724031818) compiled the pinned official Luanti 5.16.1 server on Ubuntu 22.04, installed the pinned Minetest Game and both world mods, and kept the server listening on `127.0.0.1:30000` for the 15-second smoke interval. No Lua startup error appeared in the log. The first run warned that the new world defaulted to the deprecated mod-storage files backend; `scripts/setup-world.mjs` now explicitly chooses SQLite3, and the next run asserts both mods loaded. This proves server build/startup, not a successful player login, backup restore, or browser compatibility. The pinned browser fork advertises protocol 53 and the native server 52, with both sources declaring client/server minimum 37; overlapping ranges make a handshake plausible but do not prove it.
+
 ## Restricted browser transport and adapter — 2026-10-22 EDT
 
 `npm test` passes 27 source/handler checks. `npm run test:http` passes two real-socket integration checks: one signs in with an EOA over HTTP; the other signs in, performs the pinned webshims `NEWADDR`/`BIND` WebSocket handshake, sends a binary UDP packet to a disposable loopback game socket, verifies the exact echoed envelope, and confirms unauthenticated upgrades and a non-game destination are rejected. `npm run adapter:install` verified the local WASM bundle against its asset hashes and installed the remote adapter files. These checks do not exercise the compiled browser engine against a native Luanti server.

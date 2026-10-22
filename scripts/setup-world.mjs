@@ -8,5 +8,5 @@ fs.mkdirSync(path.join(world, 'worldmods'), { recursive: true });
 fs.mkdirSync(path.join(world, 'wallet_grants'), { recursive: true, mode: 0o700 });
 fs.mkdirSync(path.join(world, 'town_quotas'), { recursive: true, mode: 0o700 });
 for (const mod of ['wallet_auth', 'town_claims']) fs.cpSync('game/mods/' + mod, path.join(world, 'worldmods', mod), { recursive: true });
-fs.writeFileSync(worldFile, 'gameid = minetest\nbackend = sqlite3\nplayer_backend = sqlite3\nauth_backend = sqlite3\nload_mod_wallet_auth = true\nload_mod_town_claims = true\n');
+fs.writeFileSync(worldFile, 'gameid = minetest\nbackend = sqlite3\nplayer_backend = sqlite3\nauth_backend = sqlite3\nmod_storage_backend = sqlite3\nload_mod_wallet_auth = true\nload_mod_town_claims = true\n');
 console.log(`Created development world configuration at ${world}. The game and engine must be installed separately.`);

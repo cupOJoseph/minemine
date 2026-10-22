@@ -35,12 +35,19 @@ jobs:
           cp -a vendor/game vendor/native/games/minetest
           WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" node scripts/setup-world.mjs
           set +e
-          (cd vendor/native && timeout --signal=INT 15s bin/luantiserver --world "$GITHUB_WORKSPACE/runtime/native-world" --config "$GITHUB_WORKSPACE/game/minetest.conf" --logfile "$GITHUB_WORKSPACE/runtime/native-smoke.log")
+          (cd vendor/native && timeout --signal=INT 15s bin/luantiserver --info --world "$GITHUB_WORKSPACE/runtime/native-world" --config "$GITHUB_WORKSPACE/game/minetest.conf" --logfile "$GITHUB_WORKSPACE/runtime/native-smoke.log")
           result=$?
           set -e
           cat runtime/native-smoke.log
           if [ "$result" -ne 124 ]; then
             echo "Native server exited before the smoke-test interval (status $result)."
+            exit 1
+          fi
+          grep -Fq 'Mod "wallet_auth" loaded' runtime/native-smoke.log
+          grep -Fq 'Mod "town_claims" loaded' runtime/native-smoke.log
+          grep -Fq 'listening on 127.0.0.1:30000' runtime/native-smoke.log
+          if grep -Fq 'ERROR[Main]' runtime/native-smoke.log; then
+            echo 'Native server logged an error while starting the world.'
             exit 1
           fi
       - name: Retain native startup diagnostics

@@ -123,3 +123,20 @@ test('adapter contract matches the actual downloaded Luanti classes', { skip: !f
   assert.match(patched['build_libzip.sh'], /-DBUILD_SHARED_LIBS=OFF/);
   assert.throws(() => patchDependencyScripts('different', 'different'), /changed/);
 });
+test('restricted bridge packet shape matches the pinned webshims encoder', { skip: !fs.existsSync(new URL('../vendor/webshims/src/emsocket/proxy.js', import.meta.url)) && 'Pinned webshims source is not downloaded in this checkout.' }, () => {
+  const context = vm.createContext({ WebSocket: class {}, console: { log() {} } });
+  context.self = context;
+  vm.runInContext(fs.readFileSync(new URL('../vendor/webshims/src/emsocket/proxy.js', import.meta.url), 'utf8'), context);
+  const frame = Buffer.from(vm.runInContext("self.encapsulate('127.0.0.1', 30000, new Uint8Array([79, 69, 116, 3]))", context));
+  assert.equal(context.self.EP_MAGIC, 0x778b4cf6);
+  assert.equal(context.self.EP_HEADER_LEN, 24);
+  assert.equal(frame.readUInt32BE(0), context.self.EP_MAGIC);
+  assert.deepEqual(frame.subarray(4, 20), Buffer.from([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 127, 0, 0, 1]));
+  assert.equal(frame.readUInt16BE(20), 30000);
+  assert.equal(frame.readUInt16BE(22), 4);
+  assert.deepEqual(frame.subarray(24), Buffer.from([79, 69, 116, 3]));
+  const packet = vm.runInContext("self.unencapsulate(self.encapsulate('127.0.0.1', 30000, new Uint8Array([79, 69, 116, 3])))", context);
+  assert.equal(packet[0], '127.0.0.1');
+  assert.equal(packet[1], 30000);
+  assert.deepEqual(Buffer.from(packet[2]), Buffer.from([79, 69, 116, 3]));
+});

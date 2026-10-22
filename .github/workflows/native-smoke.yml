@@ -78,7 +78,7 @@ jobs:
         with:
           name: miners-solo-playtest
           github-token: ${{ github.token }}
-          run-id: '39147984307'
+          run-id: '39732303223'
           path: runtime/downloaded-build
       - name: Stage pinned browser engine and adapter
         run: |

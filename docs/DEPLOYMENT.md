@@ -69,7 +69,7 @@ The Node service and Luanti must run as the same dedicated OS user (or use caref
 
 ## 5. Verify the engine adapter and proxy
 
-The pinned `static/launcher.js` and `webshims/src/emsocket/proxy.js` were inspected. `server/game-proxy.mjs` implements their `NEWADDR`/`BIND` and 24-byte UDP envelope on the same Node origin. It authenticates WebSocket upgrades with the wallet session cookie, checks Origin and Host, accepts no TCP requests, and sends UDP only to `127.0.0.1:GAME_PORT`. `GAME_ADDRESS` must stay `127.0.0.1`. The real-socket test in `test/integration/game-proxy.mjs` verifies wallet login, loopback forwarding and rejection of unrelated destinations. Do not point wallet-authenticated play at third-party public proxies.
+The pinned `static/launcher.js` and `webshims/src/emsocket/proxy.js` were inspected. `server/game-proxy.mjs` implements their `NEWADDR`/`BIND` and 24-byte UDP envelope on the same Node origin. It authenticates WebSocket upgrades with the wallet session cookie, checks Origin and Host, accepts no TCP requests, and sends UDP only to `127.0.0.1:GAME_PORT`. The browser uses fixed virtual destination `GAME_ADDRESS=10.0.0.1`, since webshims routes `127.0.0.1` inside the browser. The bridge accepts only that virtual destination. The real-socket test in `test/integration/game-proxy.mjs` verifies wallet login, private forwarding and rejection of unrelated destinations. Do not point wallet-authenticated play at third-party public proxies.
 
 The remote adapter source lives in `playtest/adapter.js`, `connect.html`, `remote.js`, and `remote-session.mjs`. A new build stages these files automatically. For an existing verified local bundle, run:
 

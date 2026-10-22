@@ -12,8 +12,8 @@ import { readConfig } from '../../server/config.mjs';
 import { send } from '../helpers/http.mjs';
 
 const MAGIC = 0x778b4cf6;
-const MAPPED_LOOPBACK = Buffer.from([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 127, 0, 0, 1]);
-function frame(port, packet, destination = MAPPED_LOOPBACK) {
+const VIRTUAL_GAME_ADDRESS = Buffer.from([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 10, 0, 0, 1]);
+function frame(port, packet, destination = VIRTUAL_GAME_ADDRESS) {
   const data = Buffer.alloc(24 + packet.length);
   data.writeUInt32BE(MAGIC, 0);
   destination.copy(data, 4);
@@ -78,7 +78,7 @@ test('wallet-only WebSocket proxy forwards UDP only to the configured private ga
   bound.send(frame(config.gamePort, payload));
   const [echo] = await once(bound, 'message');
   assert.equal(echo.readUInt32BE(0), MAGIC);
-  assert.deepEqual(echo.subarray(4, 20), MAPPED_LOOPBACK);
+  assert.deepEqual(echo.subarray(4, 20), VIRTUAL_GAME_ADDRESS);
   assert.equal(echo.readUInt16BE(20), config.gamePort);
   assert.deepEqual(echo.subarray(24), payload);
   assert.equal(received, 1);
@@ -104,5 +104,5 @@ test('wallet-only WebSocket proxy forwards UDP only to the configured private ga
   const logout = await send(url + '/api/auth/logout', { method: 'POST', headers: { ...headers, Cookie: cookie }, body: '{}' });
   assert.equal(logout.status, 200);
   assert.equal((await once(active, 'close'))[0], 1008, 'logout closes an established proxy link');
-  assert.throws(() => readConfig({ GAME_ENABLED: 'true', GAME_ADDRESS: '8.8.8.8' }), /127\.0\.0\.1/);
+  assert.throws(() => readConfig({ GAME_ENABLED: 'true', GAME_ADDRESS: '8.8.8.8' }), /10\.0\.0\.1/);
 });

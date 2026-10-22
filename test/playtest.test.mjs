@@ -38,9 +38,9 @@ test('solo playtest uses a local world and never requests a remote wallet creden
   assert.equal(args.address, '');
 });
 test('remote client uses only an unexpired wallet ticket and same-origin proxy', () => {
-  const ticket = { name: 'w_1234567890abcdef1', password: 's'.repeat(43), address: '127.0.0.1', port: 30000, expiresAt: 2_000_000 };
+  const ticket = { name: 'w_1234567890abcdef1', password: 's'.repeat(43), address: '10.0.0.1', port: 30000, expiresAt: 2_000_000 };
   const args = makeRemoteArgs(ticket, Args, 1_000_000);
-  assert.deepEqual([args.name, args.password, args.address, args.port, args.gameid, args.go], [ticket.name, ticket.password, '127.0.0.1', 30000, 'minetest', true]);
+  assert.deepEqual([args.name, args.password, args.address, args.port, args.gameid, args.go], [ticket.name, ticket.password, '10.0.0.1', 30000, 'minetest', true]);
   assert.equal(sameOriginProxyUrl('https://minemine.gg'), 'wss://minemine.gg/game-proxy');
   assert.equal(sameOriginProxyUrl('http://localhost:3000'), 'ws://localhost:3000/game-proxy');
   assert.throws(() => makeRemoteArgs({ ...ticket, expiresAt: 1_000_000 }, Args, 1_000_000), /expired/);
@@ -127,16 +127,16 @@ test('restricted bridge packet shape matches the pinned webshims encoder', { ski
   const context = vm.createContext({ WebSocket: class {}, console: { log() {} } });
   context.self = context;
   vm.runInContext(fs.readFileSync(new URL('../vendor/webshims/src/emsocket/proxy.js', import.meta.url), 'utf8'), context);
-  const frame = Buffer.from(vm.runInContext("self.encapsulate('127.0.0.1', 30000, new Uint8Array([79, 69, 116, 3]))", context));
+  const frame = Buffer.from(vm.runInContext("self.encapsulate('10.0.0.1', 30000, new Uint8Array([79, 69, 116, 3]))", context));
   assert.equal(context.self.EP_MAGIC, 0x778b4cf6);
   assert.equal(context.self.EP_HEADER_LEN, 24);
   assert.equal(frame.readUInt32BE(0), context.self.EP_MAGIC);
-  assert.deepEqual(frame.subarray(4, 20), Buffer.from([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 127, 0, 0, 1]));
+  assert.deepEqual(frame.subarray(4, 20), Buffer.from([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 10, 0, 0, 1]));
   assert.equal(frame.readUInt16BE(20), 30000);
   assert.equal(frame.readUInt16BE(22), 4);
   assert.deepEqual(frame.subarray(24), Buffer.from([79, 69, 116, 3]));
-  const packet = vm.runInContext("self.unencapsulate(self.encapsulate('127.0.0.1', 30000, new Uint8Array([79, 69, 116, 3])))", context);
-  assert.equal(packet[0], '127.0.0.1');
+  const packet = vm.runInContext("self.unencapsulate(self.encapsulate('10.0.0.1', 30000, new Uint8Array([79, 69, 116, 3])))", context);
+  assert.equal(packet[0], '10.0.0.1');
   assert.equal(packet[1], 30000);
   assert.deepEqual(Buffer.from(packet[2]), Buffer.from([79, 69, 116, 3]));
 });

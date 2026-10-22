@@ -7,7 +7,9 @@ const MAGIC = 0x778b4cf6;
 const HEADER = 24;
 const MAX_FRAME = HEADER + 65507;
 const ASSIGNMENT_MS = 5 * 60_000;
-const MAPPED_LOOPBACK = Buffer.from([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 127, 0, 0, 1]);
+// The browser's virtual destination is distinct from the private UDP target.
+// Webshims handles 127.0.0.1 within the browser and never sends it to us.
+const VIRTUAL_GAME_ADDRESS = Buffer.from([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 10, 0, 0, 1]);
 
 function deny(socket, status) {
   socket.end(`HTTP/1.1 ${status} ${status === 503 ? 'Service Unavailable' : 'Forbidden'}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
@@ -77,7 +79,7 @@ export function attachGameProxy(server, config, tokenFromRequest, activeToken) {
           if (ws.bufferedAmount > 2_000_000) return ws.close(1009, 'Slow game connection');
           const frame = Buffer.allocUnsafe(HEADER + packet.length);
           frame.writeUInt32BE(MAGIC, 0);
-          MAPPED_LOOPBACK.copy(frame, 4);
+          VIRTUAL_GAME_ADDRESS.copy(frame, 4);
           frame.writeUInt16BE(config.gamePort, 20);
           frame.writeUInt16BE(packet.length, 22);
           packet.copy(frame, HEADER);
@@ -91,7 +93,7 @@ export function attachGameProxy(server, config, tokenFromRequest, activeToken) {
         return;
       }
       if (!binary || message.length < HEADER || message.length > MAX_FRAME || message.readUInt32BE(0) !== MAGIC ||
-          !message.subarray(4, 20).equals(MAPPED_LOOPBACK) || message.readUInt16BE(20) !== config.gamePort ||
+          !message.subarray(4, 20).equals(VIRTUAL_GAME_ADDRESS) || message.readUInt16BE(20) !== config.gamePort ||
           message.readUInt16BE(22) !== message.length - HEADER) return ws.close(1008, 'Invalid game destination');
       if (!udpReady) return ws.close(1008, 'Game socket is not ready');
       if (Date.now() - trafficWindow >= 1000) { trafficWindow = Date.now(); trafficPackets = 0; trafficBytes = 0; }

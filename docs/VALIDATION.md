@@ -1,5 +1,11 @@
 # Validation record
 
+## Native town protection with two wallet players — 2026-10-22 EDT
+
+[Actions run 39783194281](https://github.com/cupOJoseph/minemine/actions/runs/39783194281) installed a CI-only probe mod in the disposable native world. It kept two signed-wallet Chromium characters connected, supplied a nine-column quota fixture for the owner, and invoked the real `/town` command and `core.is_protected` paths inside Luanti. The probe passed town creation, refusal of a 25-column claim, acceptance of the paid-size nine-column claim, owner access, outsider denial, invitation and member access, and denial after the owner removed that member. The probe is not part of the production game pack or deployed world.
+
+The quota file was a controlled fixture. This run does not prove that an ERC-20 purchase reaches the town quota, that an actual dig/place packet is denied, or that claim state survives a restart. Those remain end-to-end gates alongside Sepolia deployment and a public host.
+
 ## Browser wallet joins native world with credential-safe engine — 2026-10-22 EDT
 
 [Actions runs 39730813198](https://github.com/cupOJoseph/minemine/actions/runs/39730813198) and [39731357942](https://github.com/cupOJoseph/minemine/actions/runs/39731357942) ran headless Chromium with the pinned actual Luanti WASM engine against native Luanti 5.16.1. The test signed a wallet challenge over HTTP, installed its HttpOnly session in Chromium, requested a two-minute game ticket from the same-origin frame, connected through the authenticated WebSocket/UDP bridge, and observed the wallet character's `joins game` line in the native server log. This is a real one-client interoperability result, including the native password handshake, not a stubbed protocol test. The browser remained in Multiplayer mode and received the native welcome chat.

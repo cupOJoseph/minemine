@@ -12,7 +12,7 @@ MineMine is a browser-first voxel crafting MMO project built on Luanti (formerly
 | ENS | Server-side mainnet name lookup and forward-verified display implemented; requires `ENS_RPC_URL` and live RPC QA |
 | MINE ERC-20 | Fixed-supply source and local-EVM transfers tested; no public token deployed |
 | Wallet transfers | Direct browser-wallet transaction UI implemented; needs deployed testnet token and browser-wallet QA |
-| Town protection | Testnet payment contract, confirmed quota sync, and Luanti claim mod implemented; native-engine end-to-end QA remains |
+| Town protection | Payment contract and confirmed quota sync implemented; two-wallet native Luanti protection and member rules passed with a quota fixture. Live paid-claim, dig/place and restart QA remain |
 | SpacetimeDB | [Migration plan](docs/SPACETIMEDB.md) for the next scaling phase; not yet integrated |
 
 The landing page distinguishes playable features from planned ones and uses two actual playtest captures plus an attributed Minetest Game screenshot. The large Play Now link starts solo mode without a wallet.
@@ -48,5 +48,6 @@ Do not enable `GAME_ENABLED` or `ENGINE_ADAPTER_READY` until the native server, 
 - `contracts/` — fixed-supply MINE and testnet town land-credit payment contract.
 - `game/mods/` — experimental wallet authentication and town protection mods.
 - `docs/ROADMAP.md` — acceptance criteria and remaining integration gates.
+- `docs/VPS_RECOMMENDATION.md` — researched first public-world hosting size, cost, and launch gates.
 
 MineMine is independent of the Luanti team. Original project code is MIT-licensed; upstream engine and game files retain their own licenses. See [third-party notices](THIRD_PARTY.md).

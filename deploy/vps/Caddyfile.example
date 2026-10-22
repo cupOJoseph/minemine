@@ -1,5 +1,6 @@
-# Install as /etc/caddy/Caddyfile only after minemine.gg points at this host.
+# Replace this temporary hostname with the tested HTTPS host before installation.
+# A purchased minemine.gg domain is not required for the technical alpha.
 # Caddy manages HTTPS and forwards WebSocket upgrades on this same origin.
-minemine.gg {
+play.203.0.113.10.sslip.io {
     reverse_proxy 127.0.0.1:3000
 }

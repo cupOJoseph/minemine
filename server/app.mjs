@@ -9,6 +9,7 @@ import { AuthError, createAuth } from './auth.mjs';
 import { createGrants } from './grants.mjs';
 import { createEnsResolver } from './ens.mjs';
 import { createTownCredits } from './towns.mjs';
+import { writeBalanceSnapshot } from './balance-snapshot.mjs';
 import { attachGameProxy } from './game-proxy.mjs';
 
 const publicRoot = path.resolve(fileURLToPath(new URL('../public/', import.meta.url)));
@@ -59,10 +60,10 @@ export function createApp(config) {
   }
   const towns = createTownCredits(config, provider);
   const balances = new Map();
-  async function balance(address) {
+  async function balance(address, fresh = false) {
     if (!config.tokenAddress || !provider) return { configured: false };
     const cached = balances.get(address);
-    if (cached && Date.now() - cached.at < 15_000) return cached.value;
+    if (!fresh && cached && Date.now() - cached.at < 15_000) return cached.value;
     if (Number((await provider.getNetwork()).chainId) !== config.chainId) throw new AuthError('Currency RPC uses the wrong chain.', 503);
     const token = new Contract(config.tokenAddress, ['function balanceOf(address) view returns (uint256)', 'function decimals() view returns (uint8)'], provider);
     const blockNumber = await provider.getBlockNumber();
@@ -133,6 +134,13 @@ export function createApp(config) {
         if (req.method === 'GET' && url.pathname === '/api/identity') return json(res, 200, { ...session, ensName: await ens.name(session.address) });
         if (req.method === 'GET' && url.pathname === '/api/currency/recipient') return json(res, 200, await ens.recipient(url.searchParams.get('input')));
         if (req.method === 'GET' && url.pathname === '/api/currency/balance') return json(res, 200, await balance(session.address));
+        if (req.method === 'POST' && url.pathname === '/api/currency/sync') {
+          await body(req);
+          const value = await balance(session.address, true);
+          if (!value.configured) throw new AuthError('MINE is not configured.', 503);
+          writeBalanceSnapshot(config, session, value);
+          return json(res, 200, value);
+        }
         if (req.method === 'GET' && url.pathname === '/api/towns/status') return json(res, 200, await towns.status(session.address));
         if (req.method === 'POST' && url.pathname === '/api/towns/sync') return json(res, 200, await towns.sync(session));
         if (req.method === 'POST' && url.pathname === '/api/game/ticket') {

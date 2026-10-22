@@ -3,6 +3,7 @@
 -- by the Node service; this mod reads its two-minute grants inside the world dir.
 local storage = core.get_mod_storage()
 local dir = core.get_worldpath() .. "/wallet_grants/"
+local balance_dir = core.get_worldpath() .. "/wallet_balances/"
 local identities = {}
 
 local function grant(name)
@@ -28,6 +29,26 @@ local function privileges(name)
     -- Never grant server/admin privileges just because someone owns a wallet.
     if saved == "" then return { interact = true, shout = true } end
     return core.deserialize(saved, true) or {}
+end
+
+local function observed_balance(name, address)
+    if not name:match("^w_%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x$") then return nil end
+    local file = io.open(balance_dir .. name .. ".json", "r")
+    if not file then return nil end
+    local raw = file:read(4097)
+    file:close()
+    if not raw or #raw > 4096 then return nil end
+    local value = core.parse_json(raw)
+    if type(value) ~= "table" or value.name ~= name or type(value.address) ~= "string" or
+        value.address:lower() ~= address:lower() then return nil end
+    if type(value.token) ~= "string" or #value.token ~= 42 or not value.token:match("^0x%x+$") then return nil end
+    if type(value.raw) ~= "string" or #value.raw > 128 or not value.raw:match("^%d+$") then return nil end
+    if type(value.formatted) ~= "string" or #value.formatted > 128 or
+        not value.formatted:match("^%d+%.?%d*$") then return nil end
+    if type(value.chain_id) ~= "number" or type(value.block_number) ~= "number" or
+        value.block_number < 0 or value.block_number ~= math.floor(value.block_number) then return nil end
+    if type(value.expires_at) ~= "number" or value.expires_at <= os.time() then return nil end
+    return value
 end
 
 core.register_authentication_handler({
@@ -61,14 +82,22 @@ core.register_on_joinplayer(function(player)
     identities[name] = { address = value.address, ens_name = value.ens_name }
     storage:set_string("address:" .. name, value.address)
     if value.ens_name then player:set_nametag_attributes({ text = value.ens_name }) end
-    core.chat_send_player(name, "Wallet connected. Use /wallet to see your address or /town to manage claims after buying MINE land credits.")
+    core.chat_send_player(name, "Wallet connected. Use /wallet for your address, /wallet balance for a recent MINE balance, or /town to manage claims.")
 end)
 core.register_on_leaveplayer(function(player) identities[player:get_player_name()] = nil end)
 core.register_chatcommand("wallet", {
-    description = "Show the Ethereum address linked to your character",
-    func = function(name)
+    params = "[balance]",
+    description = "Show your verified wallet or recent observed MINE balance",
+    func = function(name, param)
         local identity = identities[name]
         if not identity then return false, "No verified wallet for this connection." end
+        if param == "balance" then
+            local value = observed_balance(name, identity.address)
+            if not value then return false, "No recent MINE balance. Refresh balance in the MineMine wallet panel, then try again." end
+            return true, "Observed MINE balance: " .. value.formatted .. " on chain " .. value.chain_id ..
+                " at block " .. value.block_number .. ". This is a wallet snapshot, not spendable town credit."
+        end
+        if param ~= nil and param ~= "" then return false, "Usage: /wallet [balance]" end
         return true, "Wallet: " .. identity.address .. (identity.ens_name and " · ENS: " .. identity.ens_name or "")
     end,
 })

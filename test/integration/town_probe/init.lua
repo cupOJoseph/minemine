@@ -93,6 +93,32 @@ local function run(config)
     check(slot >= 1, "owner has no main inventory")
     inventory:set_stack("main", slot, "default:diamond 3")
     check(inventory:get_stack("main", slot):get_count() == 3, "inventory fixture could not be set")
+    local wallet = core.registered_chatcommands.wallet
+    check(wallet ~= nil, "wallet command missing")
+    local wallet_ok, wallet_message = wallet.func(owner, "")
+    local address = wallet_message and wallet_message:match("Wallet: (0x%x+)")
+    check(wallet_ok and address and #address == 42, "wallet identity command failed")
+    local balance_ok, balance_message = wallet.func(owner, "balance")
+    check(not balance_ok and balance_message:find("No recent MINE balance", 1, true), "missing wallet balance was not explained")
+    core.mkdir(world .. "/wallet_balances")
+    local snapshot_path = world .. "/wallet_balances/" .. owner .. ".json"
+    local snapshot = {
+        name = owner, address = address, token = "0x" .. string.rep("1", 40),
+        chain_id = 31337, raw = "42500000000000000000", formatted = "42.5", decimals = 18,
+        block_number = 7, expires_at = os.time() + 60,
+    }
+    local snapshot_file = assert(io.open(snapshot_path, "w"))
+    snapshot_file:write(assert(core.write_json(snapshot)))
+    snapshot_file:close()
+    balance_ok, balance_message = wallet.func(owner, "balance")
+    check(balance_ok and balance_message:find("Observed MINE balance: 42.5 on chain 31337 at block 7", 1, true),
+        "wallet balance snapshot was not displayed")
+    snapshot.expires_at = os.time() - 1
+    snapshot_file = assert(io.open(snapshot_path, "w"))
+    snapshot_file:write(assert(core.write_json(snapshot)))
+    snapshot_file:close()
+    balance_ok, balance_message = wallet.func(owner, "balance")
+    check(not balance_ok and balance_message:find("No recent MINE balance", 1, true), "expired balance snapshot was shown")
     owner_name, guest_name, claim_pos, inventory_slot = owner, guest, pos, slot
     local state_file = assert(io.open(world .. "/town-probe-state.json", "w"))
     state_file:write(assert(core.write_json({ owner = owner, guest = guest, pos = pos, edit_pos = edit_pos, slot = slot })))

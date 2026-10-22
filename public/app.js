@@ -40,7 +40,7 @@ async function refreshIdentity() {
   renderSession();
 }
 async function refreshBalance() {
-  const data = await api('currency/balance');
+  const data = await api('currency/sync', {});
   tokenDecimals = data.configured ? data.decimals : undefined;
   $('balance').replaceChildren(document.createTextNode(data.configured ? data.formatted : '—'), Object.assign(document.createElement('span'), { textContent: 'MINE' }));
   $('currency-status').textContent = data.configured ? 'Observed at block ' + data.blockNumber + ' on chain ' + data.chainId + '.' : 'Token contract and RPC are not configured.';
@@ -101,13 +101,13 @@ $('connect').addEventListener('click', async () => {
     session = await api('auth/verify', { signature });
     status(config.gameReady ? 'Signed in. Your world is ready.' : 'Signed in. Shared multiplayer is still being built.');
     await refreshIdentity();
-    if (config.tokenAddress) await refreshBalance();
+    if (config.tokenAddress) await refreshBalance().catch(error => { $('currency-status').textContent = error.message; });
     if (config.townContractAddress) await refreshTownStatus().catch(error => townStatus(error.message, true));
   } catch (error) { status(error.code === 4001 ? 'Wallet request cancelled. You can try again.' : error.message, true); }
   finally { busy = false; renderSession(); }
 });
 $('logout').addEventListener('click', () => signOut().catch(error => status(error.message, true)));
-$('refresh-balance').addEventListener('click', () => refreshBalance().catch(error => status(error.message, true)));
+$('refresh-balance').addEventListener('click', () => refreshBalance().catch(error => { $('currency-status').textContent = error.message; }));
 $('send-form').addEventListener('submit', async event => {
   event.preventDefault();
   busy = true; renderSession();
@@ -194,7 +194,7 @@ try {
   if (session) {
     status('Wallet session restored.');
     await refreshIdentity();
-    if (config.tokenAddress) await refreshBalance();
+    if (config.tokenAddress) await refreshBalance().catch(error => { $('currency-status').textContent = error.message; });
     if (config.townContractAddress) await refreshTownStatus().catch(error => townStatus(error.message, true));
   }
 } catch {

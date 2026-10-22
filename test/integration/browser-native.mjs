@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile, mkdir } from 'node:fs/promises';
+import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { Wallet } from 'ethers';
 import { chromium } from 'playwright';
 
@@ -31,6 +31,8 @@ await mkdir(artifacts, { recursive: true });
 const browser = await chromium.launch({ headless: true, args: ['--enable-unsafe-swiftshader'] });
 const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
 let page;
+const events = [];
+const record = value => { if (events.length < 100) events.push(value); };
 try {
   const wallet = new Wallet('0x' + '12'.repeat(32));
   const { session, cookie } = await signedSession(wallet);
@@ -38,8 +40,20 @@ try {
   await context.addCookies([{ name, value, url: origin, httpOnly: true, sameSite: 'Strict' }]);
   page = await context.newPage();
   const errors = [];
-  page.on('pageerror', error => errors.push(error.message));
-  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  page.on('pageerror', error => { errors.push(error.message); record(`pageerror ${error.message}`); });
+  page.on('console', message => {
+    record(`console ${message.type()} ${message.text().slice(0, 300)}`);
+    if (message.type() === 'error') errors.push(message.text());
+  });
+  page.on('requestfailed', request => record(`request failed ${request.url()} ${request.failure()?.errorText}`));
+  page.on('response', response => {
+    if (response.url().includes('/api/') || response.status() >= 400) record(`HTTP ${response.status()} ${response.url()}`);
+  });
+  page.on('websocket', socket => {
+    record(`WebSocket opened ${socket.url()}`);
+    socket.on('close', () => record(`WebSocket closed ${socket.url()}`));
+    socket.on('socketerror', error => record(`WebSocket error ${String(error)}`));
+  });
   await page.goto(origin + '/engine/connect.html', { waitUntil: 'domcontentloaded' });
   const deadline = Date.now() + 240_000;
   while (Date.now() < deadline) {
@@ -53,10 +67,20 @@ try {
     await sleep(2000);
   }
   const log = await readFile(logPath, 'utf8');
-  assert.match(log, new RegExp(`${session.playerName} \\[.*\\] joins game\\.`), 'native server recorded the wallet player joining');
+  if (!new RegExp(`${session.playerName} \\[.*\\] joins game\\.`).test(log)) throw new Error(`Native join absent for ${session.playerName}.`);
   assert.equal(errors.length, 0, `browser console errors: ${errors.join(' | ')}`);
 } catch (error) {
-  if (page && !page.isClosed()) await page.screenshot({ path: artifacts + '/failure.png' }).catch(() => {});
+  if (page && !page.isClosed()) {
+    const state = await page.evaluate(() => ({
+      title: document.title, text: document.body.innerText.slice(0, 1000),
+      isolated: crossOriginIsolated, webgl2: Boolean(document.createElement('canvas').getContext('webgl2')),
+    })).catch(e => ({ error: e.message }));
+    record(`page state ${JSON.stringify(state)}`);
+    await page.screenshot({ path: artifacts + '/failure.png' }).catch(() => {});
+  }
+  const nativeLog = await readFile(logPath, 'utf8').catch(() => '');
+  await writeFile(artifacts + '/diagnostics.json', JSON.stringify({ error: error.message, events, nativeTail: nativeLog.slice(-5000) }, null, 2));
+  console.error('Browser diagnostics:', JSON.stringify(events));
   throw error;
 } finally {
   await context.close();

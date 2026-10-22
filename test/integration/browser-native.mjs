@@ -123,6 +123,9 @@ try {
   }
   assert.match(townProbe, /^PASS /, `native town probe failed: ${townProbe || 'no result'}`);
 
+  const canvas = secondPage.locator('#canvas');
+  await canvas.waitFor({ state: 'visible', timeout: 60_000 });
+  await sleep(5000);
   await writeFile(path.join(worldDir, 'town-packet-arm.txt'), 'dig\n', { mode: 0o600 });
   let packetReady = '';
   for (let attempt = 0; attempt < 30; attempt++) {
@@ -131,11 +134,10 @@ try {
     await sleep(1000);
   }
   assert.match(packetReady, /^PASS /, `native browser-packet target failed: ${packetReady || 'no result'}`);
-  const canvas = secondPage.locator('#canvas');
-  await canvas.waitFor({ state: 'visible', timeout: 60_000 });
-  await sleep(3000);
+  await sleep(5000);
   const bounds = await canvas.boundingBox();
   assert.ok(bounds && bounds.width > 100 && bounds.height > 100, 'game canvas was not usable');
+  await secondPage.screenshot({ path: artifacts + '/packet-target.png' });
   await canvas.click({ position: { x: bounds.width / 2, y: bounds.height / 2 } });
   record(`game canvas pointer lock: ${await secondPage.evaluate(() => document.pointerLockElement?.id || 'none')}`);
   let packetDig = await readFile(path.join(worldDir, 'town-packet-dig-result.txt'), 'utf8').catch(() => '');
@@ -199,7 +201,8 @@ try {
   const reconnectProbe = await readFile(path.join(worldDir, 'town-probe-reconnect-result.txt'), 'utf8').catch(() => '');
   const packetReady = await readFile(path.join(worldDir, 'town-packet-ready.txt'), 'utf8').catch(() => '');
   const packetDig = await readFile(path.join(worldDir, 'town-packet-dig-result.txt'), 'utf8').catch(() => '');
-  await writeFile(artifacts + '/diagnostics.json', JSON.stringify({ error: redact(error.message), events, grantExists: Boolean(grant), ticketCaptured: ticketSecrets.length > 0, grantHashMatches, townProbe, reconnectProbe, packetReady, packetDig, nativeTail: nativeLog.slice(-5000) }, null, 2));
+  const packetDebug = await readFile(path.join(worldDir, 'town-packet-debug.json'), 'utf8').catch(() => '');
+  await writeFile(artifacts + '/diagnostics.json', JSON.stringify({ error: redact(error.message), events, grantExists: Boolean(grant), ticketCaptured: ticketSecrets.length > 0, grantHashMatches, townProbe, reconnectProbe, packetReady, packetDig, packetDebug, nativeTail: nativeLog.slice(-5000) }, null, 2));
   console.error('Browser diagnostics:', JSON.stringify(events));
   throw error;
 } finally {

@@ -139,9 +139,9 @@ end)
 
 core.register_on_protection_violation(function(pos, name)
     if not packet_ready or packet_done or name ~= packet_guest then return end
-    if pos.x ~= packet_pos.x or pos.y ~= packet_pos.y or pos.z ~= packet_pos.z then return end
+    if pos.x ~= packet_pos.x or math.abs(pos.y - packet_pos.y) > 1 or math.abs(pos.z - packet_pos.z) > 1 then return end
     packet_done = true
-    local intact = core.get_node(packet_pos).name == "default:stone"
+    local intact = core.get_node(pos).name == "default:stone"
     write_result("town-packet-dig-result.txt",
         intact and "PASS outsider browser dig reached protected node without changing it"
             or "FAIL protected node changed during browser dig", intact)
@@ -162,16 +162,23 @@ core.register_globalstep(function(dtime)
         local guest = core.get_player_by_name(state.guest)
         check(guest ~= nil, "outsider disconnected before browser packet probe")
         packet_pos = { x = state.edit_pos.x + 1, y = state.edit_pos.y, z = state.edit_pos.z }
-        local guest_pos = { x = packet_pos.x + 2.5, y = packet_pos.y - 1.625, z = packet_pos.z }
+        local guest_pos = { x = packet_pos.x + 2.5, y = packet_pos.y - 1.5, z = packet_pos.z }
         check(core.get_node(packet_pos).name ~= "ignore", "browser packet target is not loaded")
-        core.set_node({ x = packet_pos.x, y = packet_pos.y - 1, z = packet_pos.z }, { name = "default:stone" })
-        core.set_node(packet_pos, { name = "default:stone" })
-        core.set_node({ x = packet_pos.x + 2, y = packet_pos.y - 3, z = packet_pos.z }, { name = "default:stone" })
-        core.set_node({ x = packet_pos.x + 3, y = packet_pos.y - 3, z = packet_pos.z }, { name = "default:stone" })
+        for dy = -1, 1 do
+            for dz = -1, 1 do
+                core.set_node({ x = packet_pos.x, y = packet_pos.y + dy, z = packet_pos.z + dz }, { name = "default:stone" })
+            end
+        end
         for dx = 1, 3 do
-            core.set_node({ x = packet_pos.x + dx, y = packet_pos.y, z = packet_pos.z }, { name = "air" })
+            for dy = -1, 1 do
+                core.set_node({ x = packet_pos.x + dx, y = packet_pos.y + dy, z = packet_pos.z }, { name = "air" })
+            end
+        end
+        for dx = 2, 3 do
+            core.set_node({ x = packet_pos.x + dx, y = packet_pos.y - 2, z = packet_pos.z }, { name = "default:stone" })
         end
         check(guest:set_wielded_item("default:pick_steel"), "could not equip outsider pickaxe")
+        guest:set_physics_override({ gravity = 0 })
         guest:set_pos(guest_pos)
         guest:set_look_horizontal(math.pi / 2)
         guest:set_look_vertical(0)
@@ -181,6 +188,20 @@ core.register_globalstep(function(dtime)
         return "PASS browser dig target armed"
     end)
     write_result("town-packet-ready.txt", ok and result or "FAIL " .. tostring(result), ok)
+end)
+
+local packet_debug_elapsed = 0
+core.register_globalstep(function(dtime)
+    if not packet_ready or packet_done or not packet_pos then return end
+    packet_debug_elapsed = packet_debug_elapsed + dtime
+    if packet_debug_elapsed < 1 then return end
+    packet_debug_elapsed = 0
+    local guest = core.get_player_by_name(packet_guest)
+    if not guest then return end
+    local file = io.open(world .. "/town-packet-debug.json", "w")
+    if not file then return end
+    file:write(core.write_json({ player_pos = guest:get_pos(), look_dir = guest:get_look_dir(), target = packet_pos }))
+    file:close()
 end)
 
 core.register_globalstep(function(dtime)

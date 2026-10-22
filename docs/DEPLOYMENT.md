@@ -39,7 +39,7 @@ Visit `http://localhost:3000`, connect a Sepolia wallet and sign the login messa
 npm run upstream:fetch -- --resolve
 ```
 
-Inspect every downloaded repository and nested dependency lock. `--resolve` intentionally updates root commit pins from their specified refs and is not run automatically by CI. Review the diff and commit the completed source lock. Native engine ref `5.16.1` is an initial candidate observed in official package metadata; it still needs local resolution and compatibility testing against the WASM fork. No script silently falls back to another version.
+Inspect every downloaded repository and nested dependency lock. `--resolve` intentionally updates root commit pins from their specified refs and is not run automatically by CI. Review the diff and commit the completed source lock. The pinned native Luanti `5.16.1` build has now completed real wallet-authenticated Chromium joins against the pinned WASM client in CI. No script silently falls back to another version.
 
 ## 3. Build WASM on Linux
 
@@ -85,11 +85,11 @@ Complete B05/S03/A05/S04 in ROADMAP.md, then set `GAME_ENABLED=true` and `ENGINE
 
 For solo browser play, native server hosting is unnecessary: both client and local world run in WASM. The manual Pages workflow consumes a successful pinned engine artifact, verifies its hashes, and packages this branch's MineMine landing page at `/` and the solo game at `/play/`. Run `PAGES_SITE_DIR=/tmp/minemine-pages-check-20261022 node scripts/prepare-pages-playtest.mjs` locally with an unused output path to check the package without replacing earlier staging. On Pages, wallet lab APIs stay offline; only the solo game is served. `node scripts/prepare-vercel-playtest.mjs` remains an alternative isolated solo bundle path, but no Vercel project was created.
 
-The user's approved hosting choices for the browser playtest are their personal Vercel account or GitHub Pages. Do not deploy into a work team or provision additional paid services without an agreed budget. Pages cannot run the native UDP game server or Node wallet service. The service-worker isolation path passed a Chromium solo-playtest check, but verify it again after moving the engine under `/play/`.
+The user's approved solo-browser hosts are their personal Vercel account or GitHub Pages. They have also selected DigitalOcean for the future shared world with a strict $10/month ceiling and will connect that account when deployment is ready. Pages cannot run the native UDP game server or Node wallet service. The service-worker isolation path passed a Chromium solo-playtest check, but verify it again after moving the engine under `/play/`.
 
 The remaining instructions apply to the future shared-server milestone:
 
-Use a Linux host with persistent disk, adequate memory for the measured build/world, and HTTPS/WSS ingress. Start with a single region and single auth process. The [researched VPS recommendation](VPS_RECOMMENDATION.md) proposes a NYC3 8 GiB/4 vCPU VM with daily backups for a $62.40/month listed base. A provider account, approved budget and domain/DNS access are still needed; this has not been provisioned.
+Use a Linux host with persistent disk, adequate memory for the measured build/world, and HTTPS/WSS ingress. Start with a single region and single auth process. The [revised VPS recommendation](VPS_RECOMMENDATION.md) proposes a NYC3 1 GiB/1 vCPU Basic Droplet with daily backups for a $7.80/month listed base before tax and overages. Rehearse the small-world workload under a 1 GiB limit and check exact account charges before provisioning; DigitalOcean spend alerts are not hard caps. The owner will connect the account later. No VM or domain has been purchased, and a temporary HTTPS address is sufficient for the technical alpha.
 
 The included `deploy/Dockerfile` packages the Node launcher/auth service and restricted WebSocket bridge. It does not package a native game server or a verified playable world. Build from project root:
 
@@ -97,7 +97,7 @@ The included `deploy/Dockerfile` packages the Node launcher/auth service and res
 docker build -f deploy/Dockerfile -t minemine-auth:dev .
 ```
 
-Configure `PUBLIC_ORIGIN=https://your-domain`, TLS termination, same-origin WSS routing, and a private world directory shared with the native game process. Preserve the original Host header; the app validates it against PUBLIC_ORIGIN. Do not trust arbitrary forwarded headers. The current limiter groups clients behind a reverse proxy by proxy IP; replace it with a limiter at the trusted ingress before a multi-user launch.
+Configure `PUBLIC_ORIGIN` to the exact temporary HTTPS origin, TLS termination, same-origin WSS routing, and a private world directory shared with the native game process. Preserve the original Host header; the app validates it against PUBLIC_ORIGIN. Do not trust arbitrary forwarded headers. The current limiter groups clients behind a reverse proxy by proxy IP; replace it with a limiter at the trusted ingress before a multi-user launch. Defer buying `minemine.gg` until technical viability and public interest justify it.
 
 Only expose web ports; native UDP remains private. Run a backup/restore drill, test restarts and disk exhaustion, and verify remote access from two browsers before advertising the server.
 

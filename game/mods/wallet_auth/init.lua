@@ -5,8 +5,9 @@ local storage = core.get_mod_storage()
 local dir = core.get_worldpath() .. "/wallet_grants/"
 local balance_dir = core.get_worldpath() .. "/wallet_balances/"
 local identities = {}
+local pending = {}
 
-local function grant(name)
+local function grant(name, allow_expired)
     if type(name) ~= "string" or not name:match("^w_%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x$") then return nil end
     local file = io.open(dir .. name .. ".json", "r")
     if not file then return nil end
@@ -15,7 +16,7 @@ local function grant(name)
     if not raw or #raw > 4096 then return nil end
     local value = core.parse_json(raw)
     if type(value) ~= "table" or value.name ~= name then return nil end
-    if type(value.expires_at) ~= "number" or value.expires_at <= os.time() then return nil end
+    if type(value.expires_at) ~= "number" or (not allow_expired and value.expires_at <= os.time()) then return nil end
     if type(value.address) ~= "string" or not value.address:match("^0x%x+$") or #value.address ~= 42 then return nil end
     if type(value.password_hash) ~= "string" or #value.password_hash ~= 27 then return nil end
     if value.ens_name ~= nil and (type(value.ens_name) ~= "string" or #value.ens_name > 255 or value.ens_name:find("[%c]")) then return nil end
@@ -72,19 +73,35 @@ core.register_authentication_handler({
 })
 
 core.register_on_prejoinplayer(function(name)
-    if not grant(name) then return "Sign in with your wallet at the MineMine launcher and request a fresh game session." end
+    local value = grant(name)
+    if not value then return "Sign in with your wallet at the MineMine launcher and request a fresh game session." end
+    -- The engine authenticates before downloading media and joining the world.
+    -- Keep the grant identity from the start of that handshake so a slow load
+    -- can finish after the short ticket expires, without accepting a revoked
+    -- or replaced grant.
+    pending[name] = value
 end)
 
 core.register_on_joinplayer(function(player)
     local name = player:get_player_name()
-    local value = grant(name)
-    if not value then core.kick_player(name, "Wallet grant expired; please relaunch.") return end
+    local value = grant(name, true)
+    local started = pending[name]
+    pending[name] = nil
+    if not value or not started or value.password_hash ~= started.password_hash or
+        value.session_hash ~= started.session_hash or value.address:lower() ~= started.address:lower() then
+        core.kick_player(name, "Wallet grant changed or was revoked; please relaunch.")
+        return
+    end
     identities[name] = { address = value.address, ens_name = value.ens_name }
     storage:set_string("address:" .. name, value.address)
     if value.ens_name then player:set_nametag_attributes({ text = value.ens_name }) end
     core.chat_send_player(name, "Wallet connected. Use /wallet for your address, /wallet balance for a recent MINE balance, or /town to manage claims.")
 end)
-core.register_on_leaveplayer(function(player) identities[player:get_player_name()] = nil end)
+core.register_on_leaveplayer(function(player)
+    local name = player:get_player_name()
+    identities[name] = nil
+    pending[name] = nil
+end)
 core.register_chatcommand("wallet", {
     params = "[balance]",
     description = "Show your verified wallet or recent observed MINE balance",

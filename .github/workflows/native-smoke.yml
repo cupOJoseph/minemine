@@ -122,7 +122,17 @@ jobs:
             test "$(systemctl show -P Slice "minemine-ci-native-$phase.service")" = 'minemine-ci.slice'
             test "$(systemctl show -P Slice "minemine-ci-api-$phase.service")" = 'minemine-ci.slice'
           }
-          trap 'touch runtime/server-memory-first.stop runtime/server-memory-restart.stop; sudo systemctl stop minemine-ci-api-first.service minemine-ci-native-first.service minemine-ci-api-restart.service minemine-ci-native-restart.service 2>/dev/null || true' EXIT
+          cleanup() {
+            touch runtime/server-memory-first.stop runtime/server-memory-restart.stop
+            local cgroup
+            cgroup=$(systemctl show -P ControlGroup minemine-ci.slice)
+            if [ -n "$cgroup" ] && [ -f "/sys/fs/cgroup$cgroup/memory.peak" ]; then
+              cat "/sys/fs/cgroup$cgroup/memory.peak" > runtime/server-cgroup-peak-bytes.txt
+              cat "/sys/fs/cgroup$cgroup/memory.events" > runtime/server-cgroup-events.txt
+            fi
+            sudo systemctl stop minemine-ci-api-first.service minemine-ci-native-first.service minemine-ci-api-restart.service minemine-ci-native-restart.service 2>/dev/null || true
+          }
+          trap cleanup EXIT
           start_stack first browser-native-engine.log browser-native.log browser-api.log
           for attempt in {1..30}; do
             if curl -fsS http://localhost:3000/api/health > /dev/null; then break; fi

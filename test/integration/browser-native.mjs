@@ -284,10 +284,12 @@ try {
       }
       assert.match(ownerDigReaimReady, /^PASS /, `held owner-dig camera reset failed: ${ownerDigReaimReady || 'no result'}`);
     }
-    await sleep(2500);
+    for (let check = 0; check < 30 && !ownerDig; check++) {
+      await sleep(100);
+      ownerDig = await readFile(path.join(worldDir, 'town-packet-owner-dig-result.txt'), 'utf8').catch(() => '');
+    }
     await page.keyboard.up('g');
-    await sleep(1000);
-    ownerDig = await readFile(path.join(worldDir, 'town-packet-owner-dig-result.txt'), 'utf8').catch(() => '');
+    if (!ownerDig) await sleep(500);
   }
   assert.match(ownerDig, /^PASS /, `owner browser dig packet did not edit own claim: ${ownerDig || 'no result'}`);
 

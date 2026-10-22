@@ -191,7 +191,9 @@ core.register_globalstep(function(dtime)
     local ok, result = pcall(function()
         local state = read_state()
         local guest = core.get_player_by_name(state.guest)
+        local owner = core.get_player_by_name(state.owner)
         check(guest ~= nil, "outsider disconnected before browser packet probe")
+        check(owner ~= nil, "owner disconnected before browser packet probe")
         packet_pos = { x = state.edit_pos.x + 1, y = state.edit_pos.y, z = state.edit_pos.z }
         local guest_pos = { x = packet_pos.x + 2.5, y = packet_pos.y - 1.5, z = packet_pos.z }
         check(core.get_node(packet_pos).name ~= "ignore", "browser packet target is not loaded")
@@ -209,6 +211,8 @@ core.register_globalstep(function(dtime)
             core.set_node({ x = packet_pos.x + dx, y = packet_pos.y - 2, z = packet_pos.z }, { name = "default:stone" })
         end
         check(guest:set_wielded_item("default:pick_steel"), "could not equip outsider pickaxe")
+        owner:set_physics_override({ gravity = 0 })
+        owner:set_pos({ x = packet_pos.x - 6, y = packet_pos.y - 1.5, z = packet_pos.z + 6 })
         guest:set_physics_override({ gravity = 0 })
         guest:set_pos(guest_pos)
         guest:set_look_horizontal(math.pi / 2)

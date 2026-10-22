@@ -1,8 +1,5 @@
 import { makeRemoteArgs, sameOriginProxyUrl } from './remote-session.mjs';
-import { installConsoleRedactor } from './log-redaction.mjs';
 
-// Install before the WASM module loads: it captures its console handler.
-const consoleRedactor = installConsoleRedactor(console);
 const status = document.getElementById('status');
 const loading = document.getElementById('loading');
 function report(message, error = false) {
@@ -62,7 +59,7 @@ try {
   };
   launcher.onerror = error => { if (activeArgs) activeArgs.password = ''; report(String(error), true); };
   launcher.oncancel = () => { if (activeArgs) activeArgs.password = ''; report('Game launch cancelled. Reload to try again.', true); };
-  launcher.onexit = code => { if (activeArgs) activeArgs.password = ''; consoleRedactor.clear(); report(`Game client stopped (exit ${code}). Reload to try again.`, code !== 0); };
+  launcher.onexit = code => { if (activeArgs) activeArgs.password = ''; report(`Game client stopped (exit ${code}). Reload to try again.`, code !== 0); };
   launcher.onready = async () => {
     try {
       report('Installing the world content…');
@@ -71,15 +68,13 @@ try {
       const ticket = await requestTicket();
       const args = makeRemoteArgs(ticket, engine.LuantiArgs);
       activeArgs = args;
-      consoleRedactor.set(ticket.password);
       ticket.password = '';
       engine.onMainStarted(() => {
         args.password = '';
-        consoleRedactor.clear();
         window.parent.postMessage({ type: 'minemine-engine-started' }, location.origin);
       });
       launcher.launch(args);
-    } catch (error) { if (activeArgs) activeArgs.password = ''; consoleRedactor.clear(); report(error.message, true); }
+    } catch (error) { if (activeArgs) activeArgs.password = ''; report(error.message, true); }
   };
   if (launcher.isReady()) launcher.onready();
 } catch (error) { report(error.message, true); }

@@ -65,7 +65,7 @@ node scripts/setup-world.mjs
 
 Run the resulting server binary using `game/minetest.conf`, the configured `WORLD_DIR`, and game ID `minetest`. Native executable naming varies by engine version; confirm the name from that build. The config binds UDP to loopback and disables server-list advertising. Keep it private until the restricted proxy is working. For an existing world, back up the world and install/enable `town_claims` manually; the setup script refuses to overwrite an existing `world.mt`.
 
-The Node service and Luanti must run as the same dedicated OS user (or use carefully scoped directory permissions) so Lua can read grant and quota files with mode 0600. `WORLD_DIR/wallet_grants` and `WORLD_DIR/town_quotas` must never be static web directories. Keep mod security enabled; the mods read only their world directory and need no insecure environment or outbound HTTP permissions.
+The Node service and Luanti must run as the same dedicated OS user (or use carefully scoped directory permissions) so Lua can read grant, balance-snapshot, and quota files with mode 0600. `WORLD_DIR/wallet_grants`, `WORLD_DIR/wallet_balances`, and `WORLD_DIR/town_quotas` must never be static web directories. Keep mod security enabled; the mods read only their world directory and need no insecure environment or outbound HTTP permissions.
 
 ## 5. Verify the engine adapter and proxy
 
@@ -105,7 +105,7 @@ Only expose web ports; native UDP remains private. Run a backup/restore drill, t
 
 First execute the local-EVM tests tracked in E02. Set an isolated testnet RPC/key/treasury in `.env`, then run `npm run contracts:deploy`. Never paste a key into an issue, chat, shell command argument, or frontend file. The service itself does not use a deployment key.
 
-Record deployment receipt and verify the source. Set `TOKEN_ADDRESS` and confirm authenticated balances against the configured chain. Reward minting, shops, escrow, deposit indexing and reorg recovery remain E05–E08 tasks; this deployment alone does not complete the in-game currency goal.
+Record deployment receipt and verify the source. Set `TOKEN_ADDRESS` and confirm authenticated balances against the configured chain. The wallet-panel balance refresh calls authenticated `POST /api/currency/sync` to read the configured token at a fresh block and write a 60-second private snapshot for the connected character. In Luanti, `/wallet balance` shows that observed amount, chain, and block. It is not a town credit or proof of a spendable in-game reward. Reward minting, shops, escrow, deposit indexing and reorg recovery remain E06–E08 tasks; this deployment alone does not complete the in-game currency goal.
 
 ## 8. ENS, direct transfers and protected towns
 

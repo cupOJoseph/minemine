@@ -1,5 +1,11 @@
 # Validation record
 
+## In-game observed MINE balance — 2026-10-22 EDT
+
+The local Anvil HTTP/EVM suite passed nine tests after a real MINE deployment. An authenticated `POST /api/currency/sync` read the connected wallet's balance at a fresh block, wrote a 0600 world snapshot with the matching wallet, token, chain, raw amount, formatted amount, block and 60-second expiry, and returned the observed value. An unauthenticated sync was rejected; a wrong-chain RPC wrote no snapshot. The 29 source tests also passed. [Actions run 39835786761](https://github.com/cupOJoseph/minemine/actions/runs/39835786761) passed the pinned native server and two-wallet Chromium smoke test. Its `town-probe-result.txt` says PASS; that CI-only probe calls `/wallet balance` in Luanti and asserts the missing, current and expired snapshot cases. The retained run also passed outsider browser dig/place denial, owner browser dig/place, wallet reconnect, and native/Node restart.
+
+This shows a wallet balance in game as an observation only. The command cannot spend MINE or grant town credit. The native probe uses a synthetic snapshot to exercise display and expiry; no live Sepolia token, injected wallet transaction, or end-to-end chain-to-chat refresh has been verified.
+
 ## Owner browser dig and place survive full-stack restart — 2026-10-22 EDT
 
 [Actions run 39831567107](https://github.com/cupOJoseph/minemine/actions/runs/39831567107) passed the current-head native workflow with two distinct SIWE-authenticated Chromium wallets in one claimed Luanti world. The retained markers report `PASS` for outsider browser dig denial, outsider browser place denial, owner browser placement, and owner browser digging at the same claimed target. The native log shows the owner placed `default:wood` at `(-63,5,-320)` and then dug it; the outsider's attempts left the target unchanged. Wallet reconnect and a clean Luanti/Node restart also passed, preserving the inventory stack, separate owner-placed backing node, nine-column claim, and owner/outsider protection.

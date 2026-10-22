@@ -1,10 +1,16 @@
 # Validation record
 
+## Owner browser placement succeeds in own town — 2026-10-22 EDT
+
+[Actions run 39825871092](https://github.com/cupOJoseph/minemine/actions/runs/39825871092) passed the current-head native workflow. After an outsider's browser dig and place packets were denied at a nine-column claim, the disposable probe moved the owner to the same cleared target and equipped wood. The owner's separate Chromium client pressed the test-only place key, sending a normal native interaction packet. The native log recorded `w_1691d6c278d35fbde places node default:wood at (129,11,-256)`, and the retained `town-packet-owner-place-result.txt` says `PASS owner browser place changed own claimed node`. The same run retained passing outsider dig/place, wallet reconnect, and full Luanti/Node restart markers.
+
+This proves one allowed owner edit through the browser, as well as the denied outsider actions. It still uses CI-granted town quota and a disposable browser key binding. Browser owner dig, invited-member edits, live testnet payment delivery, and a remote deployment remain unverified.
+
 ## Real browser place packet denied in a claimed town — 2026-10-22 EDT
 
 [Actions run 39822133926](https://github.com/cupOJoseph/minemine/actions/runs/39822133926) passed the native smoke workflow with two distinct SIWE-authenticated Chromium wallets in one Luanti world. The CI-only probe equipped the outsider with `default:wood`, kept an owner-placed wood node as the backing surface inside a nine-column claim, cleared the adjacent placement target, and aimed the outsider at that surface. The test pressed a place key in the browser client; the pinned WASM engine sent a normal native interaction packet through the wallet-authenticated bridge. The server log recorded `w_3bab0dcd2538f5585 tried to place default:wood at protected position (1,6,384)`. The retained `town-packet-place-result.txt` says `PASS outsider browser place reached protected air without changing it`.
 
-This run also retained `PASS` markers for browser dig denial, wallet reconnect, and a clean Luanti/Node restart that preserved inventory, the owner-placed node, the nine-column claim, and owner/outsider protection. The test injects a place-key binding into the disposable browser fixture because headless Chromium's synthetic pointer movement disrupts right-click aiming; production key bindings are unchanged. The quota came from a CI fixture, not an ERC-20 purchase. Browser owner/member allowed edits, remote-host behavior, and confirmation/reorg behavior after a real testnet purchase remain open.
+This run also retained `PASS` markers for browser dig denial, wallet reconnect, and a clean Luanti/Node restart that preserved inventory, the owner-placed node, the nine-column claim, and owner/outsider protection. The test injects a place-key binding into the disposable browser fixture because headless Chromium's synthetic pointer movement disrupts right-click aiming; production key bindings are unchanged. The quota came from a CI fixture, not an ERC-20 purchase. The later owner-place run above verifies one allowed browser edit; owner dig, member edits, remote-host behavior, and confirmation/reorg behavior after a real testnet purchase remain open.
 
 ## Real browser dig packet denied in a claimed town — 2026-10-22 EDT
 

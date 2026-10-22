@@ -1,8 +1,12 @@
 # Validation record
 
+## Native wallet reconnect retains inventory and town protection — 2026-10-22 EDT
+
+[Actions run 39786849274](https://github.com/cupOJoseph/minemine/actions/runs/39786849274) passed the two-wallet Chromium/native Luanti smoke test with an extended CI-only probe. The probe placed three diamonds in the first wallet character's main inventory, confirmed the fixture was set, and maintained the previously verified nine-column claim. After the first browser closed and Luanti logged its disconnect, the same wallet signed in again and joined under the same character name. The probe then read three diamonds from the same inventory slot and confirmed the second wallet still could not build at the claimed position through `core.is_protected`. This proves inventory and claim behavior across a disconnect and rejoin while the server remains running. It does not prove inventory/claim restoration after a server restart, actual dig/place packet denial, or paid on-chain quota delivery.
+
 ## Native wallet reconnect retains character identity — 2026-10-22 EDT
 
-[Actions run 39785092018](https://github.com/cupOJoseph/minemine/actions/runs/39785092018) repeated the two-wallet and town-protection checks, closed the first Chromium game page, waited for native Luanti to log that character leaving or timing out, requested a new SIWE session from the same EOA, and required a second native `joins game` record for the same derived character name. The other wallet browser remained open during this sequence. This proves a disconnected browser can reauthenticate and rejoin under the same wallet-derived identity. It does not yet verify inventory or position restoration, town-state persistence after a server restart, or reconnect behavior across Node process restarts.
+[Actions run 39785092018](https://github.com/cupOJoseph/minemine/actions/runs/39785092018) repeated the two-wallet and town-protection checks, closed the first Chromium game page, waited for native Luanti to log that character leaving or timing out, requested a new SIWE session from the same EOA, and required a second native `joins game` record for the same derived character name. The other wallet browser remained open during this sequence. This proves a disconnected browser can reauthenticate and rejoin under the same wallet-derived identity. The later run above adds an inventory fixture check.
 
 ## Native town protection with two wallet players — 2026-10-22 EDT
 

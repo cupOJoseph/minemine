@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
-import { patchBuildScript, patchDependencyScripts } from '../scripts/prepare-wasm.mjs';
+import { patchBuildScript, patchBuildAll, patchDependencyScripts } from '../scripts/prepare-wasm.mjs';
+import { removeStartupArgumentDump } from '../scripts/patch-wasm-args.mjs';
 import { releaseId, validateWasm } from '../scripts/stage-playtest.mjs';
 import { configureSoloLauncher, makeSoloArgs, makeSoloSession } from '../playtest/session.mjs';
 import { makeRemoteArgs, sameOriginProxyUrl } from '../playtest/remote-session.mjs';
@@ -132,6 +133,9 @@ test('adapter contract matches the actual downloaded Luanti classes', { skip: !f
   assert.deepEqual(Array.from(args.toArray()), ['--go', '--gameid', 'minetest', '--world', '/luanti/worlds/miners-playtest']);
   const build = fs.readFileSync(new URL('../vendor/wasm/build_luanti.sh', import.meta.url), 'utf8');
   assert.match(patchBuildScript(build), /-sINITIAL_MEMORY=536870912/);
+  const all = fs.readFileSync(new URL('../vendor/wasm/build_all.sh', import.meta.url), 'utf8');
+  assert.match(patchBuildAll(all), /node miners-patch-args\.mjs sources\/luanti\/src\/mainloop\.cpp/);
+  assert.throws(() => patchBuildAll('different'), /changed/);
   const patched = patchDependencyScripts(
     fs.readFileSync(new URL('../vendor/wasm/build_libarchive.sh', import.meta.url), 'utf8'),
     fs.readFileSync(new URL('../vendor/wasm/build_libzip.sh', import.meta.url), 'utf8'),
@@ -139,6 +143,12 @@ test('adapter contract matches the actual downloaded Luanti classes', { skip: !f
   assert.match(patched['build_libarchive.sh'], /--host=wasm32-unknown-none/);
   assert.match(patched['build_libzip.sh'], /-DBUILD_SHARED_LIBS=OFF/);
   assert.throws(() => patchDependencyScripts('different', 'different'), /changed/);
+});
+test('pinned browser source patch removes raw command-line logging', () => {
+  const original = 'before\n    std::cout << "Main received args:" << std::endl;\n    for (int i = 0; i < main_argc; i++) {\n        std::cout << "    " << main_argv[i] << std::endl;\n    }\nafter\n';
+  const patched = removeStartupArgumentDump(original);
+  assert.doesNotMatch(patched, /main_argv\[i\]/);
+  assert.throws(() => removeStartupArgumentDump('changed upstream'), /changed/);
 });
 test('restricted bridge packet shape matches the pinned webshims encoder', { skip: !fs.existsSync(new URL('../vendor/webshims/src/emsocket/proxy.js', import.meta.url)) && 'Pinned webshims source is not downloaded in this checkout.' }, () => {
   const context = vm.createContext({ WebSocket: class {}, console: { log() {} } });

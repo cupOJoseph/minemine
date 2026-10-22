@@ -63,6 +63,7 @@ export function stagePlaytest(buildSource, root = project) {
   fs.mkdirSync(path.join(staged, 'notices'), { recursive: true });
   for (const file of ['LICENSE', 'THIRD_PARTY.md']) fs.copyFileSync(path.join(root, file), path.join(staged, 'notices', file));
   fs.copyFileSync(path.join(buildSource, 'build_luanti.sh'), path.join(staged, 'notices', 'build_luanti.sh.txt'));
+  fs.copyFileSync(path.join(buildSource, 'miners-patch-args.mjs'), path.join(staged, 'notices', 'startup-argument-redaction-patch.mjs.txt'));
   for (const name of ['build_libarchive.sh', 'build_libzip.sh']) fs.copyFileSync(path.join(buildSource, name), path.join(staged, 'notices', name + '.txt'));
   fs.copyFileSync(path.join(buildSource, 'LICENSE'), path.join(staged, 'notices', 'wasm-wrapper-LICENSE.txt'));
   fs.copyFileSync(path.join(root, 'vendor/native/LICENSE.txt'), path.join(staged, 'notices', 'engine-LICENSE.txt'));

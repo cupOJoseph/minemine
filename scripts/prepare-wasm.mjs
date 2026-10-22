@@ -22,6 +22,11 @@ export function patchBuildScript(source, { memoryMiB = 512, threads = 8 } = {}) 
   if (source.split(original).length !== 2) throw new Error('Pinned engine build flags have changed; review before applying the memory profile.');
   return source.replace(original, '-sPTHREAD_POOL_SIZE=' + threads + ' -s EXPORTED_RUNTIME_METHODS=ccall,cwrap -sINITIAL_MEMORY=' + (memoryMiB * 1024 * 1024) + ' -sALLOW_MEMORY_GROWTH=1 -sMAXIMUM_MEMORY=2147483648 -sDYNAMIC_EXECUTION=0');
 }
+export function patchBuildAll(source) {
+  const original = './fetch_sources.sh\n\n# Dependencies';
+  if (source.split(original).length !== 2) throw new Error('Pinned build order changed; review before patching browser source.');
+  return source.replace(original, './fetch_sources.sh\nnode miners-patch-args.mjs sources/luanti/src/mainloop.cpp\n\n# Dependencies');
+}
 
 export function prepareWasm(root = project, env = process.env) {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'upstream.sources.json'), 'utf8'));
@@ -34,12 +39,16 @@ export function prepareWasm(root = project, env = process.env) {
   const threads = Number(env.WASM_PTHREAD_POOL_SIZE || 8);
   const patched = patchBuildScript(fs.readFileSync(path.join(source, 'build_luanti.sh'), 'utf8'), { memoryMiB, threads });
   const dependencies = patchDependencyScripts(fs.readFileSync(path.join(source, 'build_libarchive.sh'), 'utf8'), fs.readFileSync(path.join(source, 'build_libzip.sh'), 'utf8'));
-  const scripts = { 'build_luanti.sh': patched, ...dependencies };
+  const scripts = {
+    'build_luanti.sh': patched,
+    'build_all.sh': patchBuildAll(fs.readFileSync(path.join(source, 'build_all.sh'), 'utf8')),
+    'miners-patch-args.mjs': fs.readFileSync(path.join(root, 'scripts/patch-wasm-args.mjs'), 'utf8'),
+    ...dependencies,
+  };
   const scriptHashes = Object.fromEntries(Object.entries(scripts).map(([name, text]) => [name, createHash('sha256').update(text).digest('hex')]));
-  const profile = { schema: 2, wrapperCommit: expected, memoryMiB, threads, patchHash: scriptHashes['build_luanti.sh'], scriptHashes };
-  // Compiler placement stays stable across dependency-script corrections so
-  // the runner can reuse its SDK; the full profile is still checked below.
-  const profileId = createHash('sha256').update(JSON.stringify({ schema: 2, wrapperCommit: expected, memoryMiB, threads, patchHash: profile.patchHash })).digest('hex').slice(0, 16);
+  const profile = { schema: 3, wrapperCommit: expected, memoryMiB, threads, patchHash: scriptHashes['build_luanti.sh'], scriptHashes };
+  // The source patch changes the compiled binary, so it gets a distinct build profile.
+  const profileId = createHash('sha256').update(JSON.stringify({ schema: 3, wrapperCommit: expected, memoryMiB, threads, scriptHashes })).digest('hex').slice(0, 16);
   const buildSource = path.join(root, 'runtime', 'wasm-' + profileId);
   const stamp = path.join(buildSource, 'miners-build-profile.json');
   if (fs.existsSync(stamp)) {

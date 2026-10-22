@@ -141,7 +141,6 @@ try {
   await secondPage.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
   await canvas.click({ position: { x: bounds.width / 2, y: bounds.height / 2 } });
   record(`game canvas pointer lock: ${await secondPage.evaluate(() => document.pointerLockElement?.id || 'none')}`);
-  await secondPage.mouse.move(0, 0);
   await writeFile(path.join(worldDir, 'town-packet-aim.txt'), 'aim\n', { mode: 0o600 });
   let aimReady = '';
   for (let attempt = 0; attempt < 30; attempt++) {

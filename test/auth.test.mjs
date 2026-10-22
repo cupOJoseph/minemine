@@ -67,4 +67,5 @@ test('configuration requires TLS for public hosts and restricts initial chains',
   assert.throws(() => readConfig({ CHAIN_ID: '1' }), /Sepolia/);
   assert.throws(() => readConfig({ PORT: '-1' }), /port/);
   assert.equal(readConfig({}).origin, 'http://localhost:3000');
+  assert.throws(() => readConfig({ TOWN_CONFIRMATIONS: '0' }), /six confirmation/);
 });

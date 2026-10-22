@@ -73,6 +73,9 @@ test('static files supply isolation headers; private paths and invalid bodies ar
   assert.equal(page.headers.get('Cross-Origin-Embedder-Policy'), 'require-corp');
   assert.match(await page.text(), /MineMine/);
   assert.ok(!page.headers.get('Content-Security-Policy').includes("style-src 'self' 'unsafe-inline'"));
+  const screenshot = await request('/screenshots/crafting-playtest.jpg');
+  assert.equal(screenshot.status, 200);
+  assert.equal(screenshot.headers.get('Content-Type'), 'image/jpeg');
   const engine = await request('/engine/not-installed.html');
   assert.equal(engine.status, 404);
   assert.ok(engine.headers.get('Content-Security-Policy').includes("style-src 'self' 'unsafe-inline'"));

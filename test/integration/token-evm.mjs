@@ -69,7 +69,7 @@ test('MINE executes supply, transfer, allowance and burn rules in a local EVM', 
   const units = value => parseUnits(String(value), 18);
   const supply = units(1_000_000);
   await t.test('treasury receives all tokens with the intended metadata', async () => {
-    assert.equal(await token.name(), 'Miners Credit');
+    assert.equal(await token.name(), 'MineMine Credit');
     assert.equal(await token.symbol(), 'MINE');
     assert.equal(await token.decimals(), 18n);
     assert.equal(await token.totalSupply(), supply);
@@ -126,7 +126,7 @@ test('MINE executes supply, transfer, allowance and burn rules in a local EVM', 
   });
   for (const chainId of [31337, 11155111]) await t.test('authenticated balance API ' + (chainId === 31337 ? 'reads the deployed contract' : 'rejects an RPC on the wrong chain'), async () => {
     const worldDir = mkdtempSync(path.join(tmpdir(), 'miners-evm-world-'));
-    const config = readConfig({ CHAIN_ID: String(chainId), RPC_URL: url, TOKEN_ADDRESS: await token.getAddress(), TOWN_CONTRACT_ADDRESS: await town.getAddress(), TOWN_CONFIRMATIONS: '0', WORLD_DIR: worldDir });
+    const config = readConfig({ CHAIN_ID: String(chainId), RPC_URL: url, TOKEN_ADDRESS: await token.getAddress(), TOWN_CONTRACT_ADDRESS: await town.getAddress(), TOWN_CONFIRMATIONS: chainId === 31337 ? '0' : '6', WORLD_DIR: worldDir });
     const server = createApp(config);
     server.listen(0, '127.0.0.1');
     try {

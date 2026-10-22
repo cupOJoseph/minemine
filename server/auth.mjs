@@ -32,7 +32,7 @@ export function createAuth({ origin, chainId, now = Date.now, capacity = 10_000 
       const issuedAt = new Date(now()).toISOString();
       const expiresAt = now() + challengeTTL;
       const url = new URL(origin);
-      const message = `${url.protocol}//${url.host} wants you to sign in with your Ethereum account:\n${address}\n\nSign in to Miners. This does not authorize a transaction.\n\nURI: ${origin}\nVersion: 1\nChain ID: ${chainId}\nNonce: ${nonce}\nIssued At: ${issuedAt}\nExpiration Time: ${new Date(expiresAt).toISOString()}`;
+      const message = `${url.protocol}//${url.host} wants you to sign in with your Ethereum account:\n${address}\n\nSign in to MineMine. This does not authorize a transaction.\n\nURI: ${origin}\nVersion: 1\nChain ID: ${chainId}\nNonce: ${nonce}\nIssued At: ${issuedAt}\nExpiration Time: ${new Date(expiresAt).toISOString()}`;
       challenges.set(digest(token), { address, message, expiresAt });
       return { token, message, expiresAt };
     },

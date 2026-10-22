@@ -1,27 +1,25 @@
-# Miners
+# MineMine
 
-A browser-first Luanti (formerly Minetest) project with Ethereum wallet identity and an ERC-20 game-currency prototype.
+MineMine is a browser-first voxel crafting MMO project built on Luanti (formerly Minetest). The [current solo browser playtest](https://cupojoseph.github.io/minemine/) runs the compiled engine and Minetest Game; movement, mining, placement, inventory, crafting, and browser save/reload have been verified in Chromium. The new MineMine landing page is in this branch. The public shared world is **not online yet**.
 
-**Status: solo browser playtest working.** Source is pushed to [cupOJoseph/minemine](https://github.com/cupOJoseph/minemine), foundation CI passes, and the Linux WASM build succeeded. The browser wrapper, official engine, and Minetest Game are pinned. No multiplayer server is online and no public token is deployed.
+## Current feature state
 
-The [solo playtest](https://cupojoseph.github.io/minemine/) runs the actual compiled engine and bundled game. Movement, inventory, digging, placement, clean exit and saved-world reload passed in the in-app Chromium browser on 2026-10-18. The reserved-name startup failure is fixed. Its published WASM matches the build's SHA-256 hash. Performance benchmarking, other browsers and extended QA remain pending; see [the validation record](docs/VALIDATION.md). The build-time browserVerified flag remains false because packaging itself does not execute browser QA.
+| Feature | State |
+| --- | --- |
+| Solo browser game | Playable in desktop Chromium; additional browser and stability checks remain |
+| Public shared server | Native server, restricted WebSocket-to-UDP bridge, and host still required |
+| Wallet identity | Sign-In with Ethereum (EOA) service and short-lived game grants implemented; actual Luanti multiplayer login not yet verified |
+| ENS | Server-side mainnet name lookup and forward-verified display implemented; requires `ENS_RPC_URL` and live RPC QA |
+| MINE ERC-20 | Fixed-supply source and local-EVM transfers tested; no public token deployed |
+| Wallet transfers | Direct browser-wallet transaction UI implemented; needs deployed testnet token and browser-wallet QA |
+| Town protection | Testnet payment contract, confirmed quota sync, and Luanti claim mod implemented; native-engine end-to-end QA remains |
+| SpacetimeDB | [Migration plan](docs/SPACETIMEDB.md) for the next scaling phase; not yet integrated |
 
-See [the first browser playtest build](docs/PLAYTEST.md) for controls, the Linux workflow, bundle contents and remaining checks.
-
-## What exists
-
-- Responsive launcher with browser-wallet connection and Sign-In with Ethereum messages.
-- Node service that verifies actual EOA signatures, binds challenges to browser cookies, prevents challenge replay, and creates expiring server-side sessions.
-- Short-lived game-credential issuer and an **experimental, untested-in-engine** Lua authentication mod. Ordinary account registration is disabled by that mod.
-- Fixed-supply `MineToken` ERC-20 source using OpenZeppelin, a local compiler, and a testnet-only deployment script.
-- Authenticated on-chain balance endpoint and launcher display, enabled only with an RPC and token address.
-- Source-fetch/locking scripts, WASM build workflow, tests, and a detailed [roadmap](docs/ROADMAP.md).
-
-The illustration in the launcher is concept art, not a screenshot or substitute game. The external upstream demo is independent and does not use this project's wallet login.
+The landing page distinguishes playable features from planned ones and uses two actual playtest captures plus an attributed Minetest Game screenshot. The large Play Now link starts solo mode without a wallet.
 
 ## Run locally
 
-Node 22.16 or newer is required. From this directory, on a machine that permits local sockets:
+Node 22.16+ is required. From this checkout:
 
 ```sh
 npm ci --ignore-scripts
@@ -32,57 +30,23 @@ npm run test:evm
 npm start
 ```
 
-Open `http://localhost:3000` (use that exact hostname to match `PUBLIC_ORIGIN`). For testing, enable an Ethereum browser wallet and switch to Sepolia when prompted. Signing in requests a message signature, not a transaction. No private key is ever requested by the website.
+Open the origin in `PUBLIC_ORIGIN` (default `http://localhost:3000`). `npm test` and Solidity compilation do not open sockets. The HTTP and EVM suites use local sockets. The ignored `public/engine/` bundle must be staged separately for local Play Now; on a fresh checkout the button points to the published playtest.
 
-`npm test` runs in-process handler, signature, grant, configuration, and contract-compilation checks without opening a network port. `npm run test:http` separately tests actual HTTP sockets. `npm run test:evm` executes token transfers, allowances, burns and authenticated balance reads on an isolated local Anvil chain. These checks do not substitute for browser or native-engine testing.
+Wallet login requests a message signature, not a transaction. MINE sends and town purchases **do** request testnet transactions and gas. The app never asks for a wallet private key. This prototype supports externally owned accounts, Sepolia or local chain 31337, and an optional mainnet ENS RPC. See [deployment](docs/DEPLOYMENT.md) and [town protocol](docs/TOWNS.md).
 
-This implementation supports EOA wallets. Contract wallets/ERC-1271, WalletConnect, mobile wallet deep links, multiple injected-provider discovery, and multi-server sessions are future tasks.
+## Build and publish the browser playtest
 
-## Build the actual game
+The pinned WASM wrapper, engine and Minetest Game sources are in [upstream.sources.json](upstream.sources.json). `bash scripts/build-wasm.sh` builds the engine on the documented Linux toolchain and stages it in ignored `public/engine/`. A successful build artifact can be supplied to the manual Pages workflow. The Pages package now puts this landing page at the root and the solo game at `/play/`; `scripts/prepare-pages-playtest.mjs` verifies engine hashes and prepares that layout. GitHub Pages is static and does not run wallet auth or the multiplayer game server.
 
-Read [architecture and upstream findings](docs/ARCHITECTURE.md), then [build and deployment](docs/DEPLOYMENT.md). Fetch the reviewed source lock without updating its pins:
+Do not enable `GAME_ENABLED` or `ENGINE_ADAPTER_READY` until the restricted proxy, pinned engine adapter, native server, wallet grants, and remote two-player smoke test pass. The current in-page shared-world button remains disabled.
 
-```sh
-npm run upstream:fetch
-bash scripts/build-wasm.sh
-```
+## Repository map
 
-The WASM build uses upstream's scripts on Linux with Node 24 and Emscripten 6.0.8. Its first successful run is [39147984307](https://github.com/cupOJoseph/minemine/actions/runs/39147984307). It stages the engine and a bundled local game at `public/engine/`; shared multiplayer still needs the wallet adapter and restricted proxy. Do not enable `GAME_ENABLED` or `ENGINE_ADAPTER_READY` to bypass the disabled shared-world Play button.
+- `public/` — MineMine landing page, real gameplay captures, browser-wallet UI.
+- `playtest/` — actual Luanti solo launcher and browser hosting files.
+- `server/` — SIWE sessions, ENS resolution, on-chain reads, private quota sync and join grants.
+- `contracts/` — fixed-supply MINE and testnet town land-credit payment contract.
+- `game/mods/` — experimental wallet authentication and town protection mods.
+- `docs/ROADMAP.md` — acceptance criteria and remaining integration gates.
 
-## Currency
-
-```sh
-npm run contracts:compile
-```
-
-The provisional token is **Miners Credit / MINE**, 18 decimals, with one million units minted to a specified treasury at deployment. Holders can burn tokens; there is no extra minting, upgrade control, or tax. This is an implementation choice for a test prototype, not a finalized token economy.
-
-Deployment requires `RPC_URL`, `DEPLOYER_PRIVATE_KEY` (isolated testnet wallet), and `TOKEN_TREASURY`. Then run `npm run contracts:deploy`. The script refuses chains other than Sepolia (11155111) and local development (31337). It spends testnet gas and waits for two confirmations; no deployment was performed during setup. Set `TOKEN_ADDRESS` afterward to enable the balance endpoint. The game does not yet award or spend these tokens.
-
-## Project map
-
-| Path | Purpose |
-| --- | --- |
-| `public/` | Launcher; optional ignored engine bundle |
-| `server/` | SIWE sessions, static serving, balance reads, join grants |
-| `game/mods/wallet_auth/` | Experimental wallet-only Luanti auth handler |
-| `contracts/` | Testnet currency source |
-| `scripts/` | Source lock, builds, compiler, testnet deployment, diagnostics |
-| `test/` | Offline checks and separate socket integration test |
-| `docs/ROADMAP.md` | Task IDs, dependencies, acceptance criteria, blockers |
-
-## Current environment blockers
-
-Recorded 2026-10-16:
-
-1. Shell DNS/network access to GitHub is unavailable, so the engine download failed.
-2. The workspace denies `.git` writes, so `git init` failed.
-3. `gh auth status` reports an invalid credential for `cupOJoseph`.
-4. Docker, CMake, and Emscripten are absent.
-5. Local TCP listeners fail with `EPERM`, preventing preview and live HTTP checks.
-
-Dependencies were restored from the local npm cache with integrity checks, and `npm ci --offline` was verified with that prepared cache. Standard `npm ci` works from the committed lockfile when registry access is available. See [validation](docs/VALIDATION.md) for exact results and limits.
-
-## Licensing
-
-Original project code is MIT-licensed; see `LICENSE`. Luanti and games retain their own licenses. No upstream engine or game is redistributed in this snapshot. Before publishing a WASM bundle, preserve all upstream notices and provide corresponding modified source as required; see [third-party notices](THIRD_PARTY.md).
+MineMine is independent of the Luanti team. Original project code is MIT-licensed; upstream engine and game files retain their own licenses. See [third-party notices](THIRD_PARTY.md).

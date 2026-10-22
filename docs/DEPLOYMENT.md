@@ -1,19 +1,23 @@
 # Build and deployment runbook
 
-The source is published at cupOJoseph/minemine and foundation CI passes. Linux WASM run 39147984307 succeeded and Pages deployment 39149469057 published the experimental solo bundle at https://cupojoseph.github.io/minemine/. Gameplay is unverified because browser control disconnected after deployment. There is no running shared game server.
+The source is published at cupOJoseph/minemine and foundation CI passes. Linux WASM run 39147984307 succeeded, and the existing Pages deployment publishes the solo bundle at https://cupojoseph.github.io/minemine/. Movement, mining, placement, inventory, crafting and saved-world reload have since passed browser QA. The MineMine landing page is staged in this feature branch but not yet published. There is no running shared game server.
 
 ## 1. GitHub and local environment
 
 The only authorized project repository is `https://github.com/cupOJoseph/minemine`. The user supplied this destination on 2026-10-16. Use a fine-grained credential limited to that repository; do not authenticate with a general account-wide credential or create another repository.
 
-A repository-scoped credential was supplied and authorized by the user. GitHub access is now working and commits have been pushed successfully. Contents and Pull requests read/write plus Workflows write cover code/CI work; Administration is unnecessary. Do not put credentials in remote URLs, source files, command arguments, or logs.
+Earlier repository-scoped GitHub access allowed commits to be pushed. On 2026-10-22, `gh auth status` reports an invalid stored CLI token; verify a working repository-scoped credential before creating or updating a PR. Contents and Pull requests read/write plus Workflows write cover code/CI work; Administration is unnecessary. Do not put credentials in remote URLs, source files, command arguments, or logs.
 
-The active checkout is the nested minemine directory. Its main branch tracks origin/main. For subsequent source changes:
+The active checkout is the nested minemine directory. Its main branch tracks origin/main. For subsequent source changes, use a feature branch and pull request:
 
 ```sh
+git switch -c feature/<topic>
 git status --short
 git diff --check
-git push origin main
+git add <reviewed-files>
+git commit -m "Describe the focused change"
+git push -u origin feature/<topic>
+gh pr create --base main --head feature/<topic>
 ```
 
 Review staged files before each commit: `.env`, private keys, `runtime/`, `node_modules/`, and generated artifacts must not be committed. Use only access authorized for this repository. Do not force-push over existing remote work.
@@ -27,7 +31,7 @@ cp .env.example .env
 npm start
 ```
 
-Visit `http://localhost:3000`, connect a Sepolia wallet and sign the login message. Verify cancellation, invalid-signature rejection, account switching, logout and refresh. Confirm the Play button remains disabled while the engine is absent.
+Visit `http://localhost:3000`, connect a Sepolia wallet and sign the login message. Verify cancellation, invalid-signature rejection, account switching, logout and refresh. Confirm the shared-world button remains disabled while the adapter, proxy and server are absent. The separate Play Now link opens the solo engine when staged locally.
 
 ## 2. Fetch and lock upstream
 
@@ -53,15 +57,15 @@ Engine files remain ignored in Git. Publish build artifacts together with checks
 
 Build the pinned official engine using its own platform instructions with client disabled and server enabled; follow that commit's dependency requirements. Use a run-in-place build if retaining the `vendor/native` layout. Install the pinned Minetest Game into its game search path as `minetest`. Do not assume the browser-client and native-server version/protocol match without a connection test.
 
-Create the test world and install the auth mod:
+Create the test world and install the auth and town mods:
 
 ```sh
 node scripts/setup-world.mjs
 ```
 
-Run the resulting server binary using `game/minetest.conf`, the configured `WORLD_DIR`, and game ID `minetest`. Native executable naming varies by engine version; confirm the name from that build. The config binds UDP to loopback and disables server-list advertising. Keep it private until the restricted proxy is working.
+Run the resulting server binary using `game/minetest.conf`, the configured `WORLD_DIR`, and game ID `minetest`. Native executable naming varies by engine version; confirm the name from that build. The config binds UDP to loopback and disables server-list advertising. Keep it private until the restricted proxy is working. For an existing world, back up the world and install/enable `town_claims` manually; the setup script refuses to overwrite an existing `world.mt`.
 
-The Node service and Luanti must run as the same dedicated OS user (or use carefully scoped directory permissions) so Lua can read grant files with mode 0600. `WORLD_DIR/wallet_grants` must never be a static web directory. Keep mod security enabled; the mod reads only its world directory and needs no insecure environment or outbound HTTP permissions.
+The Node service and Luanti must run as the same dedicated OS user (or use carefully scoped directory permissions) so Lua can read grant and quota files with mode 0600. `WORLD_DIR/wallet_grants` and `WORLD_DIR/town_quotas` must never be static web directories. Keep mod security enabled; the mods read only their world directory and need no insecure environment or outbound HTTP permissions.
 
 ## 5. Implement the engine adapter and proxy
 
@@ -83,9 +87,9 @@ Complete B04/B05/S03/A05 in ROADMAP.md, then set `GAME_ENABLED=true` and `ENGINE
 
 ## 6. Host the tested stack
 
-For the first solo browser test, native server hosting is unnecessary: both client and local world run in WASM. After downloading and verifying the engine artifact, `node scripts/prepare-vercel-playtest.mjs` creates an isolated deployment folder under runtime. Only the public engine bundle is copied; the server, auth state, world grants, dependencies and parent workspace are excluded. The generated Vercel configuration supplies COOP/COEP, engine CSP, WASM MIME type, and cache rules. The script verifies recorded asset sizes and SHA-256 hashes and refuses to replace an existing deployment folder. Deploy that generated folder only after explicitly selecting the verified personal Vercel scope. The account's existing CLI credential currently fails API authorization; no Vercel project has been created.
+For solo browser play, native server hosting is unnecessary: both client and local world run in WASM. The manual Pages workflow consumes a successful pinned engine artifact, verifies its hashes, and packages this branch's MineMine landing page at `/` and the solo game at `/play/`. Run `PAGES_SITE_DIR=/tmp/minemine-pages-check-20261022 node scripts/prepare-pages-playtest.mjs` locally with an unused output path to check the package without replacing earlier staging. On Pages, wallet lab APIs stay offline; only the solo game is served. `node scripts/prepare-vercel-playtest.mjs` remains an alternative isolated solo bundle path, but no Vercel project was created.
 
-The user's approved hosting choices are their personal Vercel account or GitHub Pages. Do not deploy into a work team or provision additional paid services without an agreed budget. Standard Pages hosting cannot configure arbitrary response headers; any service-worker isolation approach would need a separate real-browser check before adopting it.
+The user's approved hosting choices for the browser playtest are their personal Vercel account or GitHub Pages. Do not deploy into a work team or provision additional paid services without an agreed budget. Pages cannot run the native UDP game server or Node wallet service. The service-worker isolation path passed a Chromium solo-playtest check, but verify it again after moving the engine under `/play/`.
 
 The remaining instructions apply to the future shared-server milestone:
 
@@ -94,7 +98,7 @@ Use a Linux host with persistent disk, adequate memory for the measured build/wo
 The included `deploy/Dockerfile` can package the **Node launcher/auth service only**. It does not package a working native game server or proxy. Build from project root:
 
 ```sh
-docker build -f deploy/Dockerfile -t miners-auth:dev .
+docker build -f deploy/Dockerfile -t minemine-auth:dev .
 ```
 
 Configure `PUBLIC_ORIGIN=https://your-domain`, TLS termination, same-origin WSS routing, and a private world directory shared with the native game process. Preserve the original Host header; the app validates it against PUBLIC_ORIGIN. Do not trust arbitrary forwarded headers. The current limiter groups clients behind a reverse proxy by proxy IP; replace it with a limiter at the trusted ingress before a multi-user launch.
@@ -106,3 +110,11 @@ Only expose web ports; native UDP remains private. Run a backup/restore drill, t
 First execute the local-EVM tests tracked in E02. Set an isolated testnet RPC/key/treasury in `.env`, then run `npm run contracts:deploy`. Never paste a key into an issue, chat, shell command argument, or frontend file. The service itself does not use a deployment key.
 
 Record deployment receipt and verify the source. Set `TOKEN_ADDRESS` and confirm authenticated balances against the configured chain. Reward minting, shops, escrow, deposit indexing and reorg recovery remain E05–E08 tasks; this deployment alone does not complete the in-game currency goal.
+
+## 8. ENS, direct transfers and protected towns
+
+Set `ENS_RPC_URL` to an Ethereum-mainnet RPC to resolve ENS names, even while MINE runs on Sepolia. The service checks the ENS RPC chain and forward-verifies reverse names before display. Players send MINE directly through their browser wallets after a token is deployed and configured; the server never signs these transfers.
+
+For prototype town payments, set `TOWN_TREASURY` and `TOWN_PRICE_PER_BLOCK`, then run `npm run towns:deploy`. Review its ignored deployment record, verify source and set `TOWN_CONTRACT_ADDRESS`. The wallet lab can then approve exact MINE allowance, buy credits, and sync confirmed totals into the private world. Sepolia quota sync reads at least six blocks behind the head. See [TOWNS.md](TOWNS.md) for commands, trust boundaries, test coverage and native-engine blockers.
+
+Never deploy these prototypes to mainnet or advertise paid land until contract, wallet, chain-reorg, economy and native-game abuse reviews pass.

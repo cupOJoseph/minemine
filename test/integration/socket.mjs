@@ -22,7 +22,7 @@ test('real TCP listener serves launcher and accepts a wallet signature over HTTP
   assert.equal(rejectedHost.status, 400);
   const page = await send(url, { headers });
   assert.equal(page.status, 200);
-  assert.match(page.text, /Enter the world/);
+  assert.match(page.text, /MineMine/);
   const wallet = new Wallet('0x' + '11'.repeat(32));
   const challengeResponse = await send(url + '/api/auth/challenge', { method: 'POST', headers, body: JSON.stringify({ address: wallet.address, chainId: config.chainId }) });
   assert.equal(challengeResponse.status, 200);

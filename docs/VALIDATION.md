@@ -1,5 +1,13 @@
 # Validation record
 
+## MineMine landing, ENS, transfers and towns — 2026-10-22 EDT
+
+The feature branch passed `npm test` (26 tests), `npm run test:http` (one real TCP integration test), `npm run test:evm` (one parent with eight EVM subtests), and `npm run contracts:compile` for both MineToken and TownBlocks. The local EVM suite deployed both contracts on disposable Anvil chain 31337. It verified token transfers and burns, exact town payment and per-wallet purchased counts, and authenticated Node reads plus private quota-file sync. No public wallet, testnet key, gas, or live chain was used.
+
+The MineMine landing page was visually inspected in the in-app Chromium browser from the local Node service. Its prominent Play Now link resolved to the staged local engine. The hash-verified Pages package was prepared in a separate temporary directory: landing files at its root, game at `/play/`, and gameplay screenshots under `/screenshots/`. Served under a subpath, its Play Now link navigated to `/play/`, the browser passed its engine checks, and the actual solo Luanti world rendered. The new wrapper displayed MineMine; the old compiled content pack still displayed “Miners playtest” in its initial in-game chat message, so the next WASM build must include the updated starter mod for full name consistency.
+
+ENS reverse/forward checks and recipient normalization were verified with mocked mainnet RPC behavior; no live ENS RPC was configured. Wallet-extension signing, ERC-20 sending, approval/purchase prompts, native Lua auth and town protection, public multiplayer, and Sepolia finality/reorg behavior remain unverified. The online native world still needs a host, restricted WSS/UDP bridge, engine adapter, backup/restore and two-player smoke test. The current public Pages URL continues to show the previous solo page until this branch is published.
+
 ## Startup crash fixed and solo gameplay verified — 2026-10-18 UTC
 
 The public build reached Creating server, then exited with code 1. The original launcher's unconditional reload concealed the engine error. Captured output showed `Access denied. Reason: Player name not allowed` after the reserved name singleplayer connected to a local multiplayer server. The pinned browser engine's clientlauncher.cpp selects GM_HOST_AND_JOIN when a world and a nonempty name are supplied. The adapter now omits the name argument, allowing GM_SINGLEPLAYER to set the reserved name internally. Failures retain their last 100 log lines; successful exits return to the launcher. Pages publishes current launcher files independently of the compiled engine artifact, with versioned module URLs to avoid stale launcher code.

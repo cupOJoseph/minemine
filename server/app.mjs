@@ -11,7 +11,7 @@ import { createEnsResolver } from './ens.mjs';
 import { createTownCredits } from './towns.mjs';
 
 const publicRoot = path.resolve(fileURLToPath(new URL('../public/', import.meta.url)));
-const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.png': 'image/png', '.ogg': 'audio/ogg' };
+const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.ogg': 'audio/ogg' };
 function cookies(req) {
   return Object.fromEntries((req.headers.cookie || '').split(';').map(s => s.trim().split('=')).filter(p => p.length === 2));
 }
@@ -133,7 +133,9 @@ export function createApp(config) {
         if (req.method === 'POST' && url.pathname === '/api/towns/sync') return json(res, 200, await towns.sync(session));
         if (req.method === 'POST' && url.pathname === '/api/game/ticket') {
           if (!available()) throw new AuthError('The Luanti engine and server adapter are not ready yet. See the roadmap.', 503);
-          return json(res, 200, { ...grants.issue(session, sessionToken), address: config.gameAddress, port: config.gamePort });
+          let ensName = null;
+          try { ensName = await ens.name(session.address); } catch { /* Identity remains the signed address when ENS is unavailable. */ }
+          return json(res, 200, { ...grants.issue(session, sessionToken, ensName), address: config.gameAddress, port: config.gamePort });
         }
         throw new AuthError('Unknown API route.', 404);
       }

@@ -1,9 +1,9 @@
 {
-  "name": "miners-browser",
+  "name": "minemine-browser",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Browser Luanti research build with Ethereum wallet authentication and testnet currency",
+  "description": "MineMine browser Luanti playtest with wallet identity and testnet currency",
   "engines": {
     "node": ">=22.16.0"
   },

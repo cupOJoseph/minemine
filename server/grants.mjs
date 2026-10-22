@@ -11,7 +11,7 @@ export function createGrants(worldDir, now = Date.now) {
     try { return JSON.parse(readFileSync(path.join(dir, `${name}.json`), 'utf8')); } catch { return undefined; }
   }
   return {
-    issue(session, sessionToken) {
+    issue(session, sessionToken, ensName = null) {
       const name = playerName(session.address);
       const previous = read(name);
       if (previous && previous.address.toLowerCase() !== session.address.toLowerCase()) throw new Error('Player ID collision; refusing to overwrite identity.');
@@ -25,6 +25,7 @@ export function createGrants(worldDir, now = Date.now) {
         password_hash: createHash('sha1').update(name + password).digest('base64'),
         session_hash: digest(sessionToken),
       };
+      if (ensName && typeof ensName === 'string' && ensName.length <= 255 && !/[\x00-\x1f\x7f]/.test(ensName)) record.ens_name = ensName;
       const target = path.join(dir, `${name}.json`);
       const temporary = `${target}.${randomBytes(8).toString('hex')}.tmp`;
       writeFileSync(temporary, JSON.stringify(record), { mode: 0o600, flag: 'wx' });

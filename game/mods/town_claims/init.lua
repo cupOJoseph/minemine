@@ -52,6 +52,15 @@ local function used(town)
     return total
 end
 
+local function counts()
+    local towns, claims = 0, 0
+    for _, town in pairs(state.towns) do
+        towns = towns + 1
+        claims = claims + #town.claims
+    end
+    return towns, claims
+end
+
 -- Luanti's standard dig/place protection entry point. Other protection mods
 -- retain their original decision; town membership never bypasses them.
 core.is_protected = function(pos, name)
@@ -76,6 +85,8 @@ core.register_chatcommand("town", {
         local owner, town = town_of(name)
         if command == "create" then
             if owner then return false, "You already belong to a town." end
+            local town_count = counts()
+            if town_count >= 128 then return false, "This prototype world has reached its town limit." end
             if #argument < 3 or #argument > 24 or not argument:match("^[%w _%-]+$") then return false, "Use a town name of 3–24 letters, numbers, spaces, _ or -." end
             state.towns[name] = { name = argument, members = {}, claims = {} }
             persist()
@@ -85,6 +96,8 @@ core.register_chatcommand("town", {
             return true, town.name .. " · owner " .. owner .. " · protected " .. used(town) .. "/" .. quota(owner) .. " columns"
         elseif command == "claim" then
             if owner ~= name then return false, "Only the town owner can claim land." end
+            local _, claim_count = counts()
+            if claim_count >= 1024 or #town.claims >= 256 then return false, "This prototype world has reached its claim limit." end
             local radius = tonumber(argument)
             if not radius or radius % 1 ~= 0 or radius < 1 or radius > 16 then return false, "Choose an integer radius from 1 to 16." end
             local player = core.get_player_by_name(name)

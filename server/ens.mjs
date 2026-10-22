@@ -1,4 +1,4 @@
-import { FetchRequest, JsonRpcProvider, getAddress } from 'ethers';
+import { FetchRequest, JsonRpcProvider, ensNormalize, getAddress } from 'ethers';
 import { AuthError } from './auth.mjs';
 
 // ENS lives on mainnet even when the MINE contract is on Sepolia.
@@ -27,11 +27,13 @@ export function createEnsResolver(rpcUrl, providerOverride) {
     async recipient(input) {
       if (typeof input !== 'string' || input.length > 255 || !input.trim() || input !== input.trim()) throw new AuthError('Enter a wallet address or ENS name.', 400);
       try { return { address: getAddress(input), ensName: null }; } catch { /* Name path. */ }
-      if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*\.eth$/i.test(input) || input.includes('..')) throw new AuthError('Enter a valid Ethereum address or .eth name.', 400);
+      let name;
+      try { name = ensNormalize(input); } catch { throw new AuthError('Enter a valid Ethereum address or .eth name.', 400); }
+      if (!name.endsWith('.eth')) throw new AuthError('Enter a valid Ethereum address or .eth name.', 400);
       const rpc = await mainnet();
-      const address = await rpc.resolveName(input);
+      const address = await rpc.resolveName(name);
       if (!address) throw new AuthError('ENS name has no Ethereum address.', 404);
-      return { address: getAddress(address), ensName: input.toLowerCase() };
+      return { address: getAddress(address), ensName: name };
     },
     close() { if (!providerOverride) provider?.destroy(); },
   };

@@ -1,0 +1,15 @@
+MineMine gameplay images
+
+minetest-game.png is the screenshot.png file from Minetest Game at commit
+c42e4d0c0ff9d27ff7b9b308c3cfc14098dd3a0f:
+https://github.com/luanti-org/minetest_game/blob/c42e4d0c0ff9d27ff7b9b308c3cfc14098dd3a0f/screenshot.png
+
+crafting-playtest.jpg and recipes-playtest.jpg are screenshots captured from
+MineMine's actual browser playtest on 2026-10-22. They show the compiled Luanti
+engine and content from the same pinned Minetest Game source. The browser
+playtest overlay was added by the MineMine project.
+
+Minetest Game media is licensed CC BY-SA 3.0. See its pinned license and
+contributor notices:
+https://github.com/luanti-org/minetest_game/blob/c42e4d0c0ff9d27ff7b9b308c3cfc14098dd3a0f/LICENSE.txt
+https://github.com/luanti-org/minetest_game/tree/c42e4d0c0ff9d27ff7b9b308c3cfc14098dd3a0f

@@ -17,6 +17,7 @@ local function grant(name)
     if type(value.expires_at) ~= "number" or value.expires_at <= os.time() then return nil end
     if type(value.address) ~= "string" or not value.address:match("^0x%x+$") or #value.address ~= 42 then return nil end
     if type(value.password_hash) ~= "string" or #value.password_hash ~= 28 then return nil end
+    if value.ens_name ~= nil and (type(value.ens_name) ~= "string" or #value.ens_name > 255 or value.ens_name:find("[%c]")) then return nil end
     local known = storage:get_string("address:" .. name)
     if known ~= "" and known:lower() ~= value.address:lower() then return nil end
     return value
@@ -57,16 +58,17 @@ core.register_on_joinplayer(function(player)
     local name = player:get_player_name()
     local value = grant(name)
     if not value then core.kick_player(name, "Wallet grant expired; please relaunch.") return end
-    identities[name] = value.address
+    identities[name] = { address = value.address, ens_name = value.ens_name }
     storage:set_string("address:" .. name, value.address)
+    if value.ens_name then player:set_nametag_attributes({ text = value.ens_name }) end
     core.chat_send_player(name, "Wallet connected. Use /wallet to see your address or /town to manage claims after buying MINE land credits.")
 end)
 core.register_on_leaveplayer(function(player) identities[player:get_player_name()] = nil end)
 core.register_chatcommand("wallet", {
     description = "Show the Ethereum address linked to your character",
     func = function(name)
-        local address = identities[name]
-        if not address then return false, "No verified wallet for this connection." end
-        return true, "Wallet: " .. address
+        local identity = identities[name]
+        if not identity then return false, "No verified wallet for this connection." end
+        return true, "Wallet: " .. identity.address .. (identity.ens_name and " · ENS: " .. identity.ens_name or "")
     end,
 })

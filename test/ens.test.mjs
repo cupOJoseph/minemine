@@ -8,6 +8,7 @@ test('ENS reverse name is displayed only when forward resolution matches', async
   const ens = createEnsResolver(null, rpc);
   assert.equal(await ens.name(address), 'builder.eth');
   assert.deepEqual(await ens.recipient('builder.eth'), { address, ensName: 'builder.eth' });
+  assert.deepEqual(await ens.recipient('Bücher.eth'), { address, ensName: 'bücher.eth' });
   rpc.resolveName = async () => '0x2222222222222222222222222222222222222222';
   assert.equal(await ens.name(address), null);
 });

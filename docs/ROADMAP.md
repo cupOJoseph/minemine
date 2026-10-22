@@ -1,6 +1,6 @@
 # Roadmap and task tracker
 
-Updated: 2026-10-18 UTC. `DONE` means the stated acceptance criteria have been checked. `IMPLEMENTED` means code exists but its necessary integration gate has not passed. Blocked tasks are not complete.
+Updated: 2026-10-22 UTC. `DONE` means the stated acceptance criteria have been checked. `IMPLEMENTED` means code exists but its necessary integration gate has not passed. Blocked tasks are not complete.
 
 ## Milestone 0 — Reproducible project foundation
 
@@ -53,6 +53,7 @@ Start with Minetest Game for low complexity. Evaluate Mineclonia/VoxeLibre only 
 | A06 | TODO | Decide whether logout should disconnect live gameplay; add revocation and bans without allowing reconnect after logout. Current logout revokes outstanding matching grants but does not kick an already-connected player. | A05 |
 | A07 | TODO | Replace in-memory sessions/grants with durable single-use coordination if scaling beyond one Node process; add distributed rate limiting. | A05 |
 | A08 | TODO | Add ERC-1271 smart-wallet validation and EIP-6963 provider selection, with chain-bound tests. | A05 |
+| A09 | IMPLEMENTED | Optional Ethereum-mainnet ENS lookups resolve send recipients, display forward-verified reverse names, and place the name in short-lived game grants for a Luanti nametag. Mock-RPC and grant tests pass; live RPC and native-engine QA remain. | A01, mainnet ENS RPC |
 
 ## Milestone 4 — ERC-20 in-game economy
 
@@ -66,13 +67,36 @@ Start with Minetest Game for low complexity. Evaluate Mineclonia/VoxeLibre only 
 | E06 | TODO | Implement reward eligibility from authoritative game events, deduplicated event IDs and issuance limits. Never mint from client-reported mining. Decide treasury distribution vs future capped emissions. | A05, economic rules |
 | E07 | TODO | Implement one real in-game purchase with chain confirmation, idempotent delivery, retries and reorg handling. No transaction per block mined. | E05, transaction/indexer design |
 | E08 | TODO | Test abuse/recovery, treasury controls and end-to-end economy; obtain security review before any mainnet deployment or real-value launch. | E06, E07 |
+| E09 | IMPLEMENTED | Browser wallet encodes exact ERC-20 transfers to a validated address or ENS recipient and asks the wallet to submit the transaction. ABI/amount tests pass; live wallet, Sepolia receipt and balance-refresh QA remain. | E03, A03, A09 |
+
+## Milestone 4b — Wallet-funded protected towns
+
+| ID | Status | Task and acceptance criteria | Depends on |
+| --- | --- | --- | --- |
+| T01 | DONE | `TownBlocks` compiles and local Anvil execution verifies exact MINE payment, immutable token/treasury/price, cumulative per-wallet credits, limits, failed transfers and unauthorized buying. | E02 |
+| T02 | IMPLEMENTED | Authenticated Node sync reads cumulative credits from the configured contract at a confirmed block, checks chain/token, and writes an atomic private quota file. Local EVM HTTP integration passes; Sepolia RPC/reorg testing remains. | T01, E03 |
+| T03 | IMPLEMENTED | Luanti mod creates towns, claims paid x/z columns, prevents overlaps, manages members, and gates standard dig/place protection through `core.is_protected`. Native-engine and other-mod QA remain. | T02, S02 |
+| T04 | IMPLEMENTED | Wallet lab can approve exact MINE allowance, buy 1–4096 columns, view confirmed credits, and request private-world sync. Live injected-wallet and transaction-failure QA remain. | T01, E03, A03 |
+| T05 | TODO | Two wallets buy, sync, claim, invite, build, reject unauthorized edits, reconnect and restore after server restart on a remote test world. | S04, A05, T02–T04 |
+
+The one-time purchase protects x/z columns through all heights. Contract price and treasury are deployment-time choices, not settled economy design. See [town protocol](TOWNS.md) for commands, trust boundaries, and launch gates.
+
+## Milestone 5 — MineMine landing and scale plan
+
+| ID | Status | Task and acceptance criteria | Depends on |
+| --- | --- | --- | --- |
+| L01 | IMPLEMENTED | Responsive MineMine landing page has a large Play Now hero, feature detail, roadmap, and three clearly attributed real game images. Local visual QA passed; public Pages deployment remains. | B04 |
+| L02 | IMPLEMENTED | Pages packaging places the landing at `/` and verified solo engine at `/play/`; local hash-verified staging passed. Publish and verify Play Now on the public URL. | L01, successful WASM artifact |
+| D01 | RESEARCH | [SpacetimeDB plan](SPACETIMEDB.md) defines OIDC wallet identity binding, authoritative reducer boundaries, migration and load-test gates. Implementation follows native multiplayer measurement. | S05 |
 
 ## Resume order
 
 1. Keep the working solo playtest available at https://cupojoseph.github.io/minemine/. Core gameplay and persisted edits passed; do not rebuild just to resume QA.
 2. Finish storage-lock contention, extended stability and cross-browser checks. Preserve visible failure diagnostics.
 3. Record startup/frame/memory measurements and resolve dependency/license release review.
-4. Reach native multiplayer and then wallet-gated multiplayer. Agree a persistent Linux hosting budget before provisioning additional infrastructure.
-5. Local EVM tests already pass. Arrange an isolated testnet deployment and then integrate token spending/rewards. Keep incomplete functionality disabled.
+4. Publish the landing through the Pages workflow after review; verify `/play/` and browser isolation. The existing public root still serves the old solo page until deployment.
+5. Agree a persistent Linux host, region, domain and budget; then reach native multiplayer, restricted proxy and wallet-gated multiplayer. Do not enable the shared-world button from configuration alone.
+6. Local EVM token and town purchases pass. Arrange isolated Sepolia deployment and live wallet QA, then verify native town protection end to end. Keep incomplete functionality disabled.
+7. Measure the first shared world before beginning the SpacetimeDB migration.
 
 Milestone boundaries track completed behavior rather than calendar guesses. The first build and multiplayer compatibility spike should determine the engine schedule.

@@ -10,6 +10,7 @@ export function readConfig(env = process.env) {
   const port = Number(env.PORT || 3000);
   const gamePort = Number(env.GAME_PORT || 30000);
   if (![port, gamePort].every(p => Number.isInteger(p) && p > 0 && p < 65536)) throw new Error('Invalid port.');
+  if (env.GAME_ENABLED === 'true' && env.GAME_ADDRESS && env.GAME_ADDRESS !== '127.0.0.1') throw new Error('The restricted game proxy requires GAME_ADDRESS=127.0.0.1.');
   const townConfirmations = Number(env.TOWN_CONFIRMATIONS ?? (chainId === 31337 ? 0 : 6));
   if (!Number.isInteger(townConfirmations) || townConfirmations < 0 || townConfirmations > 64) throw new Error('Invalid town confirmation depth.');
   if (chainId === 11155111 && townConfirmations < 6) throw new Error('Sepolia town credits require at least six confirmation blocks.');

@@ -11,16 +11,18 @@
     "start": "node --env-file-if-exists=.env server/index.mjs",
     "dev": "node --env-file-if-exists=.env --watch server/index.mjs",
     "test": "node --test test/*.test.mjs",
-    "test:http": "node --test test/integration/socket.mjs",
+    "test:http": "node --test test/integration/socket.mjs test/integration/game-proxy.mjs",
     "contracts:compile": "node scripts/compile-contracts.mjs",
     "contracts:deploy": "node --env-file-if-exists=.env scripts/deploy-token.mjs",
     "towns:deploy": "node --env-file-if-exists=.env scripts/deploy-towns.mjs",
     "doctor": "node scripts/doctor.mjs",
+    "adapter:install": "node scripts/install-remote-adapter.mjs",
     "upstream:fetch": "node scripts/fetch-upstream.mjs",
     "test:evm": "node --test test/integration/token-evm.mjs"
   },
   "dependencies": {
-    "ethers": "6.16.0"
+    "ethers": "6.17.0",
+    "ws": "8.22.0"
   },
   "devDependencies": {
     "@foundry-rs/anvil": "1.7.1",

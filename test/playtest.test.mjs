@@ -7,6 +7,7 @@ import vm from 'node:vm';
 import { patchBuildScript, patchDependencyScripts } from '../scripts/prepare-wasm.mjs';
 import { releaseId, validateWasm } from '../scripts/stage-playtest.mjs';
 import { configureSoloLauncher, makeSoloArgs, makeSoloSession } from '../playtest/session.mjs';
+import { makeRemoteArgs, sameOriginProxyUrl } from '../playtest/remote-session.mjs';
 
 class Args {
   constructor() { this.name = ''; this.password = ''; this.address = ''; this.packs = []; }
@@ -35,6 +36,16 @@ test('solo playtest uses a local world and never requests a remote wallet creden
   assert.equal(args.name, '', 'An explicit name selects local multiplayer and rejects the reserved singleplayer name');
   assert.equal(args.password, '');
   assert.equal(args.address, '');
+});
+test('remote client uses only an unexpired wallet ticket and same-origin proxy', () => {
+  const ticket = { name: 'w_1234567890abcdef12', password: 's'.repeat(43), address: '127.0.0.1', port: 30000, expiresAt: 2_000_000 };
+  const args = makeRemoteArgs(ticket, Args, 1_000_000);
+  assert.deepEqual([args.name, args.password, args.address, args.port, args.gameid, args.go], [ticket.name, ticket.password, '127.0.0.1', 30000, 'minetest', true]);
+  assert.equal(sameOriginProxyUrl('https://minemine.gg'), 'wss://minemine.gg/game-proxy');
+  assert.equal(sameOriginProxyUrl('http://localhost:3000'), 'ws://localhost:3000/game-proxy');
+  assert.throws(() => makeRemoteArgs({ ...ticket, expiresAt: 1_000_000 }, Args, 1_000_000), /expired/);
+  assert.throws(() => makeRemoteArgs({ ...ticket, address: '8.8.8.8' }, Args, 1_000_000), /invalid/);
+  assert.throws(() => sameOriginProxyUrl('https://minemine.gg/other'), /origin/);
 });
 test('engine launch waits for readiness and successful game-pack installation', async () => {
   const launcher = fakeLauncher();

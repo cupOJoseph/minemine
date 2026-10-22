@@ -177,11 +177,9 @@ $('play').addEventListener('click', async () => {
   try {
     if (!crossOriginIsolated || typeof SharedArrayBuffer === 'undefined') throw new Error('The engine needs cross-origin isolation and SharedArrayBuffer. Check your hosting headers.');
     const { launch } = await import('/engine/adapter.js');
-    const ticket = await api('game/ticket', {});
     $('engine-container').hidden = false;
-    await launch({ container: $('engine-container'), ticket });
-    ticket.password = '';
-    status('Game launched.');
+    await launch({ container: $('engine-container') });
+    status('Game client started. Connecting to the shared world…');
   } catch (error) { status(error.message, true); }
   finally { busy = false; renderSession(); }
 });

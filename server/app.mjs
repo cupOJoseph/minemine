@@ -9,6 +9,7 @@ import { AuthError, createAuth } from './auth.mjs';
 import { createGrants } from './grants.mjs';
 import { createEnsResolver } from './ens.mjs';
 import { createTownCredits } from './towns.mjs';
+import { attachGameProxy } from './game-proxy.mjs';
 
 const publicRoot = path.resolve(fileURLToPath(new URL('../public/', import.meta.url)));
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.ogg': 'audio/ogg' };
@@ -81,7 +82,9 @@ export function createApp(config) {
     // Upstream engine builds its own runtime styles and menu event attributes.
     // Keep those permissions scoped to the engine; wallet pages retain strict CSP.
     const enginePage = req.url?.startsWith('/engine/');
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; " + (enginePage ? "script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " : "style-src 'self'; ") + "img-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
+    const wsOrigin = config.origin.replace(/^http/, 'ws');
+    const frameAncestors = req.url === '/engine/connect.html' ? "'self'" : "'none'";
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; " + (enginePage ? "script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " : "style-src 'self'; ") + "img-src 'self' data:; connect-src 'self' " + wsOrigin + "; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors " + frameAncestors);
     if (config.secure) res.setHeader('Strict-Transport-Security', 'max-age=31536000');
     try {
       if (req.headers.host !== new URL(config.origin).host) throw new AuthError('Unexpected host.', 400);
@@ -113,13 +116,14 @@ export function createApp(config) {
         if (req.method === 'POST' && url.pathname === '/api/auth/verify') {
           const data = await body(req);
           const verified = auth.verify(jar[challengeCookie], data.signature);
-          if (session) { grants.revoke(session, sessionToken); auth.revoke(sessionToken); }
+          if (session) { grants.revoke(session, sessionToken); auth.revoke(sessionToken); gameProxy.revoke(sessionToken); }
           res.setHeader('Set-Cookie', [cookie(sessionCookie, verified.token, 43200), cookie(challengeCookie, '', 0)]);
           return json(res, 200, verified.session);
         }
         if (req.method === 'POST' && url.pathname === '/api/auth/logout') {
           if (session) grants.revoke(session, sessionToken);
           auth.revoke(sessionToken);
+          gameProxy.revoke(sessionToken);
           auth.cancel(jar[challengeCookie]);
           res.setHeader('Set-Cookie', [cookie(sessionCookie, '', 0), cookie(challengeCookie, '', 0)]);
           return json(res, 200, { ok: true });
@@ -161,6 +165,8 @@ export function createApp(config) {
   });
   server.requestTimeout = 15_000;
   server.headersTimeout = 10_000;
-  server.on('close', () => { provider?.destroy(); ens.close(); });
+  const gameProxy = attachGameProxy(server, config, request => cookies(request)[sessionCookie], token => Boolean(auth.get(token)));
+  server.stopGameProxy = () => gameProxy.close();
+  server.on('close', () => { gameProxy.close(); provider?.destroy(); ens.close(); });
   return server;
 }

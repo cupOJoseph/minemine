@@ -80,6 +80,8 @@ test('static files supply isolation headers; private paths and invalid bodies ar
   assert.equal(engine.status, 404);
   assert.ok(engine.headers.get('Content-Security-Policy').includes("style-src 'self' 'unsafe-inline'"));
   assert.ok(engine.headers.get('Content-Security-Policy').includes("script-src-attr 'unsafe-inline'"));
+  const remoteFrame = await request('/engine/connect.html');
+  assert.ok(remoteFrame.headers.get('Content-Security-Policy').includes("frame-ancestors 'self'"));
   const config = await request('/api/config');
   assert.equal(typeof (await config.json()).soloPlaytestAvailable, 'boolean');
   for (const route of ['/.env', '/%2e%2e%2fpackage.json', '/server/auth.mjs', '/%00']) assert.equal((await request(route)).status, 404);

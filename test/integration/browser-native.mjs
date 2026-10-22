@@ -66,17 +66,17 @@ function observe(page) {
     socket.on('socketerror', error => record(`WebSocket error ${String(error)}`));
   });
 }
-async function bindTestPlaceKey(gamePage) {
-  // Headless pointer-lock mouse movement changes the camera on right-click.
-  // Only the disposable browser fixture uses F; the engine still sends its
-  // ordinary native place interaction packet.
+async function bindTestInteractionKeys(gamePage) {
+  // Headless pointer-lock mouse movement changes the camera during held clicks.
+  // Only this disposable browser fixture uses F/G; the engine still sends its
+  // ordinary native place/dig interaction packets.
   await gamePage.route('**/engine/remote.js', async route => {
     const response = await route.fetch();
     const source = await response.text();
     const needle = "  launcher.setLang('en');";
     assert.equal(source.split(needle).length, 2, 'remote launcher keymap insertion point');
     await route.fulfill({ response, body: source.replace(needle,
-      `${needle}\n  launcher.overrideConf('keymap_place', 'SYSTEM_SCANCODE_9');`) });
+      `${needle}\n  launcher.overrideConf('keymap_place', 'SYSTEM_SCANCODE_9');\n  launcher.overrideConf('keymap_dig', 'SYSTEM_SCANCODE_10');`) });
   });
 }
 const joinCount = (log, name) => [...log.matchAll(new RegExp(`${name} \\[.*\\] joins game\\.`, 'g'))].length;
@@ -103,7 +103,7 @@ try {
   await context.addCookies([{ name, value, url: origin, httpOnly: true, sameSite: 'Strict' }]);
   page = await context.newPage();
   observe(page);
-  await bindTestPlaceKey(page);
+  await bindTestInteractionKeys(page);
   await page.goto(origin + '/engine/connect.html', { waitUntil: 'domcontentloaded' });
   await waitForJoin(session, page);
 
@@ -122,7 +122,7 @@ try {
   await secondContext.addCookies([{ name: secondName, value: secondValue, url: origin, httpOnly: true, sameSite: 'Strict' }]);
   secondPage = await secondContext.newPage();
   observe(secondPage);
-  await bindTestPlaceKey(secondPage);
+  await bindTestInteractionKeys(secondPage);
   await secondPage.goto(origin + '/engine/connect.html', { waitUntil: 'domcontentloaded' });
   await waitForJoin(secondSession, secondPage);
 
@@ -171,7 +171,7 @@ try {
   await secondPage.screenshot({ path: artifacts + '/packet-aimed.png' });
   let packetDig = await readFile(path.join(worldDir, 'town-packet-dig-result.txt'), 'utf8').catch(() => '');
   for (let attempt = 0; attempt < 3 && !packetDig; attempt++) {
-    await secondPage.mouse.down({ button: 'left' });
+    await secondPage.keyboard.down('g');
     if (attempt === 0) {
       await writeFile(path.join(worldDir, 'town-packet-reaim.txt'), 'aim\n', { mode: 0o600 });
       let reaimReady = '';
@@ -183,7 +183,7 @@ try {
       assert.match(reaimReady, /^PASS /, `held-dig camera reset failed: ${reaimReady || 'no result'}`);
     }
     await sleep(1500);
-    await secondPage.mouse.up({ button: 'left' });
+    await secondPage.keyboard.up('g');
     await sleep(1000);
     packetDig = await readFile(path.join(worldDir, 'town-packet-dig-result.txt'), 'utf8').catch(() => '');
   }
@@ -273,7 +273,7 @@ try {
   await sleep(2000);
   let ownerDig = await readFile(path.join(worldDir, 'town-packet-owner-dig-result.txt'), 'utf8').catch(() => '');
   for (let attempt = 0; attempt < 3 && !ownerDig; attempt++) {
-    await page.mouse.down({ button: 'left' });
+    await page.keyboard.down('g');
     if (attempt === 0) {
       await writeFile(path.join(worldDir, 'town-packet-owner-dig-reaim.txt'), 'aim\n', { mode: 0o600 });
       let ownerDigReaimReady = '';
@@ -285,7 +285,7 @@ try {
       assert.match(ownerDigReaimReady, /^PASS /, `held owner-dig camera reset failed: ${ownerDigReaimReady || 'no result'}`);
     }
     await sleep(2500);
-    await page.mouse.up({ button: 'left' });
+    await page.keyboard.up('g');
     await sleep(1000);
     ownerDig = await readFile(path.join(worldDir, 'town-packet-owner-dig-result.txt'), 'utf8').catch(() => '');
   }

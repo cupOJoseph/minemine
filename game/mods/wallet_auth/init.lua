@@ -18,7 +18,6 @@ local function write_heartbeat()
         heartbeat_error_logged = true
     end
 end
-write_heartbeat()
 core.register_globalstep(function(dtime)
     heartbeat_elapsed = heartbeat_elapsed + dtime
     if heartbeat_elapsed < 2 then return end

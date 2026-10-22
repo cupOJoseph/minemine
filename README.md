@@ -7,7 +7,7 @@ MineMine is a browser-first voxel crafting MMO project built on Luanti (formerly
 | Feature | State |
 | --- | --- |
 | Solo browser game | Playable in desktop Chromium; additional browser and stability checks remain |
-| Public shared server | Two distinct wallet characters joined the same native world in headless Chromium; a reconnect preserved a test inventory stack and town protection. Shared edits, server-restart QA, and a public host remain. |
+| Public shared server | Two distinct wallet characters joined the same native world in headless Chromium; a native restart preserved a test inventory stack and town protection. Shared edits, full-stack recovery, and a public host remain. |
 | Wallet identity | Sign-In with Ethereum (EOA) and short-lived grants passed native login and same-wallet reconnect in CI; the patched browser engine passed the console credential check |
 | ENS | Server-side mainnet name lookup and forward-verified display implemented; requires `ENS_RPC_URL` and live RPC QA |
 | MINE ERC-20 | Fixed-supply source and local-EVM transfers tested; no public token deployed |

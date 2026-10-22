@@ -1,5 +1,11 @@
 # Validation record
 
+## Native world restart retains wallet inventory and town protection — 2026-10-22 EDT
+
+[Actions run 39802141973](https://github.com/cupOJoseph/minemine/actions/runs/39802141973) passed a full CI-only native-world restart sequence. Two signed-wallet Chromium clients joined, a nine-column quota fixture funded a town claim, and the first wallet character received three diamonds in a main inventory slot. After the browser reconnect probe passed, the workflow sent Luanti SIGTERM, waited for its clean exit, and restarted the same SQLite-backed world. Both wallets signed in again and joined under their original character names. The retained `town-probe-restart-result.txt` reports `PASS inventory, paid-size claim and owner/outsider protection survive native restart`; the native restart log independently contains both join records and that probe result. The probe read the same three-diamond stack, confirmed `core.is_protected` allowed the owner and denied the outsider at the saved claim position, and checked `/town info` still reported 9/9 protected columns.
+
+This verifies persistence across a **native Luanti process restart** in one disposable CI world. It does not verify a Node wallet-service restart, a remote host, actual dig/place packets, confirmed on-chain payment delivery, or a production backup restore with player data.
+
 ## Native wallet reconnect retains inventory and town protection — 2026-10-22 EDT
 
 [Actions run 39786849274](https://github.com/cupOJoseph/minemine/actions/runs/39786849274) passed the two-wallet Chromium/native Luanti smoke test with an extended CI-only probe. The probe placed three diamonds in the first wallet character's main inventory, confirmed the fixture was set, and maintained the previously verified nine-column claim. After the first browser closed and Luanti logged its disconnect, the same wallet signed in again and joined under the same character name. The probe then read three diamonds from the same inventory slot and confirmed the second wallet still could not build at the claimed position through `core.is_protected`. This proves inventory and claim behavior across a disconnect and rejoin while the server remains running. It does not prove inventory/claim restoration after a server restart, actual dig/place packet denial, or paid on-chain quota delivery.

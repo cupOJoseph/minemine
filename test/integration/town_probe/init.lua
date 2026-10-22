@@ -67,6 +67,23 @@ local function run(config)
     ok, message = command(owner, "kick " .. guest)
     check(ok, "member removal failed: " .. tostring(message))
     check(core.is_protected(pos, guest), "removed member can still build in protected claim")
+    -- These public Luanti APIs enter the normal node_dig/item_place_node
+    -- handlers with the connected wallet players as the actors.
+    local edit_pos = { x = math.floor(pos.x), y = math.floor(pos.y) + 3, z = math.floor(pos.z) }
+    local support = { x = edit_pos.x, y = edit_pos.y - 1, z = edit_pos.z }
+    check(core.get_node(edit_pos).name ~= "ignore" and core.get_node(support).name ~= "ignore",
+        "edit probe position is not loaded")
+    core.set_node(support, { name = "default:stone" })
+    core.set_node(edit_pos, { name = "default:stone" })
+    local guest_player = core.get_player_by_name(guest)
+    check(not core.dig_node(edit_pos, guest_player), "outsider dug a protected node")
+    check(core.get_node(edit_pos).name == "default:stone", "outsider changed the protected node")
+    check(core.dig_node(edit_pos, player), "owner could not dig a claimed node")
+    check(core.get_node(edit_pos).name == "air", "owner dig did not remove the node")
+    core.place_node(edit_pos, { name = "default:wood" }, guest_player)
+    check(core.get_node(edit_pos).name == "air", "outsider placed in a protected claim")
+    core.place_node(edit_pos, { name = "default:wood" }, player)
+    check(core.get_node(edit_pos).name == "default:wood", "owner could not place in own claim")
     local inventory = player:get_inventory()
     local slot = inventory:get_size("main")
     check(slot >= 1, "owner has no main inventory")
@@ -74,9 +91,9 @@ local function run(config)
     check(inventory:get_stack("main", slot):get_count() == 3, "inventory fixture could not be set")
     owner_name, guest_name, claim_pos, inventory_slot = owner, guest, pos, slot
     local state_file = assert(io.open(world .. "/town-probe-state.json", "w"))
-    state_file:write(assert(core.write_json({ owner = owner, guest = guest, pos = pos, slot = slot })))
+    state_file:write(assert(core.write_json({ owner = owner, guest = guest, pos = pos, edit_pos = edit_pos, slot = slot })))
     state_file:close()
-    return "PASS owner/outsider/member protection, paid quota, invitation and removal"
+    return "PASS owner/outsider/member protection, paid quota, invitation/removal and node edit handlers"
 end
 
 local function run_restart(config)
@@ -89,11 +106,13 @@ local function run_restart(config)
         "inventory stack was not restored after server restart")
     check(not core.is_protected(state.pos, state.owner), "town owner lost build access after restart")
     check(core.is_protected(state.pos, state.guest), "town outsider gained build access after restart")
+    check(type(state.edit_pos) == "table" and core.get_node(state.edit_pos).name == "default:wood",
+        "owner's placed node was not restored after restart")
     local town = core.registered_chatcommands.town
     check(town and type(town.func) == "function", "town command missing after restart")
     local ok, message = town.func(state.owner, "info")
     check(ok and message:find("protected 9/9 columns", 1, true), "town credit or claim count changed after restart")
-    return "PASS inventory, paid-size claim and owner/outsider protection survive native restart"
+    return "PASS inventory, placed node, paid-size claim and owner/outsider protection survive native restart"
 end
 
 core.register_on_leaveplayer(function(player)

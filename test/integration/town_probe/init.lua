@@ -9,6 +9,9 @@ local packet_pos, packet_guest, packet_ready, packet_aimed, packet_reaimed, pack
 local packet_phase, packet_place_ready, packet_place_aimed, packet_place_done
 local owner_place_ready, owner_place_aimed, owner_place_done
 local owner_dig_ready, owner_dig_aimed, owner_dig_reaimed, owner_dig_done
+local member_place_ready, member_place_aimed, member_place_done
+local member_dig_ready, member_dig_aimed, member_dig_reaimed, member_dig_done
+local removed_place_ready, removed_place_aimed, removed_place_done
 
 local function write_result(filename, status, ok)
     local file = assert(io.open(world .. "/" .. filename, "w"))
@@ -181,6 +184,12 @@ core.register_on_protection_violation(function(pos, name)
         write_result("town-packet-place-result.txt",
             empty and "PASS outsider browser place reached protected air without changing it"
                 or "FAIL protected node changed during browser place", empty)
+    elseif packet_phase == "removed_place" and not removed_place_done then
+        removed_place_done = true
+        local empty = core.get_node(pos).name == "air"
+        write_result("town-packet-removed-place-result.txt",
+            empty and "PASS removed member browser place was denied"
+                or "FAIL removed member changed protected air", empty)
     end
 end)
 
@@ -194,6 +203,16 @@ core.register_on_placenode(function(pos, node, player)
             or "FAIL owner browser place did not create wood", placed)
 end)
 
+core.register_on_placenode(function(pos, node, player)
+    if not member_place_ready or member_place_done or not player or player:get_player_name() ~= guest_name then return end
+    if pos.x ~= packet_pos.x or pos.y ~= packet_pos.y or pos.z ~= packet_pos.z then return end
+    member_place_done = true
+    local placed = node.name == "default:wood" and core.get_node(pos).name == "default:wood"
+    write_result("town-packet-member-place-result.txt",
+        placed and "PASS invited member browser place changed claimed node"
+            or "FAIL invited member browser place did not create wood", placed)
+end)
+
 core.register_on_dignode(function(pos, node, player)
     if not owner_dig_ready or owner_dig_done or not player or player:get_player_name() ~= owner_name then return end
     if pos.x ~= packet_pos.x or pos.y ~= packet_pos.y or pos.z ~= packet_pos.z then return end
@@ -202,6 +221,16 @@ core.register_on_dignode(function(pos, node, player)
     write_result("town-packet-owner-dig-result.txt",
         removed and "PASS owner browser dig removed own claimed node"
             or "FAIL owner browser dig did not remove wood", removed)
+end)
+
+core.register_on_dignode(function(pos, node, player)
+    if not member_dig_ready or member_dig_done or not player or player:get_player_name() ~= guest_name then return end
+    if pos.x ~= packet_pos.x or pos.y ~= packet_pos.y or pos.z ~= packet_pos.z then return end
+    member_dig_done = true
+    local removed = node.name == "default:wood" and core.get_node(pos).name == "air"
+    write_result("town-packet-member-dig-result.txt",
+        removed and "PASS invited member browser dig removed claimed node"
+            or "FAIL invited member browser dig did not remove wood", removed)
 end)
 
 local packet_elapsed = 0
@@ -384,6 +413,126 @@ core.register_globalstep(function()
     owner:set_look_horizontal(math.pi / 2)
     owner:set_look_vertical(0)
     write_result("town-packet-owner-dig-reaim-ready.txt", "PASS owner browser camera reset during held dig", true)
+end)
+
+core.register_globalstep(function()
+    if not owner_dig_done or member_place_ready then return end
+    local arm = io.open(world .. "/town-packet-member-place-arm.txt", "r")
+    if not arm then return end
+    arm:close()
+    member_place_ready = true
+    local ok, result = pcall(function()
+        local owner = core.get_player_by_name(owner_name)
+        local guest = core.get_player_by_name(guest_name)
+        check(owner and guest, "wallet players disconnected before invited-member browser probe")
+        check(core.get_node(packet_pos).name == "air", "owner dig did not clear member target")
+        check(core.get_node({ x = packet_pos.x - 1, y = packet_pos.y, z = packet_pos.z }).name == "default:wood",
+            "member placement backing node is missing")
+        local town = core.registered_chatcommands.town
+        local invited, message = town.func(owner_name, "invite " .. guest_name)
+        check(invited, "member reinvitation failed: " .. tostring(message))
+        local accepted, reply = town.func(guest_name, "accept " .. owner_name)
+        check(accepted, "member acceptance failed: " .. tostring(reply))
+        check(not core.is_protected(packet_pos, guest_name), "invited member lacks build access")
+        check(guest:set_wielded_item("default:wood 3"), "could not equip invited member wood")
+        owner:set_pos({ x = packet_pos.x - 6, y = packet_pos.y - 1.5, z = packet_pos.z + 6 })
+        guest:set_pos({ x = packet_pos.x + 2.5, y = packet_pos.y - 1.5, z = packet_pos.z })
+        guest:set_look_horizontal(math.pi / 2)
+        guest:set_look_vertical(0)
+        packet_phase = "member_place"
+        return "PASS invited-member browser place target armed"
+    end)
+    write_result("town-packet-member-place-ready.txt", ok and result or "FAIL " .. tostring(result), ok)
+end)
+
+core.register_globalstep(function()
+    if not member_place_ready or member_place_aimed then return end
+    local arm = io.open(world .. "/town-packet-member-place-aim.txt", "r")
+    if not arm then return end
+    arm:close()
+    member_place_aimed = true
+    local guest = core.get_player_by_name(guest_name)
+    if not guest then return end
+    guest:set_look_horizontal(math.pi / 2)
+    guest:set_look_vertical(0)
+    write_result("town-packet-member-place-aim-ready.txt", "PASS invited-member browser camera aimed at place target", true)
+end)
+
+core.register_globalstep(function()
+    if not member_place_done or member_dig_ready then return end
+    local arm = io.open(world .. "/town-packet-member-dig-arm.txt", "r")
+    if not arm then return end
+    arm:close()
+    member_dig_ready = true
+    local ok, result = pcall(function()
+        local guest = core.get_player_by_name(guest_name)
+        check(guest ~= nil, "invited member disconnected before browser dig")
+        check(core.get_node(packet_pos).name == "default:wood", "member place target missing before dig")
+        check(guest:set_wielded_item("default:axe_steel"), "could not equip invited member axe")
+        packet_phase = "member_dig"
+        return "PASS invited-member browser dig target armed"
+    end)
+    write_result("town-packet-member-dig-ready.txt", ok and result or "FAIL " .. tostring(result), ok)
+end)
+
+core.register_globalstep(function()
+    if not member_dig_ready or member_dig_aimed then return end
+    local arm = io.open(world .. "/town-packet-member-dig-aim.txt", "r")
+    if not arm then return end
+    arm:close()
+    member_dig_aimed = true
+    local guest = core.get_player_by_name(guest_name)
+    if not guest then return end
+    guest:set_look_horizontal(math.pi / 2)
+    guest:set_look_vertical(0)
+    write_result("town-packet-member-dig-aim-ready.txt", "PASS invited-member browser camera aimed at dig target", true)
+end)
+
+core.register_globalstep(function()
+    if not member_dig_aimed or member_dig_reaimed then return end
+    local arm = io.open(world .. "/town-packet-member-dig-reaim.txt", "r")
+    if not arm then return end
+    arm:close()
+    member_dig_reaimed = true
+    local guest = core.get_player_by_name(guest_name)
+    if not guest then return end
+    guest:set_look_horizontal(math.pi / 2)
+    guest:set_look_vertical(0)
+    write_result("town-packet-member-dig-reaim-ready.txt", "PASS invited-member browser camera reset during held dig", true)
+end)
+
+core.register_globalstep(function()
+    if not member_dig_done or removed_place_ready then return end
+    local arm = io.open(world .. "/town-packet-removed-place-arm.txt", "r")
+    if not arm then return end
+    arm:close()
+    removed_place_ready = true
+    local ok, result = pcall(function()
+        local guest = core.get_player_by_name(guest_name)
+        check(guest ~= nil, "member disconnected before removal probe")
+        check(core.get_node(packet_pos).name == "air", "member dig did not clear removal target")
+        local town = core.registered_chatcommands.town
+        local removed, message = town.func(owner_name, "kick " .. guest_name)
+        check(removed, "member removal failed: " .. tostring(message))
+        check(core.is_protected(packet_pos, guest_name), "removed member retained build access")
+        check(guest:set_wielded_item("default:wood 3"), "could not equip removed member wood")
+        packet_phase = "removed_place"
+        return "PASS removed-member browser place target armed"
+    end)
+    write_result("town-packet-removed-place-ready.txt", ok and result or "FAIL " .. tostring(result), ok)
+end)
+
+core.register_globalstep(function()
+    if not removed_place_ready or removed_place_aimed then return end
+    local arm = io.open(world .. "/town-packet-removed-place-aim.txt", "r")
+    if not arm then return end
+    arm:close()
+    removed_place_aimed = true
+    local guest = core.get_player_by_name(guest_name)
+    if not guest then return end
+    guest:set_look_horizontal(math.pi / 2)
+    guest:set_look_vertical(0)
+    write_result("town-packet-removed-place-aim-ready.txt", "PASS removed-member browser camera aimed at protected place target", true)
 end)
 
 core.register_globalstep(function()

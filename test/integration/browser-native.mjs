@@ -94,6 +94,20 @@ async function waitForJoin(character, gamePage, minimumCount = 1) {
   }
   throw new Error(`Native join absent for ${character.playerName}.`);
 }
+async function waitForProbe(filename, label, attempts = 30, interval = 500) {
+  let result = '';
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    result = await readFile(path.join(worldDir, filename), 'utf8').catch(() => '');
+    if (result) break;
+    await sleep(interval);
+  }
+  assert.match(result, /^PASS /, `${label}: ${result || 'no result'}`);
+  return result;
+}
+async function signalProbe(signal, marker, label) {
+  await writeFile(path.join(worldDir, signal), 'ready\n', { mode: 0o600 });
+  return waitForProbe(marker, label);
+}
 try {
   const wallet = new Wallet('0x' + '12'.repeat(32));
   const signed = await signedSession(wallet);
@@ -293,6 +307,53 @@ try {
   }
   assert.match(ownerDig, /^PASS /, `owner browser dig packet did not edit own claim: ${ownerDig || 'no result'}`);
 
+  await secondPage.bringToFront();
+  await signalProbe('town-packet-member-place-arm.txt', 'town-packet-member-place-ready.txt', 'invited-member place target');
+  await sleep(2500);
+  await signalProbe('town-packet-member-place-aim.txt', 'town-packet-member-place-aim-ready.txt', 'invited-member place aim');
+  await sleep(2000);
+  let memberPlace = await readFile(path.join(worldDir, 'town-packet-member-place-result.txt'), 'utf8').catch(() => '');
+  for (let attempt = 0; attempt < 3 && !memberPlace; attempt++) {
+    await secondPage.keyboard.down('f');
+    await sleep(350);
+    await secondPage.keyboard.up('f');
+    await sleep(1000);
+    memberPlace = await readFile(path.join(worldDir, 'town-packet-member-place-result.txt'), 'utf8').catch(() => '');
+  }
+  assert.match(memberPlace, /^PASS /, `invited-member browser place did not edit claim: ${memberPlace || 'no result'}`);
+
+  await signalProbe('town-packet-member-dig-arm.txt', 'town-packet-member-dig-ready.txt', 'invited-member dig target');
+  await sleep(2500);
+  await signalProbe('town-packet-member-dig-aim.txt', 'town-packet-member-dig-aim-ready.txt', 'invited-member dig aim');
+  await sleep(2000);
+  let memberDig = await readFile(path.join(worldDir, 'town-packet-member-dig-result.txt'), 'utf8').catch(() => '');
+  for (let attempt = 0; attempt < 3 && !memberDig; attempt++) {
+    await secondPage.keyboard.down('g');
+    if (attempt === 0) await signalProbe('town-packet-member-dig-reaim.txt',
+      'town-packet-member-dig-reaim-ready.txt', 'held invited-member dig aim');
+    for (let check = 0; check < 30 && !memberDig; check++) {
+      await sleep(100);
+      memberDig = await readFile(path.join(worldDir, 'town-packet-member-dig-result.txt'), 'utf8').catch(() => '');
+    }
+    await secondPage.keyboard.up('g');
+    if (!memberDig) await sleep(500);
+  }
+  assert.match(memberDig, /^PASS /, `invited-member browser dig did not edit claim: ${memberDig || 'no result'}`);
+
+  await signalProbe('town-packet-removed-place-arm.txt', 'town-packet-removed-place-ready.txt', 'removed-member place target');
+  await sleep(2500);
+  await signalProbe('town-packet-removed-place-aim.txt', 'town-packet-removed-place-aim-ready.txt', 'removed-member place aim');
+  await sleep(2000);
+  let removedPlace = await readFile(path.join(worldDir, 'town-packet-removed-place-result.txt'), 'utf8').catch(() => '');
+  for (let attempt = 0; attempt < 3 && !removedPlace; attempt++) {
+    await secondPage.keyboard.down('f');
+    await sleep(350);
+    await secondPage.keyboard.up('f');
+    await sleep(1000);
+    removedPlace = await readFile(path.join(worldDir, 'town-packet-removed-place-result.txt'), 'utf8').catch(() => '');
+  }
+  assert.match(removedPlace, /^PASS /, `removed-member browser place was not denied: ${removedPlace || 'no result'}`);
+
   await page.close();
   let disconnected = false;
   for (let attempt = 0; attempt < 45; attempt++) {
@@ -356,8 +417,11 @@ try {
   const ownerDigAimReady = await readFile(path.join(worldDir, 'town-packet-owner-dig-aim-ready.txt'), 'utf8').catch(() => '');
   const ownerDigReaimReady = await readFile(path.join(worldDir, 'town-packet-owner-dig-reaim-ready.txt'), 'utf8').catch(() => '');
   const ownerDig = await readFile(path.join(worldDir, 'town-packet-owner-dig-result.txt'), 'utf8').catch(() => '');
+  const memberPlace = await readFile(path.join(worldDir, 'town-packet-member-place-result.txt'), 'utf8').catch(() => '');
+  const memberDig = await readFile(path.join(worldDir, 'town-packet-member-dig-result.txt'), 'utf8').catch(() => '');
+  const removedPlace = await readFile(path.join(worldDir, 'town-packet-removed-place-result.txt'), 'utf8').catch(() => '');
   const packetDebug = await readFile(path.join(worldDir, 'town-packet-debug.json'), 'utf8').catch(() => '');
-  await writeFile(artifacts + '/diagnostics.json', JSON.stringify({ error: redact(error.message), events, grantExists: Boolean(grant), ticketCaptured: ticketSecrets.length > 0, grantHashMatches, townProbe, reconnectProbe, packetReady, aimReady, reaimReady, packetDig, placeReady, placeAimReady, packetPlace, ownerPlaceReady, ownerPlaceAimReady, ownerPlace, ownerDigReady, ownerDigAimReady, ownerDigReaimReady, ownerDig, packetDebug, nativeTail: nativeLog.slice(-5000) }, null, 2));
+  await writeFile(artifacts + '/diagnostics.json', JSON.stringify({ error: redact(error.message), events, grantExists: Boolean(grant), ticketCaptured: ticketSecrets.length > 0, grantHashMatches, townProbe, reconnectProbe, packetReady, aimReady, reaimReady, packetDig, placeReady, placeAimReady, packetPlace, ownerPlaceReady, ownerPlaceAimReady, ownerPlace, ownerDigReady, ownerDigAimReady, ownerDigReaimReady, ownerDig, memberPlace, memberDig, removedPlace, packetDebug, nativeTail: nativeLog.slice(-5000) }, null, 2));
   console.error('Browser diagnostics:', JSON.stringify(events));
   throw error;
 } finally {

@@ -76,7 +76,7 @@ async function bindTestInteractionKeys(gamePage) {
     const needle = "  launcher.setLang('en');";
     assert.equal(source.split(needle).length, 2, 'remote launcher keymap insertion point');
     await route.fulfill({ response, body: source.replace(needle,
-      `${needle}\n  launcher.overrideConf('keymap_place', 'SYSTEM_SCANCODE_9');\n  launcher.overrideConf('keymap_dig', 'SYSTEM_SCANCODE_10');`) });
+      `${needle}\n  launcher.overrideConf('keymap_place', 'SYSTEM_SCANCODE_9');\n  launcher.overrideConf('keymap_dig', 'SYSTEM_SCANCODE_10');\n  launcher.overrideConf('mouse_sensitivity', '0.001');`) });
   });
 }
 const joinCount = (log, name) => [...log.matchAll(new RegExp(`${name} \\[.*\\] joins game\\.`, 'g'))].length;

@@ -1,5 +1,11 @@
 # Validation record
 
+## Shared 1 GiB service rehearsal — 2026-10-22 EDT
+
+[Actions run 39855175363](https://github.com/cupOJoseph/minemine/actions/runs/39855175363) passed the two-wallet native/Chromium gameplay and clean restart workflow with Luanti and Node under one systemd slice configured with `MemoryMax=1G` and `MemorySwapMax=0`. The workflow checked the slice's cgroup files: `memory.max` was 1,073,741,824 bytes, `memory.swap.max` was zero, and both retained `memory.events` snapshots recorded zero OOM events and zero OOM kills. The slice's `memory.peak` reached 188,555,264 bytes (179.8 MiB) by the end of the first world session and was unchanged after restart. The slice can persist across service restarts, so the second snapshot is a cumulative high-water mark. One-second process samples separately peaked at 242.1 MiB combined Luanti + Node RSS over 148 first-session samples and 174.7 MiB over 19 restart samples. RSS and cgroup usage use different accounting and should not be treated as equal measures.
+
+The retained markers report owner/outsider/member protection, denial after member removal, inventory and claim persistence through wallet reconnect, and inventory, a placed node, claim, and protection persistence after a clean Luanti/Node restart. The CI-only test also expired the owner's game ticket while that browser stayed connected; native `core.get_player_privs` still returned `interact`, and town access remained intact. This is a two-player **service** memory rehearsal on a larger GitHub runner. It does not fit Linux, Caddy, disk cache, deployment work, sustained public load, or more players into a 1 GiB VM. The public VPS remains unproven.
+
 ## Two-wallet server-process memory baseline — 2026-10-22 EDT
 
 [Actions run 39844611581](https://github.com/cupOJoseph/minemine/actions/runs/39844611581) passed the pinned native/Chromium two-wallet workflow with one-second resident-memory sampling of the live Luanti and Node processes. The retained `server-memory-first.csv` contains 208 samples and a peak combined RSS of **208.1 MiB** (individual maxima: Luanti 107.3 MiB, Node 100.8 MiB). The 37 post-restart samples peaked at **165.7 MiB** combined. Town outsider, owner, invited-member and post-removal browser packet checks still passed, as did reconnect and full-stack restart.

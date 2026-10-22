@@ -4,12 +4,12 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { ContractFactory, Interface, JsonRpcProvider, ZeroAddress, parseUnits } from 'ethers';
-import { compile } from '../../scripts/compile-contracts.mjs';
+import { compile, compileTownBlocks } from '../../scripts/compile-contracts.mjs';
 import { createApp } from '../../server/app.mjs';
 import { readConfig } from '../../server/config.mjs';
 import { send } from '../helpers/http.mjs';
@@ -106,9 +106,27 @@ test('MINE executes supply, transfer, allowance and burn rules in a local EVM', 
     await assert.rejects(provider.call({ to: await token.getAddress(), data: mint.encodeFunctionData('mint', [treasuryAddress, 1n]) }), rejected);
     assert.equal(await token.totalSupply(), supply - units(15));
   });
+  const townArtifact = compileTownBlocks();
+  const town = await new ContractFactory(townArtifact.abi, townArtifact.bytecode, treasury).deploy(await token.getAddress(), treasuryAddress, units(2));
+  await town.waitForDeployment();
+  await t.test('town purchases transfer exact MINE and increment only the buyer quota', async () => {
+    assert.equal(await town.pricePerBlock(), units(2));
+    await (await token.connect(spender).approve(await town.getAddress(), units(30))).wait();
+    const before = await token.balanceOf(treasuryAddress);
+    await (await town.connect(spender).buyBlocks(12)).wait();
+    assert.equal(await town.purchased(spenderAddress), 12n);
+    assert.equal(await town.purchased(recipientAddress), 0n);
+    assert.equal(await token.balanceOf(treasuryAddress), before + units(24));
+    assert.equal(await token.allowance(spenderAddress, await town.getAddress()), units(6));
+    await assert.rejects(town.connect(spender).buyBlocks.staticCall(0), rejected);
+    await assert.rejects(town.connect(spender).buyBlocks.staticCall(4097), rejected);
+    await assert.rejects(town.connect(recipient).buyBlocks.staticCall(1), rejected);
+    await (await token.approve(await town.getAddress(), units(6))).wait();
+    await (await town.buyBlocks(3)).wait();
+  });
   for (const chainId of [31337, 11155111]) await t.test('authenticated balance API ' + (chainId === 31337 ? 'reads the deployed contract' : 'rejects an RPC on the wrong chain'), async () => {
     const worldDir = mkdtempSync(path.join(tmpdir(), 'miners-evm-world-'));
-    const config = readConfig({ CHAIN_ID: String(chainId), RPC_URL: url, TOKEN_ADDRESS: await token.getAddress(), WORLD_DIR: worldDir });
+    const config = readConfig({ CHAIN_ID: String(chainId), RPC_URL: url, TOKEN_ADDRESS: await token.getAddress(), TOWN_CONTRACT_ADDRESS: await town.getAddress(), TOWN_CONFIRMATIONS: '0', WORLD_DIR: worldDir });
     const server = createApp(config);
     server.listen(0, '127.0.0.1');
     try {
@@ -129,11 +147,21 @@ test('MINE executes supply, transfer, allowance and burn rules in a local EVM', 
         const value = response.json();
         assert.equal(value.configured, true);
         assert.equal(value.chainId, chainId);
-        assert.equal(value.raw, (supply - units(135)).toString());
-        assert.equal(value.formatted, '999865.0');
+        assert.equal(value.raw, (supply - units(111)).toString());
+        assert.equal(value.formatted, '999889.0');
         assert.equal(value.decimals, 18);
         assert.ok(value.blockNumber > 0);
         assert.ok(Date.parse(value.observedAt));
+        const cookie = verified.headers['set-cookie'][0].split(';')[0];
+        const townStatus = await send(appUrl + '/api/towns/status', { headers: { ...headers, Cookie: cookie } });
+        assert.equal(townStatus.status, 200);
+        assert.equal(townStatus.json().purchasedBlocks, 3);
+        const synced = await send(appUrl + '/api/towns/sync', { method: 'POST', headers: { ...headers, Cookie: cookie }, body: '{}' });
+        assert.equal(synced.status, 200);
+        const name = verified.json().playerName;
+        const quota = JSON.parse(readFileSync(path.join(worldDir, 'town_quotas', name + '.json'), 'utf8'));
+        assert.equal(quota.blocks, 3);
+        assert.equal(quota.address, treasuryAddress);
       }
     } finally {
       await new Promise(resolve => server.close(resolve));

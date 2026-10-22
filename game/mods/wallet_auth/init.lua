@@ -50,7 +50,7 @@ core.register_authentication_handler({
 })
 
 core.register_on_prejoinplayer(function(name)
-    if not grant(name) then return "Sign in with your wallet at the Miners launcher and request a fresh game session." end
+    if not grant(name) then return "Sign in with your wallet at the MineMine launcher and request a fresh game session." end
 end)
 
 core.register_on_joinplayer(function(player)
@@ -59,7 +59,7 @@ core.register_on_joinplayer(function(player)
     if not value then core.kick_player(name, "Wallet grant expired; please relaunch.") return end
     identities[name] = value.address
     storage:set_string("address:" .. name, value.address)
-    core.chat_send_player(name, "Wallet connected. Use /wallet to see your address. Currency gameplay is not enabled yet.")
+    core.chat_send_player(name, "Wallet connected. Use /wallet to see your address or /town to manage claims after buying MINE land credits.")
 end)
 core.register_on_leaveplayer(function(player) identities[player:get_player_name()] = nil end)
 core.register_chatcommand("wallet", {

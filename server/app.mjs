@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { Contract, FetchRequest, JsonRpcProvider, formatUnits } from 'ethers';
 import { AuthError, createAuth } from './auth.mjs';
 import { createGrants } from './grants.mjs';
+import { createEnsResolver } from './ens.mjs';
+import { createTownCredits } from './towns.mjs';
 
 const publicRoot = path.resolve(fileURLToPath(new URL('../public/', import.meta.url)));
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.png': 'image/png', '.ogg': 'audio/ogg' };
@@ -32,6 +34,7 @@ async function body(req) {
 export function createApp(config) {
   const auth = createAuth(config);
   const grants = createGrants(config.worldDir);
+  const ens = createEnsResolver(config.ensRpcUrl);
   grants.clear();
   const limits = new Map();
   const secureSuffix = config.secure ? '; Secure' : '';
@@ -53,6 +56,7 @@ export function createApp(config) {
     request.timeout = 8000;
     provider = new JsonRpcProvider(request);
   }
+  const towns = createTownCredits(config, provider);
   const balances = new Map();
   async function balance(address) {
     if (!config.tokenAddress || !provider) return { configured: false };
@@ -98,7 +102,7 @@ export function createApp(config) {
         const jar = cookies(req);
         const sessionToken = jar[sessionCookie];
         const session = auth.get(sessionToken);
-        if (req.method === 'GET' && url.pathname === '/api/config') return json(res, 200, { chainId: config.chainId, tokenAddress: config.tokenAddress, currencySymbol: 'MINE', gameReady: available(), soloPlaytestAvailable: soloAvailable(), enginePresent: existsSync(path.join(publicRoot, 'engine/index.html')), milestone: 'foundation', walletSupport: 'EOA' });
+        if (req.method === 'GET' && url.pathname === '/api/config') return json(res, 200, { chainId: config.chainId, tokenAddress: config.tokenAddress, townContractAddress: config.townContractAddress, currencySymbol: 'MINE', gameReady: available(), soloPlaytestAvailable: soloAvailable(), enginePresent: existsSync(path.join(publicRoot, 'engine/index.html')), ensAvailable: Boolean(config.ensRpcUrl), milestone: 'solo-playtest', walletSupport: 'EOA' });
         if (req.method === 'GET' && url.pathname === '/api/health') return json(res, 200, { ok: true, gameReady: available(), currencyConfigured: Boolean(config.tokenAddress && config.rpcUrl) });
         if (req.method === 'POST' && url.pathname === '/api/auth/challenge') {
           const data = await body(req);
@@ -122,7 +126,11 @@ export function createApp(config) {
         }
         if (!session) throw new AuthError('Sign in with your wallet first.');
         if (req.method === 'GET' && url.pathname === '/api/session') return json(res, 200, session);
+        if (req.method === 'GET' && url.pathname === '/api/identity') return json(res, 200, { ...session, ensName: await ens.name(session.address) });
+        if (req.method === 'GET' && url.pathname === '/api/currency/recipient') return json(res, 200, await ens.recipient(url.searchParams.get('input')));
         if (req.method === 'GET' && url.pathname === '/api/currency/balance') return json(res, 200, await balance(session.address));
+        if (req.method === 'GET' && url.pathname === '/api/towns/status') return json(res, 200, await towns.status(session.address));
+        if (req.method === 'POST' && url.pathname === '/api/towns/sync') return json(res, 200, await towns.sync(session));
         if (req.method === 'POST' && url.pathname === '/api/game/ticket') {
           if (!available()) throw new AuthError('The Luanti engine and server adapter are not ready yet. See the roadmap.', 503);
           return json(res, 200, { ...grants.issue(session, sessionToken), address: config.gameAddress, port: config.gamePort });
@@ -151,6 +159,6 @@ export function createApp(config) {
   });
   server.requestTimeout = 15_000;
   server.headersTimeout = 10_000;
-  server.on('close', () => provider?.destroy());
+  server.on('close', () => { provider?.destroy(); ens.close(); });
   return server;
 }

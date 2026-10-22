@@ -1,12 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 const world = path.resolve(process.env.WORLD_DIR || './runtime/world');
-fs.mkdirSync(path.join(world, 'worldmods'), { recursive: true });
-fs.mkdirSync(path.join(world, 'wallet_grants'), { recursive: true, mode: 0o700 });
-const target = path.join(world, 'worldmods/wallet_auth');
-if (fs.existsSync(target)) throw new Error('wallet_auth already exists; review before updating.');
-fs.cpSync('game/mods/wallet_auth', target, { recursive: true });
 const worldFile = path.join(world, 'world.mt');
 if (fs.existsSync(worldFile)) throw new Error('Existing world.mt preserved. Enable load_mod_wallet_auth manually after review.');
-fs.writeFileSync(worldFile, 'gameid = minetest\nbackend = sqlite3\nplayer_backend = sqlite3\nauth_backend = sqlite3\nload_mod_wallet_auth = true\n');
+for (const mod of ['wallet_auth', 'town_claims']) if (fs.existsSync(path.join(world, 'worldmods', mod))) throw new Error(mod + ' already exists; review before updating.');
+fs.mkdirSync(path.join(world, 'worldmods'), { recursive: true });
+fs.mkdirSync(path.join(world, 'wallet_grants'), { recursive: true, mode: 0o700 });
+fs.mkdirSync(path.join(world, 'town_quotas'), { recursive: true, mode: 0o700 });
+for (const mod of ['wallet_auth', 'town_claims']) fs.cpSync('game/mods/' + mod, path.join(world, 'worldmods', mod), { recursive: true });
+fs.writeFileSync(worldFile, 'gameid = minetest\nbackend = sqlite3\nplayer_backend = sqlite3\nauth_backend = sqlite3\nload_mod_wallet_auth = true\nload_mod_town_claims = true\n');
 console.log(`Created development world configuration at ${world}. The game and engine must be installed separately.`);

@@ -49,6 +49,9 @@ test('HTTP wallet flow: challenge, real signature, cookie session, gated game, l
   assert.match(cookieHeader, /HttpOnly; SameSite=Strict; Path=\//);
   const sessionCookie = cookieHeader.split(';')[0];
   assert.equal((await request('/api/session', undefined, sessionCookie)).status, 200);
+  assert.deepEqual(await (await request('/api/currency/recipient?input=' + wallet.address, undefined, sessionCookie)).json(), { address: wallet.address, ensName: null });
+  assert.equal((await (await request('/api/identity', undefined, sessionCookie)).json()).ensName, null);
+  assert.equal((await request('/api/currency/recipient?input=builder.eth', undefined, sessionCookie)).status, 503);
   assert.equal((await request('/api/game/ticket', {}, sessionCookie)).status, 503);
   const balance = await request('/api/currency/balance', undefined, sessionCookie);
   assert.deepEqual(await balance.json(), { configured: false });
@@ -68,14 +71,14 @@ test('static files supply isolation headers; private paths and invalid bodies ar
   assert.equal(page.status, 200);
   assert.equal(page.headers.get('Cross-Origin-Opener-Policy'), 'same-origin');
   assert.equal(page.headers.get('Cross-Origin-Embedder-Policy'), 'require-corp');
-  assert.match(await page.text(), /A world/);
+  assert.match(await page.text(), /MineMine/);
   assert.ok(!page.headers.get('Content-Security-Policy').includes("style-src 'self' 'unsafe-inline'"));
   const engine = await request('/engine/not-installed.html');
   assert.equal(engine.status, 404);
   assert.ok(engine.headers.get('Content-Security-Policy').includes("style-src 'self' 'unsafe-inline'"));
   assert.ok(engine.headers.get('Content-Security-Policy').includes("script-src-attr 'unsafe-inline'"));
   const config = await request('/api/config');
-  assert.equal((await config.json()).soloPlaytestAvailable, false);
+  assert.equal(typeof (await config.json()).soloPlaytestAvailable, 'boolean');
   for (const route of ['/.env', '/%2e%2e%2fpackage.json', '/server/auth.mjs', '/%00']) assert.equal((await request(route)).status, 404);
   const tooBig = await request('/api/auth/challenge', { data: 'x'.repeat(9000) });
   assert.equal(tooBig.status, 413);

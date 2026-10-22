@@ -12,6 +12,8 @@ on:
       - 'test/integration/town_probe/**'
       - 'scripts/setup-world.mjs'
       - 'scripts/sample-stack-memory.sh'
+      - 'scripts/ci-native-service.sh'
+      - 'scripts/ci-api-service.sh'
       - 'upstream.sources.json'
 permissions:
   contents: read
@@ -25,6 +27,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: Verify shared 1 GiB service memory limit
+        run: |
+          sudo systemctl set-property --runtime minemine-ci.slice MemoryAccounting=yes MemoryMax=1G MemorySwapMax=0
+          test "$(systemctl show -P MemoryMax minemine-ci.slice)" = '1073741824'
+          test "$(systemctl show -P MemorySwapMax minemine-ci.slice)" = '0'
+          sudo systemd-run --quiet --unit=minemine-ci-probe --slice=minemine-ci.slice --uid="$USER" --property=Type=exec /usr/bin/sleep 10
+          test "$(systemctl show -P Slice minemine-ci-probe.service)" = 'minemine-ci.slice'
+          cgroup=$(systemctl show -P ControlGroup minemine-ci.slice)
+          test "$(cat "/sys/fs/cgroup$cgroup/memory.max")" = '1073741824'
+          test "$(cat "/sys/fs/cgroup$cgroup/memory.swap.max")" = '0'
+          sudo systemctl stop minemine-ci-probe.service
       - name: Install dependencies from the pinned Luanti Linux guide
         run: |
           sudo apt-get update
@@ -95,45 +108,74 @@ jobs:
           set -euo pipefail
           cp -a test/integration/town_probe runtime/native-world/worldmods/town_probe
           printf '\nload_mod_town_probe = true\n' >> runtime/native-world/world.mt
-          (cd vendor/native && exec bin/luantiserver --info --world "$GITHUB_WORKSPACE/runtime/native-world" --config "$GITHUB_WORKSPACE/game/minetest.conf" --logfile "$GITHUB_WORKSPACE/runtime/browser-native-engine.log") > runtime/browser-native.log 2>&1 &
-          native_pid=$!
-          GAME_ENABLED=true ENGINE_ADAPTER_READY=true DEBUG_GAME_PROXY=true WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" node server/index.mjs > runtime/browser-api.log 2>&1 &
-          api_pid=$!
-          trap 'touch runtime/server-memory-first.stop runtime/server-memory-restart.stop; kill "$native_pid" "$api_pid" 2>/dev/null || true' EXIT
+          world_dir="$GITHUB_WORKSPACE/runtime/native-world"
+          node_binary=$(command -v node)
+          start_stack() {
+            local phase=$1
+            local engine_log=$2
+            local native_log=$3
+            local api_log=$4
+            sudo systemd-run --quiet --unit="minemine-ci-native-$phase" --slice=minemine-ci.slice --uid="$USER" --same-dir --property=Type=exec \
+              /usr/bin/bash "$GITHUB_WORKSPACE/scripts/ci-native-service.sh" "$world_dir" "$GITHUB_WORKSPACE/runtime/$engine_log" "$GITHUB_WORKSPACE/runtime/$native_log"
+            sudo systemd-run --quiet --unit="minemine-ci-api-$phase" --slice=minemine-ci.slice --uid="$USER" --same-dir --property=Type=exec \
+              /usr/bin/bash "$GITHUB_WORKSPACE/scripts/ci-api-service.sh" "$world_dir" "$GITHUB_WORKSPACE/runtime/$api_log" "$node_binary"
+            test "$(systemctl show -P Slice "minemine-ci-native-$phase.service")" = 'minemine-ci.slice'
+            test "$(systemctl show -P Slice "minemine-ci-api-$phase.service")" = 'minemine-ci.slice'
+          }
+          trap 'touch runtime/server-memory-first.stop runtime/server-memory-restart.stop; sudo systemctl stop minemine-ci-api-first.service minemine-ci-native-first.service minemine-ci-api-restart.service minemine-ci-native-restart.service 2>/dev/null || true' EXIT
+          start_stack first browser-native-engine.log browser-native.log browser-api.log
           for attempt in {1..30}; do
             if curl -fsS http://localhost:3000/api/health > /dev/null; then break; fi
+            if ! systemctl is-active --quiet minemine-ci-api-first.service; then cat runtime/browser-api.log; exit 1; fi
             sleep 1
           done
+          curl -fsS http://localhost:3000/api/health > /dev/null
+          for attempt in {1..30}; do
+            if grep -Fq 'listening on 127.0.0.1:30000' runtime/browser-native.log; then break; fi
+            if ! systemctl is-active --quiet minemine-ci-native-first.service; then cat runtime/browser-native.log; exit 1; fi
+            sleep 1
+          done
+          grep -Fq 'listening on 127.0.0.1:30000' runtime/browser-native.log
+          cgroup=$(systemctl show -P ControlGroup minemine-ci.slice)
+          test -n "$cgroup"
+          test "$(cat "/sys/fs/cgroup$cgroup/memory.max")" = '1073741824'
+          test "$(cat "/sys/fs/cgroup$cgroup/memory.swap.max")" = '0'
+          native_pid=$(systemctl show -P MainPID minemine-ci-native-first.service)
+          api_pid=$(systemctl show -P MainPID minemine-ci-api-first.service)
+          test "$native_pid" -gt 1
+          test "$api_pid" -gt 1
           bash scripts/sample-stack-memory.sh "$native_pid" "$api_pid" runtime/server-memory-first.csv runtime/server-memory-first.stop &
           sampler_pid=$!
           WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" NATIVE_LOG=runtime/browser-native.log node test/integration/browser-native.mjs
           touch runtime/server-memory-first.stop
           wait "$sampler_pid"
-          kill -TERM "$native_pid"
-          kill -TERM "$api_pid"
-          wait "$native_pid"
-          wait "$api_pid"
-          (cd vendor/native && exec bin/luantiserver --info --world "$GITHUB_WORKSPACE/runtime/native-world" --config "$GITHUB_WORKSPACE/game/minetest.conf" --logfile "$GITHUB_WORKSPACE/runtime/browser-native-restart-engine.log") > runtime/browser-native-restart.log 2>&1 &
-          native_pid=$!
-          GAME_ENABLED=true ENGINE_ADAPTER_READY=true DEBUG_GAME_PROXY=true WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" node server/index.mjs > runtime/browser-api-restart.log 2>&1 &
-          api_pid=$!
+          sudo systemctl stop minemine-ci-api-first.service minemine-ci-native-first.service
+          start_stack restart browser-native-restart-engine.log browser-native-restart.log browser-api-restart.log
           for attempt in {1..30}; do
             if grep -Fq 'listening on 127.0.0.1:30000' runtime/browser-native-restart.log; then break; fi
-            if ! kill -0 "$native_pid" 2>/dev/null; then cat runtime/browser-native-restart.log; exit 1; fi
+            if ! systemctl is-active --quiet minemine-ci-native-restart.service; then cat runtime/browser-native-restart.log; exit 1; fi
             sleep 1
           done
           grep -Fq 'listening on 127.0.0.1:30000' runtime/browser-native-restart.log
           for attempt in {1..30}; do
             if curl -fsS http://localhost:3000/api/health > /dev/null; then break; fi
-            if ! kill -0 "$api_pid" 2>/dev/null; then cat runtime/browser-api-restart.log; exit 1; fi
+            if ! systemctl is-active --quiet minemine-ci-api-restart.service; then cat runtime/browser-api-restart.log; exit 1; fi
             sleep 1
           done
           curl -fsS http://localhost:3000/api/health > /dev/null
+          native_pid=$(systemctl show -P MainPID minemine-ci-native-restart.service)
+          api_pid=$(systemctl show -P MainPID minemine-ci-api-restart.service)
+          test "$native_pid" -gt 1
+          test "$api_pid" -gt 1
           bash scripts/sample-stack-memory.sh "$native_pid" "$api_pid" runtime/server-memory-restart.csv runtime/server-memory-restart.stop &
           sampler_pid=$!
           WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" NATIVE_LOG=runtime/browser-native-restart.log node test/integration/browser-native-restart.mjs
           touch runtime/server-memory-restart.stop
           wait "$sampler_pid"
+          cat "/sys/fs/cgroup$cgroup/memory.peak" > runtime/server-cgroup-peak-bytes.txt
+          cat "/sys/fs/cgroup$cgroup/memory.events" > runtime/server-cgroup-events.txt
+          test "$(awk '$1 == "oom_kill" { print $2 }' runtime/server-cgroup-events.txt)" = '0'
+          printf 'Shared 1 GiB service cgroup peak: %s bytes; swap limit: 0; OOM kills: 0\n' "$(cat runtime/server-cgroup-peak-bytes.txt)" | tee runtime/server-cgroup-summary.txt
           for sample in runtime/server-memory-first.csv runtime/server-memory-restart.csv; do
             awk -F, 'NR > 1 { if ($4 > peak) peak = $4; count++ } END { if (!count) exit 1; printf "%s: %d samples, peak Luanti + Node RSS %.1f MiB\n", FILENAME, count, peak / 1024 }' "$sample"
           done | tee runtime/server-memory-summary.txt
@@ -157,6 +199,9 @@ jobs:
             runtime/server-memory-first.csv
             runtime/server-memory-restart.csv
             runtime/server-memory-summary.txt
+            runtime/server-cgroup-peak-bytes.txt
+            runtime/server-cgroup-events.txt
+            runtime/server-cgroup-summary.txt
             runtime/native-world/town-probe-result.txt
             runtime/native-world/town-probe-reconnect-result.txt
             runtime/native-world/town-probe-restart-result.txt

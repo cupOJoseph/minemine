@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { realpath, stat } from 'node:fs/promises';
-import { existsSync, createReadStream, readFileSync } from 'node:fs';
+import { existsSync, createReadStream, readFileSync, statSync } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -44,7 +44,13 @@ export function createApp(config) {
   const challengeCookie = config.secure ? '__Host-miners_challenge' : 'miners_challenge';
   const cookie = (name, value, age) => `${name}=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${age}${secureSuffix}`;
   const json = (res, status, data) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(data)); };
-  const available = () => config.gameEnabled && config.adapterReady && existsSync(path.join(publicRoot, 'engine/adapter.js')) && existsSync(path.join(publicRoot, 'engine/index.html'));
+  const nativeReady = () => {
+    try {
+      const age = Date.now() - statSync(path.join(config.worldDir, 'minemine-server-heartbeat')).mtimeMs;
+      return age >= -1_000 && age < 10_000;
+    } catch { return false; }
+  };
+  const available = () => config.gameEnabled && config.adapterReady && nativeReady() && existsSync(path.join(publicRoot, 'engine/adapter.js')) && existsSync(path.join(publicRoot, 'engine/index.html'));
   const soloAvailable = () => {
     try {
       const build = JSON.parse(readFileSync(path.join(publicRoot, 'engine/build.json'), 'utf8'));
@@ -107,7 +113,7 @@ export function createApp(config) {
         const sessionToken = jar[sessionCookie];
         const session = auth.get(sessionToken);
         if (req.method === 'GET' && url.pathname === '/api/config') return json(res, 200, { chainId: config.chainId, tokenAddress: config.tokenAddress, townContractAddress: config.townContractAddress, currencySymbol: 'MINE', gameReady: available(), soloPlaytestAvailable: soloAvailable(), enginePresent: existsSync(path.join(publicRoot, 'engine/index.html')), ensAvailable: Boolean(config.ensRpcUrl), milestone: 'solo-playtest', walletSupport: 'EOA' });
-        if (req.method === 'GET' && url.pathname === '/api/health') return json(res, 200, { ok: true, gameReady: available(), currencyConfigured: Boolean(config.tokenAddress && config.rpcUrl) });
+        if (req.method === 'GET' && url.pathname === '/api/health') return json(res, 200, { ok: true, nativeReady: nativeReady(), gameReady: available(), currencyConfigured: Boolean(config.tokenAddress && config.rpcUrl) });
         if (req.method === 'POST' && url.pathname === '/api/auth/challenge') {
           const data = await body(req);
           const challenge = auth.issue(data.address, data.chainId, jar[challengeCookie]);

@@ -4,8 +4,27 @@
 local storage = core.get_mod_storage()
 local dir = core.get_worldpath() .. "/wallet_grants/"
 local balance_dir = core.get_worldpath() .. "/wallet_balances/"
+local heartbeat_path = core.get_worldpath() .. "/minemine-server-heartbeat"
 local identities = {}
 local pending = {}
+
+local heartbeat_elapsed = 0
+local heartbeat_error_logged = false
+local function write_heartbeat()
+    if core.safe_file_write(heartbeat_path, tostring(os.time()) .. "\n") then
+        heartbeat_error_logged = false
+    elseif not heartbeat_error_logged then
+        core.log("error", "MineMine cannot write the native server heartbeat")
+        heartbeat_error_logged = true
+    end
+end
+write_heartbeat()
+core.register_globalstep(function(dtime)
+    heartbeat_elapsed = heartbeat_elapsed + dtime
+    if heartbeat_elapsed < 2 then return end
+    heartbeat_elapsed = 0
+    write_heartbeat()
+end)
 
 local function grant(name, allow_expired)
     if type(name) ~= "string" or not name:match("^w_%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x$") then return nil end

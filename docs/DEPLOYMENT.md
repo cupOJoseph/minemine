@@ -79,7 +79,7 @@ npm run adapter:install
 
 The in-page `launch({container})` creates a same-origin frame because the pinned runtime replaces its own document body. After the engine and Minetest Game pack load, the frame requests a fresh two-minute game ticket over the existing cookie session and passes it to `LuantiArgs` in memory. The ticket is absent from URLs, storage and console logging. The frame's CSP permits only same-origin WSS. Verify native-game handshake, browser storage/log behavior, frame isolation and logout disconnect before enabling live play.
 
-Complete B05/S03/A05/S04 in ROADMAP.md, then set `GAME_ENABLED=true` and `ENGINE_ADAPTER_READY=true`. The `/api/health` readiness flag checks configuration and adapter files; it does **not** probe native UDP availability. Add actual game/proxy liveness before production monitoring.
+Complete B05/S03/A05/S04 in ROADMAP.md, then set `GAME_ENABLED=true` and `ENGINE_ADAPTER_READY=true`. The wallet auth mod writes an atomic private-world heartbeat every two seconds. `/api/health` reports `nativeReady` only while that file is less than ten seconds old; `gameReady` also requires the enabled adapter and browser assets. A stale heartbeat disables new game tickets and the shared-world button on a fresh page load. This verifies that the native world is ticking, but does not prove the UDP proxy is reachable from an outside browser. Monitor both the web response and `nativeReady`, and keep the external two-wallet test as the launch gate.
 
 ## 6. Host the tested stack
 

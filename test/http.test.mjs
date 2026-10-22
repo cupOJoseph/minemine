@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Readable, Writable } from 'node:stream';
@@ -30,8 +30,20 @@ async function fixture(t) {
     await finished;
     return { status: res.statusCode, text: async () => Buffer.concat(chunks).toString(), json: async () => JSON.parse(Buffer.concat(chunks).toString()), headers: { get: key => resultHeaders.get(key.toLowerCase()), getSetCookie: () => [resultHeaders.get('set-cookie')].flat() } };
   };
-  return { origin, request };
+  return { origin, request, worldDir: dir };
 }
+test('native heartbeat reports a live world and expires after shutdown', async t => {
+  const { request, worldDir } = await fixture(t);
+  const heartbeat = path.join(worldDir, 'minemine-server-heartbeat');
+  assert.equal((await (await request('/api/health')).json()).nativeReady, false);
+  writeFileSync(heartbeat, 'online\n');
+  assert.equal((await (await request('/api/health')).json()).nativeReady, true);
+  const old = new Date(Date.now() - 11_000);
+  utimesSync(heartbeat, old, old);
+  assert.equal((await (await request('/api/health')).json()).nativeReady, false);
+  rmSync(heartbeat);
+  assert.equal((await (await request('/api/health')).json()).nativeReady, false);
+});
 test('HTTP wallet flow: challenge, real signature, cookie session, gated game, logout', async t => {
   const { request } = await fixture(t);
   const wallet = new Wallet('0x' + '11'.repeat(32));

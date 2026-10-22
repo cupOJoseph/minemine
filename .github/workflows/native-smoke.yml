@@ -122,6 +122,17 @@ jobs:
             test "$(systemctl show -P Slice "minemine-ci-native-$phase.service")" = 'minemine-ci.slice'
             test "$(systemctl show -P Slice "minemine-ci-api-$phase.service")" = 'minemine-ci.slice'
           }
+          wait_game_ready() {
+            for attempt in {1..20}; do
+              if curl -fsS http://localhost:3000/api/health | node -e 'let input=""; process.stdin.on("data", chunk => input += chunk); process.stdin.on("end", () => { const health = JSON.parse(input); process.exit(health.nativeReady && health.gameReady ? 0 : 1); });'; then
+                return 0
+              fi
+              sleep 1
+            done
+            echo 'Native heartbeat did not make the wallet game ready.'
+            curl -fsS http://localhost:3000/api/health
+            return 1
+          }
           capture_cgroup() {
             local phase=$1
             local cgroup
@@ -151,6 +162,7 @@ jobs:
             sleep 1
           done
           grep -Fq 'listening on 127.0.0.1:30000' runtime/browser-native.log
+          wait_game_ready
           cgroup=$(systemctl show -P ControlGroup minemine-ci.slice)
           test -n "$cgroup"
           test "$(cat "/sys/fs/cgroup$cgroup/memory.max")" = '1073741824'
@@ -180,6 +192,7 @@ jobs:
             sleep 1
           done
           curl -fsS http://localhost:3000/api/health > /dev/null
+          wait_game_ready
           native_pid=$(systemctl show -P MainPID minemine-ci-native-restart.service)
           api_pid=$(systemctl show -P MainPID minemine-ci-api-restart.service)
           test "$native_pid" -gt 1

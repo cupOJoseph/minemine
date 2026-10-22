@@ -5,6 +5,9 @@ on:
     paths:
       - '.github/workflows/native-smoke.yml'
       - 'game/**'
+      - 'server/**'
+      - 'playtest/**'
+      - 'test/integration/browser-native.mjs'
       - 'scripts/setup-world.mjs'
       - 'upstream.sources.json'
 permissions:
@@ -84,7 +87,7 @@ jobs:
         run: |
           cp -a runtime/downloaded-build/public/engine public/engine
           npm run adapter:install
-      - name: Browser joins native wallet world
+      - name: Two browser wallets join native world
         run: |
           set -euo pipefail
           (cd vendor/native && bin/luantiserver --info --world "$GITHUB_WORKSPACE/runtime/native-world" --config "$GITHUB_WORKSPACE/game/minetest.conf" --logfile "$GITHUB_WORKSPACE/runtime/browser-native-engine.log") > runtime/browser-native.log 2>&1 &

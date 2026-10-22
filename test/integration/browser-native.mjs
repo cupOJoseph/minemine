@@ -34,13 +34,50 @@ const browser = await chromium.launch({ headless: true, args: ['--enable-unsafe-
 const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
 let page;
 let session;
+let secondContext;
+let secondPage;
+let secondSession;
 const events = [];
-let ticketSecret = '';
+const ticketSecrets = [];
 let leakedCredential = false;
+const redact = value => ticketSecrets.reduce((result, secret) => result.replaceAll(secret, '[redacted]'), value);
 const record = value => {
-  if (ticketSecret && value.includes(ticketSecret)) leakedCredential = true;
-  if (events.length < 100) events.push((ticketSecret ? value.replaceAll(ticketSecret, '[redacted]') : value).slice(0, 500));
+  if (ticketSecrets.some(secret => value.includes(secret))) leakedCredential = true;
+  if (events.length < 100) events.push(redact(value).slice(0, 500));
 };
+const errors = [];
+function observe(page) {
+  page.on('pageerror', error => { errors.push(redact(error.message)); record(`pageerror ${error.message}`); });
+  page.on('console', message => {
+    const value = message.text();
+    record(`console ${message.type()} ${value}`);
+    if (message.type() === 'error') errors.push(redact(value).slice(0, 500));
+  });
+  page.on('requestfailed', request => record(`request failed ${request.url()} ${request.failure()?.errorText}`));
+  page.on('response', response => {
+    if (response.url().endsWith('/api/game/ticket')) response.json().then(data => { if (data.password) ticketSecrets.push(data.password); }).catch(() => {});
+    if (response.url().includes('/api/') || response.status() >= 400) record(`HTTP ${response.status()} ${response.url()}`);
+  });
+  page.on('websocket', socket => {
+    record(`WebSocket opened ${socket.url()}`);
+    socket.on('close', () => record(`WebSocket closed ${socket.url()}`));
+    socket.on('socketerror', error => record(`WebSocket error ${String(error)}`));
+  });
+}
+async function waitForJoin(character, gamePage) {
+  const deadline = Date.now() + 240_000;
+  while (Date.now() < deadline) {
+    const log = await readFile(logPath, 'utf8').catch(() => '');
+    if (new RegExp(`${character.playerName} \\[.*\\] joins game\\.`).test(log)) {
+      console.log(`Native Luanti accepted wallet character ${character.playerName}.`);
+      return;
+    }
+    const alert = await gamePage.locator('[role="alert"]').first().textContent({ timeout: 1000 }).catch(() => '');
+    if (alert) throw new Error(`Browser engine reported: ${redact(alert)}`);
+    await sleep(2000);
+  }
+  throw new Error(`Native join absent for ${character.playerName}.`);
+}
 try {
   const wallet = new Wallet('0x' + '12'.repeat(32));
   const signed = await signedSession(wallet);
@@ -49,58 +86,49 @@ try {
   const [name, value] = cookie.split('=');
   await context.addCookies([{ name, value, url: origin, httpOnly: true, sameSite: 'Strict' }]);
   page = await context.newPage();
-  const errors = [];
-  page.on('pageerror', error => { errors.push(error.message); record(`pageerror ${error.message}`); });
-  page.on('console', message => {
-    const value = message.text();
-    record(`console ${message.type()} ${value}`);
-    if (message.type() === 'error') errors.push((ticketSecret ? value.replaceAll(ticketSecret, '[redacted]') : value).slice(0, 500));
-  });
-  page.on('requestfailed', request => record(`request failed ${request.url()} ${request.failure()?.errorText}`));
-  page.on('response', response => {
-    if (response.url().endsWith('/api/game/ticket')) response.json().then(data => { ticketSecret = data.password || ''; }).catch(() => {});
-    if (response.url().includes('/api/') || response.status() >= 400) record(`HTTP ${response.status()} ${response.url()}`);
-  });
-  page.on('websocket', socket => {
-    record(`WebSocket opened ${socket.url()}`);
-    socket.on('close', () => record(`WebSocket closed ${socket.url()}`));
-    socket.on('socketerror', error => record(`WebSocket error ${String(error)}`));
-  });
+  observe(page);
   await page.goto(origin + '/engine/connect.html', { waitUntil: 'domcontentloaded' });
-  const deadline = Date.now() + 240_000;
-  while (Date.now() < deadline) {
-    const log = await readFile(logPath, 'utf8').catch(() => '');
-    if (log.includes(`${session.playerName} [` ) && log.includes('joins game.')) {
-      console.log(`Native Luanti accepted wallet character ${session.playerName}.`);
-      break;
-    }
-    const alert = await page.locator('[role="alert"]').first().textContent({ timeout: 1000 }).catch(() => '');
-    if (alert) throw new Error(`Browser engine reported: ${alert}`);
-    await sleep(2000);
-  }
+  await waitForJoin(session, page);
+
+  const secondWallet = new Wallet('0x' + '13'.repeat(32));
+  const secondSigned = await signedSession(secondWallet);
+  secondSession = secondSigned.session;
+  assert.notEqual(secondSession.playerName, session.playerName, 'distinct wallets need distinct characters');
+  secondContext = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  const [secondName, secondValue] = secondSigned.cookie.split('=');
+  await secondContext.addCookies([{ name: secondName, value: secondValue, url: origin, httpOnly: true, sameSite: 'Strict' }]);
+  secondPage = await secondContext.newPage();
+  observe(secondPage);
+  await secondPage.goto(origin + '/engine/connect.html', { waitUntil: 'domcontentloaded' });
+  await waitForJoin(secondSession, secondPage);
+
   const log = await readFile(logPath, 'utf8');
   if (!new RegExp(`${session.playerName} \\[.*\\] joins game\\.`).test(log)) throw new Error(`Native join absent for ${session.playerName}.`);
+  if (!new RegExp(`${secondSession.playerName} \\[.*\\] joins game\\.`).test(log)) throw new Error(`Native join absent for ${secondSession.playerName}.`);
+  assert.equal(page.isClosed(), false, 'first browser remains open while second joins');
   assert.equal(errors.length, 0, `browser console errors: ${errors.join(' | ')}`);
   assert.equal(leakedCredential, false, 'browser console exposed the short-lived game credential');
 } catch (error) {
-  if (page && !page.isClosed()) {
-    const state = await page.evaluate(() => ({
+  const failedPage = secondPage && !secondPage.isClosed() ? secondPage : page;
+  if (failedPage && !failedPage.isClosed()) {
+    const state = await failedPage.evaluate(() => ({
       title: document.title, text: document.body.innerText.slice(0, 1000),
       isolated: crossOriginIsolated, webgl2: Boolean(document.createElement('canvas').getContext('webgl2')),
     })).catch(e => ({ error: e.message }));
     record(`page state ${JSON.stringify(state)}`);
-    await page.screenshot({ path: artifacts + '/failure.png' }).catch(() => {});
+    await failedPage.screenshot({ path: artifacts + '/failure.png' }).catch(() => {});
   }
   const nativeLog = await readFile(logPath, 'utf8').catch(() => '');
   const grantsDir = process.env.WORLD_DIR || 'runtime/native-world';
   const grantRaw = await readFile(path.join(grantsDir, 'wallet_grants', `${session?.playerName}.json`), 'utf8').catch(() => '');
   const grant = grantRaw ? JSON.parse(grantRaw) : null;
-  const expectedHash = ticketSecret ? createHash('sha1').update(session.playerName + ticketSecret).digest('base64').replace(/=+$/, '') : null;
+  const expectedHash = ticketSecrets[0] ? createHash('sha1').update(session.playerName + ticketSecrets[0]).digest('base64').replace(/=+$/, '') : null;
   const grantHashMatches = Boolean(grant && expectedHash && grant.password_hash === expectedHash);
-  await writeFile(artifacts + '/diagnostics.json', JSON.stringify({ error: error.message, events, grantExists: Boolean(grant), ticketCaptured: Boolean(ticketSecret), grantHashMatches, nativeTail: nativeLog.slice(-5000) }, null, 2));
+  await writeFile(artifacts + '/diagnostics.json', JSON.stringify({ error: redact(error.message), events, grantExists: Boolean(grant), ticketCaptured: ticketSecrets.length > 0, grantHashMatches, nativeTail: nativeLog.slice(-5000) }, null, 2));
   console.error('Browser diagnostics:', JSON.stringify(events));
   throw error;
 } finally {
+  if (secondContext) await secondContext.close();
   await context.close();
   await browser.close();
 }

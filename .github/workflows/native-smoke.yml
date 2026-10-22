@@ -1,0 +1,54 @@
+name: Build and smoke-test native MineMine server
+on:
+  push:
+    branches: [feature/minemine-multiplayer-economy-landing]
+  pull_request:
+    paths:
+      - '.github/workflows/native-smoke.yml'
+      - 'game/**'
+      - 'scripts/setup-world.mjs'
+      - 'upstream.sources.json'
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install dependencies from the pinned Luanti Linux guide
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ make cmake ninja-build libpng-dev libjpeg-dev libgl1-mesa-dev libsqlite3-dev libogg-dev libvorbis-dev libopenal-dev libcurl4-gnutls-dev libfreetype6-dev zlib1g-dev libgmp-dev libjsoncpp-dev libzstd-dev libluajit-5.1-dev gettext libsdl2-dev
+      - name: Fetch pinned engine and game
+        run: node scripts/fetch-upstream.mjs
+      - name: Build native server
+        run: |
+          cmake -S vendor/native -B runtime/native-build -G Ninja -DBUILD_CLIENT=FALSE -DBUILD_SERVER=TRUE -DRUN_IN_PLACE=TRUE -DCMAKE_BUILD_TYPE=Release
+          cmake --build runtime/native-build -j 2
+          vendor/native/bin/luantiserver --version
+      - name: Start world with wallet and town mods
+        run: |
+          cp -a vendor/game vendor/native/games/minetest
+          WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" node scripts/setup-world.mjs
+          set +e
+          (cd vendor/native && timeout --signal=INT 15s bin/luantiserver --world "$GITHUB_WORKSPACE/runtime/native-world" --config "$GITHUB_WORKSPACE/game/minetest.conf" --logfile "$GITHUB_WORKSPACE/runtime/native-smoke.log")
+          result=$?
+          set -e
+          cat runtime/native-smoke.log
+          if [ "$result" -ne 124 ]; then
+            echo "Native server exited before the smoke-test interval (status $result)."
+            exit 1
+          fi
+      - name: Retain native startup diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-server-smoke-log
+          path: |
+            runtime/native-smoke.log
+            runtime/native-world/debug.txt
+          if-no-files-found: ignore

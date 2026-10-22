@@ -1,5 +1,11 @@
 # Validation record
 
+## Two-wallet server-process memory baseline — 2026-10-22 EDT
+
+[Actions run 39844611581](https://github.com/cupOJoseph/minemine/actions/runs/39844611581) passed the pinned native/Chromium two-wallet workflow with one-second resident-memory sampling of the live Luanti and Node processes. The retained `server-memory-first.csv` contains 208 samples and a peak combined RSS of **208.1 MiB** (individual maxima: Luanti 107.3 MiB, Node 100.8 MiB). The 37 post-restart samples peaked at **165.7 MiB** combined. Town outsider, owner, invited-member and post-removal browser packet checks still passed, as did reconnect and full-stack restart.
+
+This is a process baseline on a larger GitHub runner, not a 1 GiB capacity pass. It excludes the VM operating system, Caddy, filesystem cache, build/deploy work, long-lived world growth, and more players; one-second RSS sampling can miss short peaks and double-count shared pages. The proposed DigitalOcean host still needs a hard memory-limited rehearsal and an outside-network load check before provisioning is treated as viable.
+
 ## Invited member browser edits and removal — 2026-10-22 EDT
 
 [Actions run 39839625595](https://github.com/cupOJoseph/minemine/actions/runs/39839625595) passed the pinned Luanti and two-wallet Chromium workflow. After the outsider's browser dig/place was denied and the owner's browser place/dig was allowed, the CI-only probe reinvited the second wallet to the same nine-column town. The browser client placed `default:wood` at `(1,20,0)` and dug it there; the native log and retained `town-packet-member-place-result.txt` and `town-packet-member-dig-result.txt` both report PASS. The probe then removed that wallet from the town. Its next browser placement reached Luanti at the same `(1,20,0)` target, logged a protected-position denial, and left the node air; `town-packet-removed-place-result.txt` reports PASS. The run also passed wallet reconnect and a clean Luanti/Node restart that retained inventory, the claim, and a separate owner-placed node.

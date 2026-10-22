@@ -9,6 +9,8 @@ const MAX_FRAME = HEADER + 65507;
 const ASSIGNMENT_MS = 5 * 60_000;
 const MAX_BUFFERED_BYTES = 8 * 1024 * 1024;
 const MAX_CONNECTIONS = 64;
+const MAX_INGRESS_PACKETS_PER_SECOND = 2000;
+const MAX_INGRESS_BYTES_PER_SECOND = 2 * 1024 * 1024;
 // The browser's virtual destination is distinct from the private UDP target.
 // Webshims handles 127.0.0.1 within the browser and never sends it to us.
 const VIRTUAL_GAME_ADDRESS = Buffer.from([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 10, 0, 0, 1]);
@@ -101,7 +103,7 @@ export function attachGameProxy(server, config, tokenFromRequest, activeToken) {
       if (Date.now() - trafficWindow >= 1000) { trafficWindow = Date.now(); trafficPackets = 0; trafficBytes = 0; }
       trafficPackets++;
       trafficBytes += message.length;
-      if (trafficPackets > 400 || trafficBytes > 512 * 1024) return ws.close(1008, 'Game traffic limit');
+      if (trafficPackets > MAX_INGRESS_PACKETS_PER_SECOND || trafficBytes > MAX_INGRESS_BYTES_PER_SECOND) return ws.close(1008, 'Game traffic limit');
       udp.send(message.subarray(HEADER));
     });
     ws.on('close', (code, reason) => {

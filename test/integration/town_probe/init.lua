@@ -7,6 +7,7 @@ local owner_name, guest_name, claim_pos, inventory_slot
 local owner_left = false
 local packet_pos, packet_guest, packet_ready, packet_aimed, packet_reaimed, packet_done
 local packet_phase, packet_place_ready, packet_place_aimed, packet_place_done
+local owner_place_ready, owner_place_aimed, owner_place_done
 
 local function write_result(filename, status, ok)
     local file = assert(io.open(world .. "/" .. filename, "w"))
@@ -156,6 +157,16 @@ core.register_on_protection_violation(function(pos, name)
     end
 end)
 
+core.register_on_placenode(function(pos, node, player)
+    if not owner_place_ready or owner_place_done or not player or player:get_player_name() ~= owner_name then return end
+    if pos.x ~= packet_pos.x or pos.y ~= packet_pos.y or pos.z ~= packet_pos.z then return end
+    owner_place_done = true
+    local placed = node.name == "default:wood" and core.get_node(pos).name == "default:wood"
+    write_result("town-packet-owner-place-result.txt",
+        placed and "PASS owner browser place changed own claimed node"
+            or "FAIL owner browser place did not create wood", placed)
+end)
+
 local packet_elapsed = 0
 core.register_globalstep(function(dtime)
     if not finished or packet_ready then return end
@@ -252,6 +263,44 @@ core.register_globalstep(function()
     guest:set_look_horizontal(math.pi / 2)
     guest:set_look_vertical(0)
     write_result("town-packet-place-aim-ready.txt", "PASS browser camera aimed at protected place target", true)
+end)
+
+core.register_globalstep(function()
+    if not packet_place_done or owner_place_ready then return end
+    local arm = io.open(world .. "/town-packet-owner-place-arm.txt", "r")
+    if not arm then return end
+    arm:close()
+    owner_place_ready = true
+    local ok, result = pcall(function()
+        local owner = core.get_player_by_name(owner_name)
+        local guest = core.get_player_by_name(packet_guest)
+        check(owner ~= nil, "owner disconnected before browser place probe")
+        check(guest ~= nil, "outsider disconnected before owner browser place probe")
+        check(core.get_node(packet_pos).name == "air", "outsider changed protected placement target")
+        check(core.get_node({ x = packet_pos.x - 1, y = packet_pos.y, z = packet_pos.z }).name == "default:wood",
+            "owner's backing node disappeared before browser place probe")
+        check(owner:set_wielded_item("default:wood 3"), "could not equip owner placeable block")
+        guest:set_pos({ x = packet_pos.x + 5, y = packet_pos.y - 1.5, z = packet_pos.z })
+        owner:set_physics_override({ gravity = 0 })
+        owner:set_pos({ x = packet_pos.x + 2.5, y = packet_pos.y - 1.5, z = packet_pos.z })
+        owner:set_look_horizontal(math.pi / 2)
+        owner:set_look_vertical(0)
+        return "PASS owner browser place target armed"
+    end)
+    write_result("town-packet-owner-place-ready.txt", ok and result or "FAIL " .. tostring(result), ok)
+end)
+
+core.register_globalstep(function()
+    if not owner_place_ready or owner_place_aimed then return end
+    local arm = io.open(world .. "/town-packet-owner-place-aim.txt", "r")
+    if not arm then return end
+    arm:close()
+    owner_place_aimed = true
+    local owner = core.get_player_by_name(owner_name)
+    if not owner then return end
+    owner:set_look_horizontal(math.pi / 2)
+    owner:set_look_vertical(0)
+    write_result("town-packet-owner-place-aim-ready.txt", "PASS owner browser camera aimed at claimed place target", true)
 end)
 
 core.register_globalstep(function()

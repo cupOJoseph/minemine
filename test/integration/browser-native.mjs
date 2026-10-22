@@ -66,6 +66,19 @@ function observe(page) {
     socket.on('socketerror', error => record(`WebSocket error ${String(error)}`));
   });
 }
+async function bindTestPlaceKey(gamePage) {
+  // Headless pointer-lock mouse movement changes the camera on right-click.
+  // Only the disposable browser fixture uses F; the engine still sends its
+  // ordinary native place interaction packet.
+  await gamePage.route('**/engine/remote.js', async route => {
+    const response = await route.fetch();
+    const source = await response.text();
+    const needle = "  launcher.setLang('en');";
+    assert.equal(source.split(needle).length, 2, 'remote launcher keymap insertion point');
+    await route.fulfill({ response, body: source.replace(needle,
+      `${needle}\n  launcher.overrideConf('keymap_place', 'SYSTEM_SCANCODE_9');`) });
+  });
+}
 const joinCount = (log, name) => [...log.matchAll(new RegExp(`${name} \\[.*\\] joins game\\.`, 'g'))].length;
 async function waitForJoin(character, gamePage, minimumCount = 1) {
   const deadline = Date.now() + 240_000;
@@ -90,6 +103,7 @@ try {
   await context.addCookies([{ name, value, url: origin, httpOnly: true, sameSite: 'Strict' }]);
   page = await context.newPage();
   observe(page);
+  await bindTestPlaceKey(page);
   await page.goto(origin + '/engine/connect.html', { waitUntil: 'domcontentloaded' });
   await waitForJoin(session, page);
 
@@ -108,17 +122,7 @@ try {
   await secondContext.addCookies([{ name: secondName, value: secondValue, url: origin, httpOnly: true, sameSite: 'Strict' }]);
   secondPage = await secondContext.newPage();
   observe(secondPage);
-  // Only this disposable client remaps place to F. The pinned engine still
-  // emits the normal interact packet; headless pointer-lock mouse movement
-  // cannot change the camera while the placement key is pressed.
-  await secondPage.route('**/engine/remote.js', async route => {
-    const response = await route.fetch();
-    const source = await response.text();
-    const needle = "  launcher.setLang('en');";
-    assert.equal(source.split(needle).length, 2, 'remote launcher keymap insertion point');
-    await route.fulfill({ response, body: source.replace(needle,
-      `${needle}\n  launcher.overrideConf('keymap_place', 'SYSTEM_SCANCODE_9');`) });
-  });
+  await bindTestPlaceKey(secondPage);
   await secondPage.goto(origin + '/engine/connect.html', { waitUntil: 'domcontentloaded' });
   await waitForJoin(secondSession, secondPage);
 
@@ -214,6 +218,41 @@ try {
   }
   assert.match(packetPlace, /^PASS /, `browser place packet did not hit protected claim: ${packetPlace || 'no result'}`);
 
+  const ownerCanvas = page.locator('#canvas');
+  await ownerCanvas.waitFor({ state: 'visible', timeout: 60_000 });
+  const ownerBounds = await ownerCanvas.boundingBox();
+  assert.ok(ownerBounds && ownerBounds.width > 100 && ownerBounds.height > 100, 'owner game canvas was not usable');
+  await page.mouse.move(ownerBounds.x + ownerBounds.width / 2, ownerBounds.y + ownerBounds.height / 2);
+  await ownerCanvas.click({ position: { x: ownerBounds.width / 2, y: ownerBounds.height / 2 } });
+  await writeFile(path.join(worldDir, 'town-packet-owner-place-arm.txt'), 'place\n', { mode: 0o600 });
+  let ownerPlaceReady = '';
+  for (let attempt = 0; attempt < 30; attempt++) {
+    ownerPlaceReady = await readFile(path.join(worldDir, 'town-packet-owner-place-ready.txt'), 'utf8').catch(() => '');
+    if (ownerPlaceReady) break;
+    await sleep(500);
+  }
+  assert.match(ownerPlaceReady, /^PASS /, `native owner-place target failed: ${ownerPlaceReady || 'no result'}`);
+  await sleep(2500);
+  await writeFile(path.join(worldDir, 'town-packet-owner-place-aim.txt'), 'aim\n', { mode: 0o600 });
+  let ownerPlaceAimReady = '';
+  for (let attempt = 0; attempt < 30; attempt++) {
+    ownerPlaceAimReady = await readFile(path.join(worldDir, 'town-packet-owner-place-aim-ready.txt'), 'utf8').catch(() => '');
+    if (ownerPlaceAimReady) break;
+    await sleep(500);
+  }
+  assert.match(ownerPlaceAimReady, /^PASS /, `owner place camera reset failed: ${ownerPlaceAimReady || 'no result'}`);
+  await sleep(2000);
+  await page.screenshot({ path: artifacts + '/packet-owner-place-target.png' });
+  let ownerPlace = await readFile(path.join(worldDir, 'town-packet-owner-place-result.txt'), 'utf8').catch(() => '');
+  for (let attempt = 0; attempt < 3 && !ownerPlace; attempt++) {
+    await page.keyboard.down('f');
+    await sleep(350);
+    await page.keyboard.up('f');
+    await sleep(1000);
+    ownerPlace = await readFile(path.join(worldDir, 'town-packet-owner-place-result.txt'), 'utf8').catch(() => '');
+  }
+  assert.match(ownerPlace, /^PASS /, `owner browser place packet did not edit own claim: ${ownerPlace || 'no result'}`);
+
   await page.close();
   let disconnected = false;
   for (let attempt = 0; attempt < 45; attempt++) {
@@ -270,8 +309,11 @@ try {
   const placeReady = await readFile(path.join(worldDir, 'town-packet-place-ready.txt'), 'utf8').catch(() => '');
   const placeAimReady = await readFile(path.join(worldDir, 'town-packet-place-aim-ready.txt'), 'utf8').catch(() => '');
   const packetPlace = await readFile(path.join(worldDir, 'town-packet-place-result.txt'), 'utf8').catch(() => '');
+  const ownerPlaceReady = await readFile(path.join(worldDir, 'town-packet-owner-place-ready.txt'), 'utf8').catch(() => '');
+  const ownerPlaceAimReady = await readFile(path.join(worldDir, 'town-packet-owner-place-aim-ready.txt'), 'utf8').catch(() => '');
+  const ownerPlace = await readFile(path.join(worldDir, 'town-packet-owner-place-result.txt'), 'utf8').catch(() => '');
   const packetDebug = await readFile(path.join(worldDir, 'town-packet-debug.json'), 'utf8').catch(() => '');
-  await writeFile(artifacts + '/diagnostics.json', JSON.stringify({ error: redact(error.message), events, grantExists: Boolean(grant), ticketCaptured: ticketSecrets.length > 0, grantHashMatches, townProbe, reconnectProbe, packetReady, aimReady, reaimReady, packetDig, placeReady, placeAimReady, packetPlace, packetDebug, nativeTail: nativeLog.slice(-5000) }, null, 2));
+  await writeFile(artifacts + '/diagnostics.json', JSON.stringify({ error: redact(error.message), events, grantExists: Boolean(grant), ticketCaptured: ticketSecrets.length > 0, grantHashMatches, townProbe, reconnectProbe, packetReady, aimReady, reaimReady, packetDig, placeReady, placeAimReady, packetPlace, ownerPlaceReady, ownerPlaceAimReady, ownerPlace, packetDebug, nativeTail: nativeLog.slice(-5000) }, null, 2));
   console.error('Browser diagnostics:', JSON.stringify(events));
   throw error;
 } finally {

@@ -138,8 +138,22 @@ try {
   const bounds = await canvas.boundingBox();
   assert.ok(bounds && bounds.width > 100 && bounds.height > 100, 'game canvas was not usable');
   await secondPage.screenshot({ path: artifacts + '/packet-target.png' });
+  await secondPage.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
   await canvas.click({ position: { x: bounds.width / 2, y: bounds.height / 2 } });
   record(`game canvas pointer lock: ${await secondPage.evaluate(() => document.pointerLockElement?.id || 'none')}`);
+  await writeFile(path.join(worldDir, 'town-packet-aim.txt'), 'aim\n', { mode: 0o600 });
+  let aimReady = '';
+  for (let attempt = 0; attempt < 30; attempt++) {
+    aimReady = await readFile(path.join(worldDir, 'town-packet-aim-ready.txt'), 'utf8').catch(() => '');
+    if (aimReady) break;
+    await sleep(500);
+  }
+  assert.match(aimReady, /^PASS /, `browser camera reset failed: ${aimReady || 'no result'}`);
+  await sleep(2000);
+  const aimDebug = JSON.parse(await readFile(path.join(worldDir, 'town-packet-debug.json'), 'utf8'));
+  assert.ok(aimDebug.aimed && aimDebug.look_dir.x < -0.5 && Math.abs(aimDebug.look_dir.y) < 0.5,
+    `browser camera missed protected wall: ${JSON.stringify(aimDebug)}`);
+  await secondPage.screenshot({ path: artifacts + '/packet-aimed.png' });
   let packetDig = await readFile(path.join(worldDir, 'town-packet-dig-result.txt'), 'utf8').catch(() => '');
   for (let attempt = 0; attempt < 3 && !packetDig; attempt++) {
     await secondPage.mouse.down({ button: 'left' });
@@ -200,9 +214,10 @@ try {
   const townProbe = await readFile(path.join(worldDir, 'town-probe-result.txt'), 'utf8').catch(() => '');
   const reconnectProbe = await readFile(path.join(worldDir, 'town-probe-reconnect-result.txt'), 'utf8').catch(() => '');
   const packetReady = await readFile(path.join(worldDir, 'town-packet-ready.txt'), 'utf8').catch(() => '');
+  const aimReady = await readFile(path.join(worldDir, 'town-packet-aim-ready.txt'), 'utf8').catch(() => '');
   const packetDig = await readFile(path.join(worldDir, 'town-packet-dig-result.txt'), 'utf8').catch(() => '');
   const packetDebug = await readFile(path.join(worldDir, 'town-packet-debug.json'), 'utf8').catch(() => '');
-  await writeFile(artifacts + '/diagnostics.json', JSON.stringify({ error: redact(error.message), events, grantExists: Boolean(grant), ticketCaptured: ticketSecrets.length > 0, grantHashMatches, townProbe, reconnectProbe, packetReady, packetDig, packetDebug, nativeTail: nativeLog.slice(-5000) }, null, 2));
+  await writeFile(artifacts + '/diagnostics.json', JSON.stringify({ error: redact(error.message), events, grantExists: Boolean(grant), ticketCaptured: ticketSecrets.length > 0, grantHashMatches, townProbe, reconnectProbe, packetReady, aimReady, packetDig, packetDebug, nativeTail: nativeLog.slice(-5000) }, null, 2));
   console.error('Browser diagnostics:', JSON.stringify(events));
   throw error;
 } finally {

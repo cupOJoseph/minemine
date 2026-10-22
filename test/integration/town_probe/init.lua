@@ -5,7 +5,7 @@ local elapsed = 0
 local finished = false
 local owner_name, guest_name, claim_pos, inventory_slot
 local owner_left = false
-local packet_pos, packet_guest, packet_ready, packet_done
+local packet_pos, packet_guest, packet_ready, packet_aimed, packet_done
 
 local function write_result(filename, status, ok)
     local file = assert(io.open(world .. "/" .. filename, "w"))
@@ -200,8 +200,21 @@ core.register_globalstep(function(dtime)
     if not guest then return end
     local file = io.open(world .. "/town-packet-debug.json", "w")
     if not file then return end
-    file:write(core.write_json({ player_pos = guest:get_pos(), look_dir = guest:get_look_dir(), target = packet_pos }))
+    file:write(core.write_json({ player_pos = guest:get_pos(), look_dir = guest:get_look_dir(), target = packet_pos, aimed = packet_aimed }))
     file:close()
+end)
+
+core.register_globalstep(function()
+    if not packet_ready or packet_aimed or not packet_guest then return end
+    local arm = io.open(world .. "/town-packet-aim.txt", "r")
+    if not arm then return end
+    arm:close()
+    packet_aimed = true
+    local guest = core.get_player_by_name(packet_guest)
+    if not guest then return end
+    guest:set_look_horizontal(math.pi / 2)
+    guest:set_look_vertical(0)
+    write_result("town-packet-aim-ready.txt", "PASS browser camera reset after pointer lock", true)
 end)
 
 core.register_globalstep(function(dtime)

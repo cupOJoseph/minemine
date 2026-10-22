@@ -108,6 +108,21 @@ async function signalProbe(signal, marker, label) {
   await writeFile(path.join(worldDir, signal), 'ready\n', { mode: 0o600 });
   return waitForProbe(marker, label);
 }
+async function mouseDigFallback(gamePage, marker) {
+  // Headless SDL key input occasionally misses a dig even with the remapped
+  // key held. A real held mouse button exercises the same browser game path.
+  let result = '';
+  await gamePage.mouse.down();
+  try {
+    for (let attempt = 0; attempt < 30 && !result; attempt++) {
+      await sleep(100);
+      result = await readFile(path.join(worldDir, marker), 'utf8').catch(() => '');
+    }
+  } finally {
+    await gamePage.mouse.up();
+  }
+  return result;
+}
 try {
   const wallet = new Wallet('0x' + '12'.repeat(32));
   const signed = await signedSession(wallet);
@@ -201,6 +216,7 @@ try {
     await sleep(1000);
     packetDig = await readFile(path.join(worldDir, 'town-packet-dig-result.txt'), 'utf8').catch(() => '');
   }
+  if (!packetDig) packetDig = await mouseDigFallback(secondPage, 'town-packet-dig-result.txt');
   assert.match(packetDig, /^PASS /, `browser dig packet did not hit protected claim: ${packetDig || 'no result'}`);
 
   await writeFile(path.join(worldDir, 'town-packet-place-arm.txt'), 'place\n', { mode: 0o600 });
@@ -305,6 +321,7 @@ try {
     await page.keyboard.up('g');
     if (!ownerDig) await sleep(500);
   }
+  if (!ownerDig) ownerDig = await mouseDigFallback(page, 'town-packet-owner-dig-result.txt');
   assert.match(ownerDig, /^PASS /, `owner browser dig packet did not edit own claim: ${ownerDig || 'no result'}`);
 
   await secondPage.bringToFront();
@@ -338,6 +355,7 @@ try {
     await secondPage.keyboard.up('g');
     if (!memberDig) await sleep(500);
   }
+  if (!memberDig) memberDig = await mouseDigFallback(secondPage, 'town-packet-member-dig-result.txt');
   assert.match(memberDig, /^PASS /, `invited-member browser dig did not edit claim: ${memberDig || 'no result'}`);
 
   await signalProbe('town-packet-removed-place-arm.txt', 'town-packet-removed-place-ready.txt', 'removed-member place target');

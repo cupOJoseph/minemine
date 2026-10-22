@@ -18,6 +18,18 @@ For a short closed alpha, the same [pricing table](https://www.digitalocean.com/
 4. Enable daily provider backups and a separate application-level stopped-world backup with a tested restore. Provider disk images alone do not demonstrate an application-consistent SQLite restore. Retain build manifests and private configuration separately from the world.
 5. Begin with one region and no load balancer, CDN split origin, or SpacetimeDB node. Add components only after the first remote-browser and 16-player measurements identify a bottleneck.
 
+## Prepared host configuration
+
+The repository includes a [Caddyfile example](../deploy/vps/Caddyfile.example) and separate [web](../deploy/vps/minemine-web.service) and [native](../deploy/vps/minemine-native.service) systemd units. They assume an Ubuntu VM with a dedicated `minemine` user, the reviewed checkout at `/srv/minemine/app`, the world at `/srv/minemine/world`, Node 24 at `/usr/bin/node`, and the pinned run-in-place Luanti binary at `/srv/minemine/app/vendor/native/bin/luantiserver`. The current [native CI workflow](../.github/workflows/native-smoke.yml) shows the tested Linux build commands. These templates have not been run on a public host.
+
+After the account owner provisions the VM and points the domain at it:
+
+1. Create the `minemine` OS user and the app/world directories. Build the pinned native engine and install the pinned Minetest Game as `vendor/native/games/minetest`, then create the world with `WORLD_DIR=/srv/minemine/world node scripts/setup-world.mjs` while running as that user. Stage the verified WASM artifact into `public/engine` and run `npm run adapter:install`. Keep the engine build manifest and asset hashes alongside the deployment.
+2. Create `/etc/minemine/minemine.env`, readable by the service user but not the public web server. Set `HOST=127.0.0.1`, `PORT=3000`, `PUBLIC_ORIGIN=https://minemine.gg`, `WORLD_DIR=/srv/minemine/world`, and the reviewed chain/RPC settings. Leave `GAME_ENABLED=false` and `ENGINE_ADAPTER_READY=false` until the external-browser and authorization checks pass. Keep deployment private keys out of this service file.
+3. Install both unit files under `/etc/systemd/system/`, run `systemctl daemon-reload`, and start the native and web units. Confirm each service stays active and the web `/api/health` endpoint responds with the expected Host header. That endpoint is a configuration check, not proof that native UDP is live.
+4. Install the Caddyfile under `/etc/caddy/Caddyfile`, validate it with `caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile`, then start Caddy. Caddy's [automatic HTTPS](https://caddyserver.com/docs/quick-starts/https) requires working DNS and public ports 80 and 443; its [reverse proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy) forwards WebSocket upgrades. Confirm the site is isolated (`crossOriginIsolated` in the browser), `/game-proxy` upgrades over WSS, and both wallet clients can join from outside the VM.
+5. Test a clean native restart and a stopped-world backup/restore before enabling the shared-world button. Record service and Caddy logs, CPU, RAM, disk and network use during the first load test. The VPS firewall should expose only 80/443 and narrowly scoped SSH; do not expose ports 3000 or 30000.
+
 ## Provisioning and launch gates
 
 The account owner needs to select and authorize the spending account, confirm the monthly budget and region, and provide SSH and domain/DNS access through an approved secure channel. No VM, domain, DNS record, testnet token, or paid service has been created by this recommendation.

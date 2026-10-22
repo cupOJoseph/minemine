@@ -1,0 +1,5 @@
+# Install as /etc/caddy/Caddyfile only after minemine.gg points at this host.
+# Caddy manages HTTPS and forwards WebSocket upgrades on this same origin.
+minemine.gg {
+    reverse_proxy 127.0.0.1:3000
+}

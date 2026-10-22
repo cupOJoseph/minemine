@@ -1,0 +1,20 @@
+[Unit]
+Description=MineMine wallet, landing and browser game bridge
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=minemine
+Group=minemine
+WorkingDirectory=/srv/minemine/app
+EnvironmentFile=/etc/minemine/minemine.env
+ExecStart=/usr/bin/node /srv/minemine/app/server/index.mjs
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

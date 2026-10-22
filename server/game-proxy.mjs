@@ -9,7 +9,7 @@ const MAX_FRAME = HEADER + 65507;
 const ASSIGNMENT_MS = 5 * 60_000;
 const MAX_BUFFERED_BYTES = 8 * 1024 * 1024;
 const MAX_CONNECTIONS = 64;
-const MAX_INGRESS_PACKETS_PER_SECOND = 2000;
+const MAX_INGRESS_PACKETS_PER_SECOND = 8192;
 const MAX_INGRESS_BYTES_PER_SECOND = 2 * 1024 * 1024;
 // The browser's virtual destination is distinct from the private UDP target.
 // Webshims handles 127.0.0.1 within the browser and never sends it to us.

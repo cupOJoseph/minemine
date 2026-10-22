@@ -28,6 +28,17 @@ local function check(condition, message)
     if not condition then error(message) end
 end
 
+local function read_state()
+    local file = io.open(world .. "/town-probe-state.json", "r")
+    check(file ~= nil, "initial town probe state missing")
+    local raw = file:read(4097)
+    file:close()
+    check(raw and #raw <= 4096, "invalid town probe state")
+    local state = core.parse_json(raw)
+    check(type(state) == "table" and type(state.pos) == "table" and type(state.slot) == "number", "invalid town probe state")
+    return state
+end
+
 local function run(config)
     local town = core.registered_chatcommands.town
     check(town and type(town.func) == "function", "town chat command missing")
@@ -62,7 +73,27 @@ local function run(config)
     inventory:set_stack("main", slot, "default:diamond 3")
     check(inventory:get_stack("main", slot):get_count() == 3, "inventory fixture could not be set")
     owner_name, guest_name, claim_pos, inventory_slot = owner, guest, pos, slot
+    local state_file = assert(io.open(world .. "/town-probe-state.json", "w"))
+    state_file:write(assert(core.write_json({ owner = owner, guest = guest, pos = pos, slot = slot })))
+    state_file:close()
     return "PASS owner/outsider/member protection, paid quota, invitation and removal"
+end
+
+local function run_restart(config)
+    local state = read_state()
+    check(state.owner == config.owner and state.guest == config.guest, "wallet characters changed across restart")
+    local owner = core.get_player_by_name(state.owner)
+    check(owner and core.get_player_by_name(state.guest), "both wallet characters must rejoin after restart")
+    local stack = owner:get_inventory():get_stack("main", state.slot)
+    check(stack:get_name() == "default:diamond" and stack:get_count() == 3,
+        "inventory stack was not restored after server restart")
+    check(not core.is_protected(state.pos, state.owner), "town owner lost build access after restart")
+    check(core.is_protected(state.pos, state.guest), "town outsider gained build access after restart")
+    local town = core.registered_chatcommands.town
+    check(town and type(town.func) == "function", "town command missing after restart")
+    local ok, message = town.func(state.owner, "info")
+    check(ok and message:find("protected 9/9 columns", 1, true), "town credit or claim count changed after restart")
+    return "PASS inventory, paid-size claim and owner/outsider protection survive native restart"
 end
 
 core.register_on_leaveplayer(function(player)
@@ -94,7 +125,8 @@ core.register_globalstep(function(dtime)
     local config = read_config()
     if not config or not core.get_player_by_name(config.owner) or not core.get_player_by_name(config.guest) then return end
     finished = true
-    local ok, result = pcall(run, config)
+    local restart = config.phase == "restart"
+    local ok, result = pcall(restart and run_restart or run, config)
     local status = ok and result or "FAIL " .. tostring(result)
-    write_result("town-probe-result.txt", status, ok)
+    write_result(restart and "town-probe-restart-result.txt" or "town-probe-result.txt", status, ok)
 end)

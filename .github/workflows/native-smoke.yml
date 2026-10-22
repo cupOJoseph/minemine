@@ -8,6 +8,7 @@ on:
       - 'server/**'
       - 'playtest/**'
       - 'test/integration/browser-native.mjs'
+      - 'test/integration/browser-native-restart.mjs'
       - 'test/integration/town_probe/**'
       - 'scripts/setup-world.mjs'
       - 'upstream.sources.json'
@@ -103,6 +104,17 @@ jobs:
             sleep 1
           done
           WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" NATIVE_LOG=runtime/browser-native.log node test/integration/browser-native.mjs
+          kill -TERM "$native_pid"
+          wait "$native_pid"
+          (cd vendor/native && bin/luantiserver --info --world "$GITHUB_WORKSPACE/runtime/native-world" --config "$GITHUB_WORKSPACE/game/minetest.conf" --logfile "$GITHUB_WORKSPACE/runtime/browser-native-restart-engine.log") > runtime/browser-native-restart.log 2>&1 &
+          native_pid=$!
+          for attempt in {1..30}; do
+            if grep -Fq 'listening on 127.0.0.1:30000' runtime/browser-native-restart.log; then break; fi
+            if ! kill -0 "$native_pid" 2>/dev/null; then cat runtime/browser-native-restart.log; exit 1; fi
+            sleep 1
+          done
+          grep -Fq 'listening on 127.0.0.1:30000' runtime/browser-native-restart.log
+          WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" NATIVE_LOG=runtime/browser-native-restart.log node test/integration/browser-native-restart.mjs
       - name: Retain native startup diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -117,7 +129,10 @@ jobs:
             runtime/browser-native.log
             runtime/browser-native-engine.log
             runtime/browser-api.log
+            runtime/browser-native-restart.log
+            runtime/browser-native-restart-engine.log
             runtime/native-world/town-probe-result.txt
             runtime/native-world/town-probe-reconnect-result.txt
+            runtime/native-world/town-probe-restart-result.txt
             runtime/browser-artifacts/
           if-no-files-found: ignore

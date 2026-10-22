@@ -153,6 +153,8 @@ try {
 
   assert.equal(errors.length, 0, `browser console errors: ${errors.join(' | ')}`);
   assert.equal(leakedCredential, false, 'browser console exposed the short-lived game credential');
+  await writeFile(path.join(worldDir, 'town-probe-config.json'),
+    JSON.stringify({ phase: 'restart', owner: session.playerName, guest: secondSession.playerName }), { mode: 0o600 });
 } catch (error) {
   const failedPage = secondPage && !secondPage.isClosed() ? secondPage : page;
   if (failedPage && !failedPage.isClosed()) {

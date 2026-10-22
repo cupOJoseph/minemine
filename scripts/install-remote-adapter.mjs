@@ -14,5 +14,5 @@ for (const [relative, expected] of Object.entries(build.assets)) {
   const value = fs.readFileSync(path.join(engine, relative));
   if (value.length !== expected.bytes || createHash('sha256').update(value).digest('hex') !== expected.sha256) throw new Error('Engine asset hash mismatch: ' + relative);
 }
-for (const file of ['adapter.js', 'connect.html', 'remote.js', 'remote-session.mjs']) fs.copyFileSync(path.join(root, 'playtest', file), path.join(engine, file));
+for (const file of ['adapter.js', 'connect.html', 'remote.js', 'remote-session.mjs', 'log-redaction.mjs']) fs.copyFileSync(path.join(root, 'playtest', file), path.join(engine, file));
 console.log('Installed source-matched remote adapter into the verified local engine bundle. Multiplayer remains gated by GAME_ENABLED and ENGINE_ADAPTER_READY.');

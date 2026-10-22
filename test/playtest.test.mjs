@@ -8,6 +8,7 @@ import { patchBuildScript, patchDependencyScripts } from '../scripts/prepare-was
 import { releaseId, validateWasm } from '../scripts/stage-playtest.mjs';
 import { configureSoloLauncher, makeSoloArgs, makeSoloSession } from '../playtest/session.mjs';
 import { makeRemoteArgs, sameOriginProxyUrl } from '../playtest/remote-session.mjs';
+import { redactConsoleSecret } from '../playtest/log-redaction.mjs';
 
 class Args {
   constructor() { this.name = ''; this.password = ''; this.address = ''; this.packs = []; }
@@ -46,6 +47,18 @@ test('remote client uses only an unexpired wallet ticket and same-origin proxy',
   assert.throws(() => makeRemoteArgs({ ...ticket, expiresAt: 1_000_000 }, Args, 1_000_000), /expired/);
   assert.throws(() => makeRemoteArgs({ ...ticket, address: '8.8.8.8' }, Args, 1_000_000), /invalid/);
   assert.throws(() => sameOriginProxyUrl('https://minemine.gg/other'), /origin/);
+});
+test('browser startup redacts the short-lived wallet credential from console arguments', () => {
+  const calls = [];
+  const original = (...values) => calls.push(values);
+  const output = { log: original, error: original };
+  const secret = 's'.repeat(43);
+  const restore = redactConsoleSecret(output, secret);
+  output.log('Main received args:', secret);
+  output.error(`password=${secret}`);
+  assert.deepEqual(calls, [['Main received args:', '[redacted]'], ['password=[redacted]']]);
+  restore();
+  assert.equal(output.log, original);
 });
 test('engine launch waits for readiness and successful game-pack installation', async () => {
   const launcher = fakeLauncher();

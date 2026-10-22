@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import path from 'node:path';
 import { Wallet } from 'ethers';
 import { chromium } from 'playwright';
 
@@ -31,11 +33,19 @@ await mkdir(artifacts, { recursive: true });
 const browser = await chromium.launch({ headless: true, args: ['--enable-unsafe-swiftshader'] });
 const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
 let page;
+let session;
 const events = [];
-const record = value => { if (events.length < 100) events.push(value); };
+let ticketSecret = '';
+let leakedCredential = false;
+const record = value => {
+  if (ticketSecret && value.includes(ticketSecret)) leakedCredential = true;
+  if (events.length < 100) events.push(ticketSecret ? value.replaceAll(ticketSecret, '[redacted]') : value);
+};
 try {
   const wallet = new Wallet('0x' + '12'.repeat(32));
-  const { session, cookie } = await signedSession(wallet);
+  const signed = await signedSession(wallet);
+  session = signed.session;
+  const { cookie } = signed;
   const [name, value] = cookie.split('=');
   await context.addCookies([{ name, value, url: origin, httpOnly: true, sameSite: 'Strict' }]);
   page = await context.newPage();
@@ -47,6 +57,7 @@ try {
   });
   page.on('requestfailed', request => record(`request failed ${request.url()} ${request.failure()?.errorText}`));
   page.on('response', response => {
+    if (response.url().endsWith('/api/game/ticket')) response.json().then(data => { ticketSecret = data.password || ''; }).catch(() => {});
     if (response.url().includes('/api/') || response.status() >= 400) record(`HTTP ${response.status()} ${response.url()}`);
   });
   page.on('websocket', socket => {
@@ -69,6 +80,7 @@ try {
   const log = await readFile(logPath, 'utf8');
   if (!new RegExp(`${session.playerName} \\[.*\\] joins game\\.`).test(log)) throw new Error(`Native join absent for ${session.playerName}.`);
   assert.equal(errors.length, 0, `browser console errors: ${errors.join(' | ')}`);
+  assert.equal(leakedCredential, false, 'browser console exposed the short-lived game credential');
 } catch (error) {
   if (page && !page.isClosed()) {
     const state = await page.evaluate(() => ({
@@ -79,7 +91,12 @@ try {
     await page.screenshot({ path: artifacts + '/failure.png' }).catch(() => {});
   }
   const nativeLog = await readFile(logPath, 'utf8').catch(() => '');
-  await writeFile(artifacts + '/diagnostics.json', JSON.stringify({ error: error.message, events, nativeTail: nativeLog.slice(-5000) }, null, 2));
+  const grantsDir = process.env.WORLD_DIR || 'runtime/native-world';
+  const grantRaw = await readFile(path.join(grantsDir, 'wallet_grants', `${session?.playerName}.json`), 'utf8').catch(() => '');
+  const grant = grantRaw ? JSON.parse(grantRaw) : null;
+  const expectedHash = ticketSecret ? createHash('sha1').update(session.playerName + ticketSecret).digest('base64') : null;
+  const grantHashMatches = Boolean(grant && expectedHash && grant.password_hash === expectedHash);
+  await writeFile(artifacts + '/diagnostics.json', JSON.stringify({ error: error.message, events, grantExists: Boolean(grant), ticketCaptured: Boolean(ticketSecret), grantHashMatches, nativeTail: nativeLog.slice(-5000) }, null, 2));
   console.error('Browser diagnostics:', JSON.stringify(events));
   throw error;
 } finally {

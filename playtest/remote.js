@@ -1,4 +1,5 @@
 import { makeRemoteArgs, sameOriginProxyUrl } from './remote-session.mjs';
+import { redactConsoleSecret } from './log-redaction.mjs';
 
 const status = document.getElementById('status');
 const loading = document.getElementById('loading');
@@ -46,6 +47,8 @@ try {
   const engine = await loadLauncher(build.release);
   if (!engine?.LuantiLauncher || !engine?.LuantiArgs || !engine?.onMainStarted) throw new Error('Luanti adapter version mismatch.');
   const launcher = new engine.LuantiLauncher();
+  let activeArgs = null;
+  let stopRedacting = () => {};
   launcher.setProxy(sameOriginProxyUrl(location.origin));
   launcher.setLang('en');
   launcher.overrideConf('server_announce', false);
@@ -56,9 +59,9 @@ try {
     loading.value = Math.max(0, Math.min(1, fraction || 0));
     report(`${task}: ${Math.round(loading.value * 100)}%`);
   };
-  launcher.onerror = error => report(String(error), true);
-  launcher.oncancel = () => report('Game launch cancelled. Reload to try again.', true);
-  launcher.onexit = code => report(`Game client stopped (exit ${code}). Reload to try again.`, code !== 0);
+  launcher.onerror = error => { if (activeArgs) activeArgs.password = ''; report(String(error), true); };
+  launcher.oncancel = () => { if (activeArgs) activeArgs.password = ''; report('Game launch cancelled. Reload to try again.', true); };
+  launcher.onexit = code => { if (activeArgs) activeArgs.password = ''; report(`Game client stopped (exit ${code}). Reload to try again.`, code !== 0); };
   launcher.onready = async () => {
     try {
       report('Installing the world content…');
@@ -66,13 +69,16 @@ try {
       report('Requesting a fresh wallet game session…');
       const ticket = await requestTicket();
       const args = makeRemoteArgs(ticket, engine.LuantiArgs);
+      activeArgs = args;
+      stopRedacting = redactConsoleSecret(console, ticket.password);
       ticket.password = '';
       engine.onMainStarted(() => {
         args.password = '';
+        stopRedacting();
         window.parent.postMessage({ type: 'minemine-engine-started' }, location.origin);
       });
       launcher.launch(args);
-    } catch (error) { report(error.message, true); }
+    } catch (error) { if (activeArgs) activeArgs.password = ''; stopRedacting(); report(error.message, true); }
   };
   if (launcher.isReady()) launcher.onready();
 } catch (error) { report(error.message, true); }

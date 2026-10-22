@@ -1,7 +1,6 @@
 name: Build and smoke-test native MineMine server
 on:
-  push:
-    branches: [feature/minemine-multiplayer-economy-landing]
+  workflow_dispatch:
   pull_request:
     paths:
       - '.github/workflows/native-smoke.yml'
@@ -35,18 +34,19 @@ jobs:
           cp -a vendor/game vendor/native/games/minetest
           WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" node scripts/setup-world.mjs
           set +e
-          (cd vendor/native && timeout --signal=INT 15s bin/luantiserver --info --world "$GITHUB_WORKSPACE/runtime/native-world" --config "$GITHUB_WORKSPACE/game/minetest.conf" --logfile "$GITHUB_WORKSPACE/runtime/native-smoke.log")
+          (cd vendor/native && timeout --signal=INT 15s bin/luantiserver --info --world "$GITHUB_WORKSPACE/runtime/native-world" --config "$GITHUB_WORKSPACE/game/minetest.conf" --logfile "$GITHUB_WORKSPACE/runtime/native-smoke.log") > runtime/native-console.log 2>&1
           result=$?
           set -e
+          cat runtime/native-console.log
           cat runtime/native-smoke.log
           if [ "$result" -ne 124 ]; then
             echo "Native server exited before the smoke-test interval (status $result)."
             exit 1
           fi
-          grep -Fq 'Mod "wallet_auth" loaded' runtime/native-smoke.log
-          grep -Fq 'Mod "town_claims" loaded' runtime/native-smoke.log
-          grep -Fq 'listening on 127.0.0.1:30000' runtime/native-smoke.log
-          if grep -Fq 'ERROR[Main]' runtime/native-smoke.log; then
+          grep -Fq 'Mod "wallet_auth" loaded' runtime/native-console.log
+          grep -Fq 'Mod "town_claims" loaded' runtime/native-console.log
+          grep -Fq 'listening on 127.0.0.1:30000' runtime/native-console.log
+          if grep -Fq 'ERROR[Main]' runtime/native-console.log; then
             echo 'Native server logged an error while starting the world.'
             exit 1
           fi
@@ -57,5 +57,6 @@ jobs:
           name: native-server-smoke-log
           path: |
             runtime/native-smoke.log
+            runtime/native-console.log
             runtime/native-world/debug.txt
           if-no-files-found: ignore

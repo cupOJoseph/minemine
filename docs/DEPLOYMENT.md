@@ -89,7 +89,7 @@ The user's approved hosting choices for the browser playtest are their personal 
 
 The remaining instructions apply to the future shared-server milestone:
 
-Use a Linux host with persistent disk, adequate memory for the measured build/world, and HTTPS/WSS ingress. Start with a single region and single auth process. A public domain, provider account and budget are still needed.
+Use a Linux host with persistent disk, adequate memory for the measured build/world, and HTTPS/WSS ingress. Start with a single region and single auth process. The [researched VPS recommendation](VPS_RECOMMENDATION.md) proposes a NYC3 8 GiB/4 vCPU VM with daily backups for a $62.40/month listed base. A provider account, approved budget and domain/DNS access are still needed; this has not been provisioned.
 
 The included `deploy/Dockerfile` packages the Node launcher/auth service and restricted WebSocket bridge. It does not package a native game server or a verified playable world. Build from project root:
 

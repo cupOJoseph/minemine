@@ -34,7 +34,7 @@ Start with Minetest Game for low complexity. Evaluate Mineclonia/VoxeLibre only 
 
 | ID | Status | Task and acceptance criteria | Depends on |
 | --- | --- | --- | --- |
-| S01 | BLOCKED | Select Linux host/account, region, domain, and budget. Provision a dedicated service user, disk, TLS, and firewall. No provider or spending account supplied. | Hosting decision/access |
+| S01 | RECOMMENDED | [VPS recommendation](VPS_RECOMMENDATION.md): one NYC3 DigitalOcean 8 GiB/4 vCPU VM with daily backups, listed base $62.40/month. Account, final budget/region, domain/DNS access and provisioning remain to be agreed; no provider or spending account supplied. | Hosting decision/access |
 | S02 | IMPLEMENTED | Pinned Luanti 5.16.1 compiled on Linux; a SQLite-backed Minetest Game world loaded both custom mods and restarted from a stopped-world backup in Actions run 39725139279. Two wallet-authenticated Chromium characters joined the same native world in run 39734550466; persistent reconnect and a production-host backup drill remain. | B01, S01 |
 | S03 | IMPLEMENTED | Same-origin `NEWADDR`/`BIND` bridge speaks the pinned webshims 24-byte UDP envelope, requires a live wallet session, and forwards only to configured loopback Luanti UDP port. Real WebSocket/UDP integration rejects unauthenticated upgrades and other destinations; logout closes active links. Two browser-engine/native-server joins with the credential-safe rebuild passed in CI; traffic/load and public-host tests remain. | B01, S02 |
 | S04 | TODO | HTTPS/WSS deployment with same-origin proxy routing, binary delivery and COOP/COEP. Two remote browsers join the same world and see each other's edits. | B04, S03 |
@@ -95,7 +95,7 @@ The one-time purchase protects x/z columns through all heights. Contract price a
 2. Finish storage-lock contention, extended stability and cross-browser checks. Preserve visible failure diagnostics.
 3. Record startup/frame/memory measurements and resolve dependency/license release review.
 4. Publish the landing through the Pages workflow after PR review/merge; verify `/play/` and browser isolation. The Pages `github-pages` environment currently permits only `main`; a feature-branch dispatch on 2026-10-22 failed before steps ran. The existing public root still serves the old solo page.
-5. Verify shared edits, reconnects and authorization failures with the two wallet characters. Agree a persistent Linux host, region, domain and budget for public multiplayer. Do not enable the shared-world button from configuration alone.
+5. Verify shared edits, reconnects and authorization failures with the two wallet characters. Review the [VPS recommendation](VPS_RECOMMENDATION.md) and arrange an authorized provider account, budget and domain/DNS access for public multiplayer. Do not enable the shared-world button from configuration alone.
 6. Local EVM token and town purchases pass. Arrange isolated Sepolia deployment and live wallet QA, then verify native town protection end to end. Keep incomplete functionality disabled.
 7. Measure the first shared world before beginning the SpacetimeDB migration.
 

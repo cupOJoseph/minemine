@@ -2,7 +2,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import { getAddress, verifyMessage } from 'ethers';
 
 export const digest = (value) => createHash('sha256').update(value).digest('hex');
-export const playerName = (address) => `w_${digest(getAddress(address).toLowerCase()).slice(0, 18)}`;
+// The pinned browser client accepts at most 19 characters (PLAYERNAME_SIZE - 1).
+export const playerName = (address) => `w_${digest(getAddress(address).toLowerCase()).slice(0, 17)}`;
 const random = () => randomBytes(32).toString('hex');
 export class AuthError extends Error {
   constructor(message, status = 401) { super(message); this.status = status; }

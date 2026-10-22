@@ -14,7 +14,7 @@ local function persist()
 end
 
 local function wallet_name(name)
-    return type(name) == "string" and name:match("^w_%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x$") ~= nil
+    return type(name) == "string" and name:match("^w_%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x$") ~= nil
 end
 
 local function quota(name)

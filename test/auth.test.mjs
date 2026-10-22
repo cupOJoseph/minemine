@@ -15,7 +15,8 @@ test('SIWE signature creates an address-bound session and cannot be replayed', a
   const signature = await wallet.signMessage(challenge.message);
   const login = auth.verify(challenge.token, signature);
   assert.equal(auth.get(login.token).address, wallet.address);
-  assert.match(login.session.playerName, /^w_[0-9a-f]{18}$/);
+  assert.match(login.session.playerName, /^w_[0-9a-f]{17}$/);
+  assert.ok(login.session.playerName.length <= 19, 'pinned browser client rejects longer player names');
   assert.throws(() => auth.verify(challenge.token, signature), /expired or already used/);
   auth.revoke(login.token);
   assert.equal(auth.get(login.token), undefined);

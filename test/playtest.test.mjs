@@ -38,7 +38,7 @@ test('solo playtest uses a local world and never requests a remote wallet creden
   assert.equal(args.address, '');
 });
 test('remote client uses only an unexpired wallet ticket and same-origin proxy', () => {
-  const ticket = { name: 'w_1234567890abcdef12', password: 's'.repeat(43), address: '127.0.0.1', port: 30000, expiresAt: 2_000_000 };
+  const ticket = { name: 'w_1234567890abcdef1', password: 's'.repeat(43), address: '127.0.0.1', port: 30000, expiresAt: 2_000_000 };
   const args = makeRemoteArgs(ticket, Args, 1_000_000);
   assert.deepEqual([args.name, args.password, args.address, args.port, args.gameid, args.go], [ticket.name, ticket.password, '127.0.0.1', 30000, 'minetest', true]);
   assert.equal(sameOriginProxyUrl('https://minemine.gg'), 'wss://minemine.gg/game-proxy');

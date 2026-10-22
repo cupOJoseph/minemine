@@ -30,7 +30,7 @@ export function createTownCredits(config, provider) {
   return {
     status,
     async sync(session) {
-      if (!/^w_[0-9a-f]{18}$/.test(session.playerName)) throw new AuthError('Invalid player identity.', 400);
+      if (!/^w_[0-9a-f]{17}$/.test(session.playerName)) throw new AuthError('Invalid player identity.', 400);
       const value = await status(session.address);
       if (!value.configured) throw new AuthError('Town payments are not configured.', 503);
       mkdirSync(dir, { recursive: true, mode: 0o700 });

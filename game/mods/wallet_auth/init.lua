@@ -6,7 +6,7 @@ local dir = core.get_worldpath() .. "/wallet_grants/"
 local identities = {}
 
 local function grant(name)
-    if type(name) ~= "string" or not name:match("^w_%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x$") then return nil end
+    if type(name) ~= "string" or not name:match("^w_%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x$") then return nil end
     local file = io.open(dir .. name .. ".json", "r")
     if not file then return nil end
     local raw = file:read(4097)

@@ -7,7 +7,7 @@ export function createGrants(worldDir, now = Date.now) {
   const dir = path.join(worldDir, 'wallet_grants');
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   function read(name) {
-    if (!/^w_[0-9a-f]{18}$/.test(name)) return undefined;
+    if (!/^w_[0-9a-f]{17}$/.test(name)) return undefined;
     try { return JSON.parse(readFileSync(path.join(dir, `${name}.json`), 'utf8')); } catch { return undefined; }
   }
   return {
@@ -38,7 +38,7 @@ export function createGrants(worldDir, now = Date.now) {
     },
     // A restart invalidates browser sessions and outstanding join credentials.
     clear() {
-      for (const name of readdirSync(dir)) if (/^w_[0-9a-f]{18}\.json(?:\.[0-9a-f]+\.tmp)?$/.test(name)) rmSync(path.join(dir, name), { force: true });
+      for (const name of readdirSync(dir)) if (/^w_[0-9a-f]{17}\.json(?:\.[0-9a-f]+\.tmp)?$/.test(name)) rmSync(path.join(dir, name), { force: true });
     },
   };
 }

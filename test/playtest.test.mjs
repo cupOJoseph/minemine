@@ -8,7 +8,7 @@ import { patchBuildScript, patchDependencyScripts } from '../scripts/prepare-was
 import { releaseId, validateWasm } from '../scripts/stage-playtest.mjs';
 import { configureSoloLauncher, makeSoloArgs, makeSoloSession } from '../playtest/session.mjs';
 import { makeRemoteArgs, sameOriginProxyUrl } from '../playtest/remote-session.mjs';
-import { redactConsoleSecret } from '../playtest/log-redaction.mjs';
+import { installConsoleRedactor } from '../playtest/log-redaction.mjs';
 
 class Args {
   constructor() { this.name = ''; this.password = ''; this.address = ''; this.packs = []; }
@@ -53,12 +53,16 @@ test('browser startup redacts the short-lived wallet credential from console arg
   const original = (...values) => calls.push(values);
   const output = { log: original, error: original };
   const secret = 's'.repeat(43);
-  const restore = redactConsoleSecret(output, secret);
+  const redactor = installConsoleRedactor(output);
+  const capturedByModule = output.log;
+  redactor.set(secret);
   output.log('Main received args:', secret);
+  capturedByModule(secret);
   output.error(`password=${secret}`);
-  assert.deepEqual(calls, [['Main received args:', '[redacted]'], ['password=[redacted]']]);
-  restore();
-  assert.equal(output.log, original);
+  assert.deepEqual(calls, [['Main received args:', '[redacted]'], ['[redacted]'], ['password=[redacted]']]);
+  redactor.clear();
+  capturedByModule(secret);
+  assert.deepEqual(calls.at(-1), [secret], 'expired ticket can be discarded from redaction state');
 });
 test('engine launch waits for readiness and successful game-pack installation', async () => {
   const launcher = fakeLauncher();

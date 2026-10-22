@@ -1,5 +1,11 @@
 # Validation record
 
+## Protected dig/place node handlers with two wallet players — 2026-10-22 EDT
+
+[Actions run 39807363914](https://github.com/cupOJoseph/minemine/actions/runs/39807363914) extended the disposable native probe after two signed-wallet Chromium characters joined. At a loaded position inside the owner's nine-column claim, it placed a stone test node, called Luanti's `core.dig_node` with the connected outsider's `ObjectRef`, and verified the stone remained. It then called the same handler with the owner and verified the node became air. It called `core.place_node` with a wood node and the outsider, verified the space remained air, then called it with the owner and verified wood appeared. The native log records the outsider's protected dig/place attempts and the owner's successful dig/place at `(-64,20,64)`. The later full-stack restart probe verified the placed wood persisted with the claim and inventory.
+
+The pinned Luanti server packet handler calls these same `node_on_dig` and `item_OnPlace` script handlers after its packet and anti-cheat checks. This probe enters those handlers through the server Lua API with real connected players; it does **not** send dig/place packets from the Chromium clients or verify pointer input, packet validation, dig timing, or client correction after denial.
+
 ## Native world restart retains wallet inventory and town protection — 2026-10-22 EDT
 
 [Actions run 39805125951](https://github.com/cupOJoseph/minemine/actions/runs/39805125951) repeated the same sequence while also stopping and restarting the Node wallet/API and WebSocket service. The retained artifact has separate pre- and post-restart Node startup logs, both wallets re-signed through the new service process, and both rejoined Luanti under their original names. The saved inventory and nine-column town protection probe passed again. This verifies recovery after a clean restart of **both local processes**; it does not establish a remote-host backup drill, actual dig/place denial, or testnet payment delivery.

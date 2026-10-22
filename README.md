@@ -7,12 +7,12 @@ MineMine is a browser-first voxel crafting MMO project built on Luanti (formerly
 | Feature | State |
 | --- | --- |
 | Solo browser game | Playable in desktop Chromium; additional browser and stability checks remain |
-| Public shared server | Two distinct wallet characters joined the same native world in headless Chromium; a clean Luanti and Node restart preserved a test inventory stack and town protection. Shared edits, production backup recovery, and a public host remain. |
+| Public shared server | Two distinct wallet characters joined the same native world in headless Chromium; a clean Luanti and Node restart preserved a test inventory stack, owner-placed node, and town protection. Browser-initiated shared edits, production backup recovery, and a public host remain. |
 | Wallet identity | Sign-In with Ethereum (EOA) and short-lived grants passed native login and same-wallet reconnect in CI; the patched browser engine passed the console credential check |
 | ENS | Server-side mainnet name lookup and forward-verified display implemented; requires `ENS_RPC_URL` and live RPC QA |
 | MINE ERC-20 | Fixed-supply source and local-EVM transfers tested; no public token deployed |
 | Wallet transfers | Direct browser-wallet transaction UI implemented; needs deployed testnet token and browser-wallet QA |
-| Town protection | Payment contract and confirmed quota sync implemented; two-wallet native Luanti protection and member rules passed with a quota fixture. Live paid-claim, dig/place and restart QA remain |
+| Town protection | Payment contract and confirmed quota sync implemented; a quota fixture passed two-wallet native dig/place handler, member and restart checks. Live paid claims and browser-initiated dig/place remain |
 | SpacetimeDB | [Migration plan](docs/SPACETIMEDB.md) for the next scaling phase; not yet integrated |
 
 The landing page distinguishes playable features from planned ones and uses two actual playtest captures plus an attributed Minetest Game screenshot. The large Play Now link starts solo mode without a wallet.

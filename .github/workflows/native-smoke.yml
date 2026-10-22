@@ -145,5 +145,7 @@ jobs:
             runtime/native-world/town-probe-result.txt
             runtime/native-world/town-probe-reconnect-result.txt
             runtime/native-world/town-probe-restart-result.txt
+            runtime/native-world/town-packet-ready.txt
+            runtime/native-world/town-packet-dig-result.txt
             runtime/browser-artifacts/
           if-no-files-found: ignore

@@ -5,6 +5,7 @@ local elapsed = 0
 local finished = false
 local owner_name, guest_name, claim_pos, inventory_slot
 local owner_left = false
+local packet_pos, packet_guest, packet_ready, packet_done
 
 local function write_result(filename, status, ok)
     local file = assert(io.open(world .. "/" .. filename, "w"))
@@ -134,6 +135,52 @@ core.register_on_joinplayer(function(player)
         end)
         write_result("town-probe-reconnect-result.txt", ok and result or "FAIL " .. tostring(result), ok)
     end)
+end)
+
+core.register_on_protection_violation(function(pos, name)
+    if not packet_ready or packet_done or name ~= packet_guest then return end
+    if pos.x ~= packet_pos.x or pos.y ~= packet_pos.y or pos.z ~= packet_pos.z then return end
+    packet_done = true
+    local intact = core.get_node(packet_pos).name == "default:stone"
+    write_result("town-packet-dig-result.txt",
+        intact and "PASS outsider browser dig reached protected node without changing it"
+            or "FAIL protected node changed during browser dig", intact)
+end)
+
+local packet_elapsed = 0
+core.register_globalstep(function(dtime)
+    if not finished or packet_ready then return end
+    packet_elapsed = packet_elapsed + dtime
+    if packet_elapsed < 0.25 then return end
+    packet_elapsed = 0
+    local arm = io.open(world .. "/town-packet-arm.txt", "r")
+    if not arm then return end
+    arm:close()
+    packet_ready = true
+    local ok, result = pcall(function()
+        local state = read_state()
+        local guest = core.get_player_by_name(state.guest)
+        check(guest ~= nil, "outsider disconnected before browser packet probe")
+        packet_pos = { x = state.edit_pos.x + 1, y = state.edit_pos.y, z = state.edit_pos.z }
+        local guest_pos = { x = packet_pos.x + 2.5, y = packet_pos.y - 1.625, z = packet_pos.z }
+        check(core.get_node(packet_pos).name ~= "ignore", "browser packet target is not loaded")
+        core.set_node({ x = packet_pos.x, y = packet_pos.y - 1, z = packet_pos.z }, { name = "default:stone" })
+        core.set_node(packet_pos, { name = "default:stone" })
+        core.set_node({ x = packet_pos.x + 2, y = packet_pos.y - 3, z = packet_pos.z }, { name = "default:stone" })
+        core.set_node({ x = packet_pos.x + 3, y = packet_pos.y - 3, z = packet_pos.z }, { name = "default:stone" })
+        for dx = 1, 3 do
+            core.set_node({ x = packet_pos.x + dx, y = packet_pos.y, z = packet_pos.z }, { name = "air" })
+        end
+        check(guest:set_wielded_item("default:pick_steel"), "could not equip outsider pickaxe")
+        guest:set_pos(guest_pos)
+        guest:set_look_horizontal(math.pi / 2)
+        guest:set_look_vertical(0)
+        local dir = guest:get_look_dir()
+        check(dir.x < -0.9 and math.abs(dir.y) < 0.1, "outsider camera did not face target")
+        packet_guest = state.guest
+        return "PASS browser dig target armed"
+    end)
+    write_result("town-packet-ready.txt", ok and result or "FAIL " .. tostring(result), ok)
 end)
 
 core.register_globalstep(function(dtime)

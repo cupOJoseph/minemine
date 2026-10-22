@@ -25,6 +25,11 @@ local function grant(name, allow_expired)
     return value
 end
 
+local function same_grant(value, started)
+    return value and started and value.password_hash == started.password_hash and
+        value.session_hash == started.session_hash and value.address:lower() == started.address:lower()
+end
+
 local function privileges(name)
     local saved = storage:get_string("privs:" .. name)
     -- Never grant server/admin privileges just because someone owns a wallet.
@@ -55,6 +60,13 @@ end
 core.register_authentication_handler({
     get_auth = function(name)
         local value = grant(name)
+        if not value and core.get_player_by_name(name) then
+            -- Luanti asks for auth again when a client becomes ready and for
+            -- privilege checks during play. Only an already emerged player
+            -- may use the expired grant accepted at the start of its login.
+            local current = grant(name, true)
+            if same_grant(current, pending[name] or identities[name]) then value = current end
+        end
         if not value then return nil end
         return { password = value.password_hash, privileges = privileges(name),
             last_login = storage:get_int("last_login:" .. name) }
@@ -87,12 +99,11 @@ core.register_on_joinplayer(function(player)
     local value = grant(name, true)
     local started = pending[name]
     pending[name] = nil
-    if not value or not started or value.password_hash ~= started.password_hash or
-        value.session_hash ~= started.session_hash or value.address:lower() ~= started.address:lower() then
+    if not same_grant(value, started) then
         core.kick_player(name, "Wallet grant changed or was revoked; please relaunch.")
         return
     end
-    identities[name] = { address = value.address, ens_name = value.ens_name }
+    identities[name] = value
     storage:set_string("address:" .. name, value.address)
     if value.ens_name then player:set_nametag_attributes({ text = value.ens_name }) end
     core.chat_send_player(name, "Wallet connected. Use /wallet for your address, /wallet balance for a recent MINE balance, or /town to manage claims.")

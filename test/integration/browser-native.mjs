@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile, mkdir, writeFile } from 'node:fs/promises';
+import { readFile, mkdir, rename, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { Wallet } from 'ethers';
@@ -353,6 +353,16 @@ try {
     removedPlace = await readFile(path.join(worldDir, 'town-packet-removed-place-result.txt'), 'utf8').catch(() => '');
   }
   assert.match(removedPlace, /^PASS /, `removed-member browser place was not denied: ${removedPlace || 'no result'}`);
+
+  // Luanti re-reads auth for privileges during play. Expiring the short-lived
+  // ticket must not strip interact from a player who already authenticated.
+  const grantPath = path.join(worldDir, 'wallet_grants', `${session.playerName}.json`);
+  const expiredGrant = JSON.parse(await readFile(grantPath, 'utf8'));
+  expiredGrant.expires_at = Math.floor(Date.now() / 1000) - 1;
+  await writeFile(grantPath + '.expired.tmp', JSON.stringify(expiredGrant), { mode: 0o600 });
+  await rename(grantPath + '.expired.tmp', grantPath);
+  await signalProbe('town-expired-grant-check-arm.txt', 'town-expired-grant-check-result.txt',
+    'connected owner privilege after game ticket expiry');
 
   await page.close();
   let disconnected = false;

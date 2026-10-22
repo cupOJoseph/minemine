@@ -12,6 +12,7 @@ local owner_dig_ready, owner_dig_aimed, owner_dig_reaimed, owner_dig_done
 local member_place_ready, member_place_aimed, member_place_done
 local member_dig_ready, member_dig_aimed, member_dig_reaimed, member_dig_done
 local removed_place_ready, removed_place_aimed, removed_place_done
+local expired_grant_checked = false
 
 local function write_result(filename, status, ok)
     local file = assert(io.open(world .. "/" .. filename, "w"))
@@ -533,6 +534,23 @@ core.register_globalstep(function()
     guest:set_look_horizontal(math.pi / 2)
     guest:set_look_vertical(0)
     write_result("town-packet-removed-place-aim-ready.txt", "PASS removed-member browser camera aimed at protected place target", true)
+end)
+
+core.register_globalstep(function()
+    if not removed_place_done or expired_grant_checked then return end
+    local arm = io.open(world .. "/town-expired-grant-check-arm.txt", "r")
+    if not arm then return end
+    arm:close()
+    expired_grant_checked = true
+    local ok, result = pcall(function()
+        check(core.get_player_by_name(owner_name) ~= nil, "owner disconnected before expiry check")
+        check(core.get_player_privs(owner_name).interact == true,
+            "authenticated owner lost interact privilege after ticket expiry")
+        check(not core.is_protected(claim_pos, owner_name),
+            "authenticated owner lost access to own claim after ticket expiry")
+        return "PASS connected owner retains interact and town access after ticket expiry"
+    end)
+    write_result("town-expired-grant-check-result.txt", ok and result or "FAIL " .. tostring(result), ok)
 end)
 
 core.register_globalstep(function()

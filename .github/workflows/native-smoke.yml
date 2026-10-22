@@ -190,9 +190,11 @@ jobs:
           touch runtime/server-memory-restart.stop
           wait "$sampler_pid"
           capture_cgroup restart
+          # The slice may persist between service generations; the second peak
+          # can include the first session rather than resetting at restart.
           for phase in first restart; do
             test "$(awk '$1 == "oom_kill" { print $2 }' "runtime/server-cgroup-$phase-events.txt")" = '0'
-            printf '%s service cgroup peak: %s bytes; OOM kills: 0\n' "$phase" "$(cat "runtime/server-cgroup-$phase-peak-bytes.txt")"
+            printf 'Cgroup peak through %s phase: %s bytes; OOM kills: 0\n' "$phase" "$(cat "runtime/server-cgroup-$phase-peak-bytes.txt")"
           done | tee runtime/server-cgroup-summary.txt
           for sample in runtime/server-memory-first.csv runtime/server-memory-restart.csv; do
             awk -F, 'NR > 1 { if ($4 > peak) peak = $4; count++ } END { if (!count) exit 1; printf "%s: %d samples, peak Luanti + Node RSS %.1f MiB\n", FILENAME, count, peak / 1024 }' "$sample"
@@ -224,6 +226,7 @@ jobs:
             runtime/server-cgroup-summary.txt
             runtime/native-world/town-probe-result.txt
             runtime/native-world/town-probe-reconnect-result.txt
+            runtime/native-world/town-expired-grant-check-result.txt
             runtime/native-world/town-probe-restart-result.txt
             runtime/native-world/town-packet-ready.txt
             runtime/native-world/town-packet-aim-ready.txt

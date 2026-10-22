@@ -50,6 +50,25 @@ jobs:
             echo 'Native server logged an error while starting the world.'
             exit 1
           fi
+      - name: Restore a stopped-world backup and restart
+        run: |
+          tar -C runtime -czf runtime/native-world-backup.tar.gz native-world
+          mkdir -p runtime/restore
+          tar -C runtime/restore -xzf runtime/native-world-backup.tar.gz
+          set +e
+          (cd vendor/native && timeout --signal=INT 8s bin/luantiserver --info --world "$GITHUB_WORKSPACE/runtime/restore/native-world" --config "$GITHUB_WORKSPACE/game/minetest.conf" --logfile "$GITHUB_WORKSPACE/runtime/restore-smoke.log") > runtime/restore-console.log 2>&1
+          result=$?
+          set -e
+          cat runtime/restore-console.log
+          if [ "$result" -ne 124 ]; then
+            echo "Restored world exited before the smoke-test interval (status $result)."
+            exit 1
+          fi
+          grep -Fq 'Server for gameid="minetest" listening on 127.0.0.1:30000' runtime/restore-console.log
+          if grep -Fq 'ERROR[Main]' runtime/restore-console.log; then
+            echo 'Restored world logged an error.'
+            exit 1
+          fi
       - name: Retain native startup diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -58,5 +77,7 @@ jobs:
           path: |
             runtime/native-smoke.log
             runtime/native-console.log
+            runtime/restore-smoke.log
+            runtime/restore-console.log
             runtime/native-world/debug.txt
           if-no-files-found: ignore

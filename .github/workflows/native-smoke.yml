@@ -150,5 +150,8 @@ jobs:
             runtime/native-world/town-packet-reaim-ready.txt
             runtime/native-world/town-packet-debug.json
             runtime/native-world/town-packet-dig-result.txt
+            runtime/native-world/town-packet-place-ready.txt
+            runtime/native-world/town-packet-place-aim-ready.txt
+            runtime/native-world/town-packet-place-result.txt
             runtime/browser-artifacts/
           if-no-files-found: ignore

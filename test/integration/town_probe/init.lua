@@ -6,6 +6,7 @@ local finished = false
 local owner_name, guest_name, claim_pos, inventory_slot
 local owner_left = false
 local packet_pos, packet_guest, packet_ready, packet_aimed, packet_reaimed, packet_done
+local packet_phase, packet_place_ready, packet_place_aimed, packet_place_done
 
 local function write_result(filename, status, ok)
     local file = assert(io.open(world .. "/" .. filename, "w"))
@@ -138,13 +139,21 @@ core.register_on_joinplayer(function(player)
 end)
 
 core.register_on_protection_violation(function(pos, name)
-    if not packet_ready or packet_done or name ~= packet_guest then return end
+    if not packet_ready or name ~= packet_guest then return end
     if pos.x ~= packet_pos.x or math.abs(pos.y - packet_pos.y) > 1 or math.abs(pos.z - packet_pos.z) > 1 then return end
-    packet_done = true
-    local intact = core.get_node(pos).name == "default:stone"
-    write_result("town-packet-dig-result.txt",
-        intact and "PASS outsider browser dig reached protected node without changing it"
-            or "FAIL protected node changed during browser dig", intact)
+    if packet_phase == "dig" and not packet_done then
+        packet_done = true
+        local intact = core.get_node(pos).name == "default:stone"
+        write_result("town-packet-dig-result.txt",
+            intact and "PASS outsider browser dig reached protected node without changing it"
+                or "FAIL protected node changed during browser dig", intact)
+    elseif packet_phase == "place" and not packet_place_done then
+        packet_place_done = true
+        local empty = core.get_node(pos).name == "air"
+        write_result("town-packet-place-result.txt",
+            empty and "PASS outsider browser place reached protected air without changing it"
+                or "FAIL protected node changed during browser place", empty)
+    end
 end)
 
 local packet_elapsed = 0
@@ -185,6 +194,7 @@ core.register_globalstep(function(dtime)
         local dir = guest:get_look_dir()
         check(dir.x < -0.9 and math.abs(dir.y) < 0.1, "outsider camera did not face target")
         packet_guest = state.guest
+        packet_phase = "dig"
         return "PASS browser dig target armed"
     end)
     write_result("town-packet-ready.txt", ok and result or "FAIL " .. tostring(result), ok)
@@ -192,7 +202,7 @@ end)
 
 local packet_debug_elapsed = 0
 core.register_globalstep(function(dtime)
-    if not packet_ready or packet_done or not packet_pos then return end
+    if not packet_ready or (packet_phase == "dig" and packet_done) or packet_place_done or not packet_pos then return end
     packet_debug_elapsed = packet_debug_elapsed + dtime
     if packet_debug_elapsed < 1 then return end
     packet_debug_elapsed = 0
@@ -200,8 +210,44 @@ core.register_globalstep(function(dtime)
     if not guest then return end
     local file = io.open(world .. "/town-packet-debug.json", "w")
     if not file then return end
-    file:write(core.write_json({ player_pos = guest:get_pos(), look_dir = guest:get_look_dir(), target = packet_pos, aimed = packet_aimed }))
+    file:write(core.write_json({ player_pos = guest:get_pos(), look_dir = guest:get_look_dir(), target = packet_pos,
+        phase = packet_phase, aimed = packet_aimed, place_aimed = packet_place_aimed }))
     file:close()
+end)
+
+core.register_globalstep(function()
+    if not packet_done or packet_place_ready or not packet_guest then return end
+    local arm = io.open(world .. "/town-packet-place-arm.txt", "r")
+    if not arm then return end
+    arm:close()
+    packet_place_ready = true
+    local ok, result = pcall(function()
+        local guest = core.get_player_by_name(packet_guest)
+        check(guest ~= nil, "outsider disconnected before browser place probe")
+        for dy = -1, 1 do
+            for dz = -1, 1 do
+                core.set_node({ x = packet_pos.x, y = packet_pos.y + dy, z = packet_pos.z + dz }, { name = "air" })
+                core.set_node({ x = packet_pos.x - 1, y = packet_pos.y + dy, z = packet_pos.z + dz }, { name = "default:stone" })
+            end
+        end
+        check(guest:set_wielded_item("default:wood 3"), "could not equip outsider placeable block")
+        packet_phase = "place"
+        return "PASS protected browser place target armed"
+    end)
+    write_result("town-packet-place-ready.txt", ok and result or "FAIL " .. tostring(result), ok)
+end)
+
+core.register_globalstep(function()
+    if not packet_place_ready or packet_place_aimed or packet_phase ~= "place" then return end
+    local arm = io.open(world .. "/town-packet-place-aim.txt", "r")
+    if not arm then return end
+    arm:close()
+    packet_place_aimed = true
+    local guest = core.get_player_by_name(packet_guest)
+    if not guest then return end
+    guest:set_look_horizontal(math.pi / 2)
+    guest:set_look_vertical(0)
+    write_result("town-packet-place-aim-ready.txt", "PASS browser camera aimed at protected place target", true)
 end)
 
 core.register_globalstep(function()

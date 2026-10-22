@@ -94,7 +94,7 @@ try {
   const grantsDir = process.env.WORLD_DIR || 'runtime/native-world';
   const grantRaw = await readFile(path.join(grantsDir, 'wallet_grants', `${session?.playerName}.json`), 'utf8').catch(() => '');
   const grant = grantRaw ? JSON.parse(grantRaw) : null;
-  const expectedHash = ticketSecret ? createHash('sha1').update(session.playerName + ticketSecret).digest('base64') : null;
+  const expectedHash = ticketSecret ? createHash('sha1').update(session.playerName + ticketSecret).digest('base64').replace(/=+$/, '') : null;
   const grantHashMatches = Boolean(grant && expectedHash && grant.password_hash === expectedHash);
   await writeFile(artifacts + '/diagnostics.json', JSON.stringify({ error: error.message, events, grantExists: Boolean(grant), ticketCaptured: Boolean(ticketSecret), grantHashMatches, nativeTail: nativeLog.slice(-5000) }, null, 2));
   console.error('Browser diagnostics:', JSON.stringify(events));

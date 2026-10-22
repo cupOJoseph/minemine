@@ -22,7 +22,8 @@ test('join grants are random, expire quickly, do not store raw passwords, and re
   const contents = readFileSync(file, 'utf8');
   assert.ok(!contents.includes(second.password));
   assert.ok(!contents.includes('session-b'));
-  assert.equal(JSON.parse(contents).password_hash, createHash('sha1').update(second.name + second.password).digest('base64'));
+  assert.equal(JSON.parse(contents).password_hash, createHash('sha1').update(second.name + second.password).digest('base64').replace(/=+$/, ''));
+  assert.equal(JSON.parse(contents).password_hash.length, 27, 'Luanti omits base64 padding');
   assert.equal(JSON.parse(contents).ens_name, 'builder.eth');
   grants.revoke(session, 'session-a');
   assert.equal(readdirSync(path.dirname(file)).length, 1);

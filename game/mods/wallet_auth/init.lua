@@ -16,7 +16,7 @@ local function grant(name)
     if type(value) ~= "table" or value.name ~= name then return nil end
     if type(value.expires_at) ~= "number" or value.expires_at <= os.time() then return nil end
     if type(value.address) ~= "string" or not value.address:match("^0x%x+$") or #value.address ~= 42 then return nil end
-    if type(value.password_hash) ~= "string" or #value.password_hash ~= 28 then return nil end
+    if type(value.password_hash) ~= "string" or #value.password_hash ~= 27 then return nil end
     if value.ens_name ~= nil and (type(value.ens_name) ~= "string" or #value.ens_name > 255 or value.ens_name:find("[%c]")) then return nil end
     local known = storage:get_string("address:" .. name)
     if known ~= "" and known:lower() ~= value.address:lower() then return nil end

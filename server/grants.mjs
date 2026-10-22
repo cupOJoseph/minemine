@@ -22,7 +22,8 @@ export function createGrants(worldDir, now = Date.now) {
       // Native-engine compatibility must be verified before GAME_ENABLED is enabled.
       const record = {
         name, address: session.address, expires_at: expiresAt,
-        password_hash: createHash('sha1').update(name + password).digest('base64'),
+        // Luanti's base64_encode deliberately omits '=' padding.
+        password_hash: createHash('sha1').update(name + password).digest('base64').replace(/=+$/, ''),
         session_hash: digest(sessionToken),
       };
       if (ensName && typeof ensName === 'string' && ensName.length <= 255 && !/[\x00-\x1f\x7f]/.test(ensName)) record.ens_name = ensName;

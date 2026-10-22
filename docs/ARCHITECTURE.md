@@ -1,6 +1,6 @@
 # Architecture and feasibility findings
 
-Decision date: 2026-10-16. Initial working name: Miners. No claim of affiliation with Luanti.
+Decision date: 2026-10-16; implementation updated 2026-10-22. Working name: MineMine. No claim of affiliation with Luanti.
 
 ## Reuse the engine
 
@@ -25,9 +25,9 @@ flowchart TD
   A -->|"Read balances"| R["Testnet JSON-RPC"]
 ```
 
-Only the Node service, grant issuer, wallet UI, and experimental Lua mod have implementation in this snapshot. The WASM bundle and compatible network proxy are not present.
+The solo WASM bundle has passed Chromium gameplay and persistence checks. The Node service, grant issuer, wallet UI, and experimental Lua mods are implemented. The pinned browser adapter and matching restricted proxy pass source/protocol tests, but a native server and full browser-to-server login have not been verified.
 
-Browsers cannot open the native UDP sockets required by Luanti. The WASM port uses webshims and a proxy; its documented socket protocol must be inspected. A generic WebSocket-to-UDP byte pipe is not assumed compatible. The proxy must authenticate clients, allow only a fixed server target, enforce connection/traffic limits and avoid becoming an open relay. Evaluate WebTransport only after a working WebSocket baseline and measured head-of-line blocking.
+Browsers cannot open the native UDP sockets required by Luanti. The inspected pinned webshims client uses `NEWADDR`, `BIND`, and a 24-byte UDP envelope. The Node proxy implements those messages on same-origin WebSockets, checks a live wallet session and origin, caps connections and buffered bytes, and forwards only to `127.0.0.1:GAME_PORT`. It rejects TCP and every other UDP destination. A real WebSocket/UDP loopback test passes; this does not prove engine interoperability or public multiplayer. The [upstream sample proxy](https://github.com/paradust7/minetest-wasm-sample-proxy) informed protocol research, and the [ws server API](https://github.com/websockets/ws/blob/master/doc/ws.md) informed upgrade handling. Evaluate WebTransport only after a working WebSocket baseline and measured head-of-line blocking.
 
 The available Sites host is a Cloudflare Workers environment and cannot run a long-lived native UDP game server. A Linux VM/container host is required for the world and matching proxy. A static frontend could later live on a CDN with compatible isolation headers, but a single-origin deployment is simplest initially.
 
@@ -38,10 +38,10 @@ The available Sites host is a Cloudflare Workers environment and cannot run a lo
 3. Browser asks the wallet for `personal_sign`. Server recovers the signer using ethers, consumes the challenge, and establishes an opaque HttpOnly session.
 4. Authenticated browser requests short-lived native-game credentials only when the engine adapter is explicitly enabled.
 5. Player name is `w_` plus 18 hexadecimal characters of a SHA-256 wallet-address digest (20 total characters). Full addresses are stored in grants and checked for mapping collisions.
-6. A 256-bit random password is passed in memory to the same-origin engine adapter. Only the Luanti-compatible legacy hash is stored in the private world grant file. Grants expire after two minutes and are revoked on logout when owned by that session.
+6. After the WASM engine and game pack load, its same-origin frame requests a fresh ticket. The 256-bit random password is passed in memory through `LuantiArgs`; only the Luanti-compatible legacy hash is stored in the private world grant file. Grants expire after two minutes and are revoked on logout when owned by that session.
 7. Lua custom authentication denies arbitrary registration and password changes. It grants only `interact` and `shout` by default.
 
-The native legacy-hash authentication path is an **unverified integration choice**. If the pinned engine requires a different SRP verifier format, implement an engine-native verifier generator and test it; do not downgrade validation or ship a guessed format. A grant is currently time-limited, not single-use. Connected gameplay can outlive the join grant. Logout currently does not kick established game connections. Those limitations are explicit A05/A06 gates.
+The native legacy-hash authentication path is an **unverified integration choice**. If the pinned engine requires a different SRP verifier format, implement an engine-native verifier generator and test it; do not downgrade validation or ship a guessed format. A grant is currently time-limited, not single-use. Connected gameplay can outlive the join grant. Logout now closes its WebSocket bridge links, but native-game disconnect behavior must still be verified; those limitations are explicit A05/A06 gates.
 
 EOA-only verification is intentional for this milestone. ERC-1271 contract wallets require chain-specific RPC validation. The browser session store is in memory: a restart logs users out and clears outstanding grants. Only one auth process may own the world directory. No distributed coordination is implied.
 
@@ -53,6 +53,6 @@ Gameplay should remain off-chain. Mining events, inventory changes and movement 
 
 ## Hosting and performance
 
-Serve WASM as `application/wasm`, with `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` on applicable documents. Maintain secure context and same-origin worker resources. Audit CSP against the actual pinned launcher; this service currently permits same-origin requests only. Do not loosen it to arbitrary proxy or script origins.
+Serve WASM as `application/wasm`, with `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` on applicable documents. Maintain secure context and same-origin worker resources. CSP permits only the exact same-origin WebSocket endpoint, not arbitrary proxy or script origins. The remote launcher runs in a same-origin iframe because the pinned runtime replaces its own document body.
 
 Optimize measured world-rendering, map-loading and asset delivery bottlenecks. Record native-server and browser-client metrics separately. OPFS persistence in the upstream client is not a replacement for backups of the authoritative multiplayer world.

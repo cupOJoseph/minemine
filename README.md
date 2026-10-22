@@ -7,7 +7,7 @@ MineMine is a browser-first voxel crafting MMO project built on Luanti (formerly
 | Feature | State |
 | --- | --- |
 | Solo browser game | Playable in desktop Chromium; additional browser and stability checks remain |
-| Public shared server | Native server, restricted WebSocket-to-UDP bridge, and host still required |
+| Public shared server | Wallet-gated, fixed-target WebSocket-to-UDP bridge and browser adapter implemented; native server, host, and end-to-end play remain |
 | Wallet identity | Sign-In with Ethereum (EOA) service and short-lived game grants implemented; actual Luanti multiplayer login not yet verified |
 | ENS | Server-side mainnet name lookup and forward-verified display implemented; requires `ENS_RPC_URL` and live RPC QA |
 | MINE ERC-20 | Fixed-supply source and local-EVM transfers tested; no public token deployed |
@@ -30,7 +30,7 @@ npm run test:evm
 npm start
 ```
 
-Open the origin in `PUBLIC_ORIGIN` (default `http://localhost:3000`). `npm test` and Solidity compilation do not open sockets. The HTTP and EVM suites use local sockets. The ignored `public/engine/` bundle must be staged separately for local Play Now; on a fresh checkout the button points to the published playtest.
+Open the origin in `PUBLIC_ORIGIN` (default `http://localhost:3000`). `npm test` and Solidity compilation do not open sockets. The HTTP and EVM suites use local sockets. The ignored `public/engine/` bundle must be staged separately for local Play Now; on a fresh checkout the button points to the published playtest. Run `npm run adapter:install` after staging a verified engine bundle to add the remote-client frame; it requests a fresh wallet game ticket only after engine and content-pack loading.
 
 Wallet login requests a message signature, not a transaction. MINE sends and town purchases **do** request testnet transactions and gas. The app never asks for a wallet private key. This prototype supports externally owned accounts, Sepolia or local chain 31337, and an optional mainnet ENS RPC. See [deployment](docs/DEPLOYMENT.md) and [town protocol](docs/TOWNS.md).
 
@@ -38,7 +38,7 @@ Wallet login requests a message signature, not a transaction. MINE sends and tow
 
 The pinned WASM wrapper, engine and Minetest Game sources are in [upstream.sources.json](upstream.sources.json). `bash scripts/build-wasm.sh` builds the engine on the documented Linux toolchain and stages it in ignored `public/engine/`. A successful build artifact can be supplied to the manual Pages workflow. The Pages package now puts this landing page at the root and the solo game at `/play/`; `scripts/prepare-pages-playtest.mjs` verifies engine hashes and prepares that layout. GitHub Pages is static and does not run wallet auth or the multiplayer game server.
 
-Do not enable `GAME_ENABLED` or `ENGINE_ADAPTER_READY` until the restricted proxy, pinned engine adapter, native server, wallet grants, and remote two-player smoke test pass. The current in-page shared-world button remains disabled.
+Do not enable `GAME_ENABLED` or `ENGINE_ADAPTER_READY` until the native server, wallet grants, proxy and adapter pass a remote two-player smoke test. The current in-page shared-world button remains disabled.
 
 ## Repository map
 

@@ -1,4 +1,4 @@
-name: Publish Miners solo playtest
+name: Publish MineMine landing and solo playtest
 on:
   workflow_dispatch:
     inputs:

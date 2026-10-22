@@ -1,12 +1,12 @@
 # Build and deployment runbook
 
-The source is published at cupOJoseph/minemine and foundation CI passes. Linux WASM run 39147984307 succeeded, and the existing Pages deployment publishes the solo bundle at https://cupojoseph.github.io/minemine/. Movement, mining, placement, inventory, crafting and saved-world reload have since passed browser QA. The MineMine landing page is staged in this feature branch but not yet published. There is no running shared game server.
+The source is published at cupOJoseph/minemine and foundation CI passes. Linux WASM run 39147984307 succeeded, and the existing Pages deployment publishes the solo bundle at https://cupojoseph.github.io/minemine/. Movement, mining, placement, inventory, crafting and saved-world reload have since passed browser QA. The MineMine landing page is staged in this feature branch but not yet published. The Pages environment permits deployments only from `main`; feature-branch dispatch run 39723016671 failed before any steps ran. There is no running shared game server.
 
 ## 1. GitHub and local environment
 
 The only authorized project repository is `https://github.com/cupOJoseph/minemine`. The user supplied this destination on 2026-10-16. Use a fine-grained credential limited to that repository; do not authenticate with a general account-wide credential or create another repository.
 
-Earlier repository-scoped GitHub access allowed commits to be pushed. On 2026-10-22, `gh auth status` reports an invalid stored CLI token; verify a working repository-scoped credential before creating or updating a PR. Contents and Pull requests read/write plus Workflows write cover code/CI work; Administration is unnecessary. Do not put credentials in remote URLs, source files, command arguments, or logs.
+Repository-scoped access pushed the feature branch and created [PR #1](https://github.com/cupOJoseph/minemine/pull/1). Do not put credentials in remote URLs, source files, command arguments, or logs.
 
 The active checkout is the nested minemine directory. Its main branch tracks origin/main. For subsequent source changes, use a feature branch and pull request:
 
@@ -67,23 +67,19 @@ Run the resulting server binary using `game/minetest.conf`, the configured `WORL
 
 The Node service and Luanti must run as the same dedicated OS user (or use carefully scoped directory permissions) so Lua can read grant and quota files with mode 0600. `WORLD_DIR/wallet_grants` and `WORLD_DIR/town_quotas` must never be static web directories. Keep mod security enabled; the mods read only their world directory and need no insecure environment or outbound HTTP permissions.
 
-## 5. Implement the engine adapter and proxy
+## 5. Verify the engine adapter and proxy
 
-Read the pinned `static/launcher.js` and `webshims/src/emsocket/proxy.js`. Build a compatible restricted proxy with one fixed private Luanti target. Do not point wallet-authenticated play at third-party public proxies.
+The pinned `static/launcher.js` and `webshims/src/emsocket/proxy.js` were inspected. `server/game-proxy.mjs` implements their `NEWADDR`/`BIND` and 24-byte UDP envelope on the same Node origin. It authenticates WebSocket upgrades with the wallet session cookie, checks Origin and Host, accepts no TCP requests, and sends UDP only to `127.0.0.1:GAME_PORT`. `GAME_ADDRESS` must stay `127.0.0.1`. The real-socket test in `test/integration/game-proxy.mjs` verifies wallet login, loopback forwarding and rejection of unrelated destinations. Do not point wallet-authenticated play at third-party public proxies.
 
-Create `public/engine/adapter.js` exporting:
+The remote adapter source lives in `playtest/adapter.js`, `connect.html`, `remote.js`, and `remote-session.mjs`. A new build stages these files automatically. For an existing verified local bundle, run:
 
-```js
-export async function launch({ container, ticket }) {
-  // Implement against inspected upstream APIs.
-  // ticket: { name, password, expiresAt, address, port }
-  // Mount the engine, apply the ephemeral credentials in memory, connect.
-}
+```sh
+npm run adapter:install
 ```
 
-This interface is a local contract, not an assertion that upstream has this API. Never send credentials via URL parameters or to an upstream demo. Ensure the engine does not persist the temporary password while saving its settings. Update CSP narrowly if the verified engine requires additional same-origin resources.
+The in-page `launch({container})` creates a same-origin frame because the pinned runtime replaces its own document body. After the engine and Minetest Game pack load, the frame requests a fresh two-minute game ticket over the existing cookie session and passes it to `LuantiArgs` in memory. The ticket is absent from URLs, storage and console logging. The frame's CSP permits only same-origin WSS. Verify native-game handshake, browser storage/log behavior, frame isolation and logout disconnect before enabling live play.
 
-Complete B04/B05/S03/A05 in ROADMAP.md, then set `GAME_ENABLED=true` and `ENGINE_ADAPTER_READY=true`. The `/api/health` readiness flag checks configuration and adapter files; it does **not** probe native UDP availability. Add actual game/proxy liveness before production monitoring.
+Complete B05/S03/A05/S04 in ROADMAP.md, then set `GAME_ENABLED=true` and `ENGINE_ADAPTER_READY=true`. The `/api/health` readiness flag checks configuration and adapter files; it does **not** probe native UDP availability. Add actual game/proxy liveness before production monitoring.
 
 ## 6. Host the tested stack
 
@@ -95,7 +91,7 @@ The remaining instructions apply to the future shared-server milestone:
 
 Use a Linux host with persistent disk, adequate memory for the measured build/world, and HTTPS/WSS ingress. Start with a single region and single auth process. A public domain, provider account and budget are still needed.
 
-The included `deploy/Dockerfile` can package the **Node launcher/auth service only**. It does not package a working native game server or proxy. Build from project root:
+The included `deploy/Dockerfile` packages the Node launcher/auth service and restricted WebSocket bridge. It does not package a native game server or a verified playable world. Build from project root:
 
 ```sh
 docker build -f deploy/Dockerfile -t minemine-auth:dev .

@@ -1,5 +1,15 @@
 # Validation record
 
+## Restricted browser transport and adapter — 2026-10-22 EDT
+
+`npm test` passes 27 source/handler checks. `npm run test:http` passes two real-socket integration checks: one signs in with an EOA over HTTP; the other signs in, performs the pinned webshims `NEWADDR`/`BIND` WebSocket handshake, sends a binary UDP packet to a disposable loopback game socket, verifies the exact echoed envelope, and confirms unauthenticated upgrades and a non-game destination are rejected. `npm run adapter:install` verified the local WASM bundle against its asset hashes and installed the remote adapter files. These checks do not exercise the compiled browser engine against a native Luanti server.
+
+After moving ethers from 6.16.0 to 6.17.0 and using ws 8.22.0 for the bridge, `npm audit --omit=dev --json` reports zero production advisories. The 27 unit/handler checks, two real-socket checks, nine local-EVM checks and both contract compilations passed again after the update.
+
+The adapter now waits for engine and game-pack readiness before requesting a two-minute wallet game ticket. The pinned launcher replaces its document body, so the adapter places it in a same-origin frame. Its in-frame ticket request and memory-only `LuantiArgs` path still need live wallet, browser storage/log, native handshake and logout-disconnect QA. `GAME_ENABLED` and `ENGINE_ADAPTER_READY` remain false.
+
+Pages dispatch [39723016671](https://github.com/cupOJoseph/minemine/actions/runs/39723016671) from the feature branch failed before steps ran. The `github-pages` environment has a `main`-only deployment branch rule. The earlier published solo page remains at the public root; landing publication must follow PR review/merge and a main-branch workflow run.
+
 ## MineMine landing, ENS, transfers and towns — 2026-10-22 EDT
 
 The feature branch passed `npm test` (26 tests), `npm run test:http` (one real TCP integration test), `npm run test:evm` (one parent with eight EVM subtests), and `npm run contracts:compile` for both MineToken and TownBlocks. The local EVM suite deployed both contracts on disposable Anvil chain 31337. It verified token transfers and burns, exact town payment and per-wallet purchased counts, and authenticated Node reads plus private quota-file sync. No public wallet, testnet key, gas, or live chain was used.

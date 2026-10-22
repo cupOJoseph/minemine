@@ -20,7 +20,7 @@ Updated: 2026-10-22 UTC. `DONE` means the stated acceptance criteria have been c
 | B02 | DONE | Linux Actions run 39147984307 produced the real engine/game bundle, build profile, checksums and initial license notices. Emscripten 6.0.8 compiler identity and the full build log are retained. Complete dependency/license release review remains B03. | B01 |
 | B03 | TODO | Review bundled OpenSSL/curl/libarchive versions; update or explicitly justify each exposed dependency. Rebuild with compatible patches and run dependency scanning. | B01 |
 | B04 | CORE PASSED | Actual release 96f0d5d5fc25 is published on Pages. Startup crash fixed; movement, mouse look, starter inventory, digging, placement, clean exit and saved-world reload passed in Chromium. Extended stability, storage-lock and cross-browser QA remain. | B02 |
-| B05 | TODO | Add a version-specific same-origin adapter implementing `launch({container, ticket})`. Inspect upstream `setConf`/launch API and credential handling. No passwords in URLs, IndexedDB, localStorage, console, or analytics. | B04 |
+| B05 | IMPLEMENTED | A same-origin frame isolates the pinned launcher's full-body takeover. After engine/pack readiness it requests a fresh wallet ticket in the frame and passes credentials through `LuantiArgs` memory, not the URL or browser storage. Source-contract tests pass; native handshake, browser wallet and storage/log QA remain. | B04, A04 |
 | B06 | TODO | Capture initial download size, decompression/compile time, peak memory, FPS/frame-time percentiles, and first controllable frame on specified hardware. | B04 |
 | B07 | TODO | Tune viewing range, textures, shaders, chunk queues, caching, and compression based on B06. Regression benchmarks must improve measured bottlenecks. | B06 |
 
@@ -36,7 +36,7 @@ Start with Minetest Game for low complexity. Evaluate Mineclonia/VoxeLibre only 
 | --- | --- | --- | --- |
 | S01 | BLOCKED | Select Linux host/account, region, domain, and budget. Provision a dedicated service user, disk, TLS, and firewall. No provider or spending account supplied. | Hosting decision/access |
 | S02 | TODO | Build native engine from reviewed source; create persistent world; confirm compatibility with the pinned WASM client. Verify backup restore. | B01, S01 |
-| S03 | TODO | Implement or adopt the matching webshims network proxy. Authenticate connections and restrict all destinations to the private game server. Verify it cannot act as a public relay or reach metadata/internal services. | B01, S02 |
+| S03 | IMPLEMENTED | Same-origin `NEWADDR`/`BIND` bridge speaks the pinned webshims 24-byte UDP envelope, requires a live wallet session, and forwards only to configured loopback Luanti UDP port. Real WebSocket/UDP integration rejects unauthenticated upgrades and other destinations. Browser-engine interoperability, traffic/load tests and native-server QA remain. | B01, S02 |
 | S04 | TODO | HTTPS/WSS deployment with same-origin proxy routing, binary delivery and COOP/COEP. Two remote browsers join the same world and see each other's edits. | B04, S03 |
 | S05 | TODO | Load test 16 concurrent clients; record tick latency, CPU, RAM, egress and reconnect behavior. Add process restarts, monitoring and disk alerts. | S04 |
 | S06 | TODO | Publish a playable URL and server information only after auth, backup, and multiplayer gates pass. Verify access from a network outside the host. | S04, S05, A05 |
@@ -50,7 +50,7 @@ Start with Minetest Game for low complexity. Evaluate Mineclonia/VoxeLibre only 
 | A03 | IMPLEMENTED | Browser-wallet UI connects, requests a signature, restores sessions, switches testnet and signs out on account/chain changes. Real HTTP signing/login passes; wallet-extension interaction still needs browser QA. | A01, browser QA |
 | A04 | IMPLEMENTED | Issue random two-minute Luanti credentials and read grants through a wallet-only auth mod. JS grant tests pass. Native legacy-hash/SRP compatibility, registration rejection and privilege behavior are unverified. | S02 |
 | A05 | TODO | End-to-end: two distinct wallets get different persistent characters; reconnect restores inventory; signature/ticket replay and expired grants are rejected; registration, password changes and privilege escalation fail. | B05, S04, A04 |
-| A06 | TODO | Decide whether logout should disconnect live gameplay; add revocation and bans without allowing reconnect after logout. Current logout revokes outstanding matching grants but does not kick an already-connected player. | A05 |
+| A06 | IMPLEMENTED IN BRIDGE | Logout revokes matching grants and closes that browser session's WebSocket game links. Verify native player disconnect, session expiry, bans and reconnect denial in a live world. | A05 |
 | A07 | TODO | Replace in-memory sessions/grants with durable single-use coordination if scaling beyond one Node process; add distributed rate limiting. | A05 |
 | A08 | TODO | Add ERC-1271 smart-wallet validation and EIP-6963 provider selection, with chain-bound tests. | A05 |
 | A09 | IMPLEMENTED | Optional Ethereum-mainnet ENS lookups resolve send recipients, display forward-verified reverse names, and place the name in short-lived game grants for a Luanti nametag. Mock-RPC and grant tests pass; live RPC and native-engine QA remain. | A01, mainnet ENS RPC |
@@ -94,7 +94,7 @@ The one-time purchase protects x/z columns through all heights. Contract price a
 1. Keep the working solo playtest available at https://cupojoseph.github.io/minemine/. Core gameplay and persisted edits passed; do not rebuild just to resume QA.
 2. Finish storage-lock contention, extended stability and cross-browser checks. Preserve visible failure diagnostics.
 3. Record startup/frame/memory measurements and resolve dependency/license release review.
-4. Publish the landing through the Pages workflow after review; verify `/play/` and browser isolation. The existing public root still serves the old solo page until deployment.
+4. Publish the landing through the Pages workflow after PR review/merge; verify `/play/` and browser isolation. The Pages `github-pages` environment currently permits only `main`; a feature-branch dispatch on 2026-10-22 failed before steps ran. The existing public root still serves the old solo page.
 5. Agree a persistent Linux host, region, domain and budget; then reach native multiplayer, restricted proxy and wallet-gated multiplayer. Do not enable the shared-world button from configuration alone.
 6. Local EVM token and town purchases pass. Arrange isolated Sepolia deployment and live wallet QA, then verify native town protection end to end. Keep incomplete functionality disabled.
 7. Measure the first shared world before beginning the SpacetimeDB migration.

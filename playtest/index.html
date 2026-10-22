@@ -3,16 +3,24 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#101b17"><title>Miners — Browser engine playtest</title>
-  <link rel="stylesheet" href="playtest.css?v=canvas-layout-1">
+  <link rel="stylesheet" href="playtest.css?v=controls-1">
   <link rel="stylesheet" href="diagnostics.css">
-  <script type="module" src="playtest.js?v=solo-mode-2"></script>
+  <script type="module" src="playtest.js?v=controls-1"></script>
 </head>
 <body data-launcher="%__MINERS_RELEASE__%/launcher.js">
   <main class="playtest-card">
     <p class="eyebrow">MINERS LAB / ENGINE PLAYTEST</p>
     <h1>Your first world.</h1>
     <p>This build runs the actual Luanti engine and Minetest Game in your browser. The world lives on this device.</p>
-    <dl><div><dt>Move</dt><dd>W A S D</dd></div><div><dt>Look</dt><dd>Mouse</dd></div><div><dt>Dig / build</dt><dd>Left / right click</dd></div><div><dt>Inventory / menu</dt><dd>I / Escape</dd></div></dl>
+    <dl aria-label="Game controls">
+      <div><dt>Move / jump</dt><dd>W A S D / Space</dd></div>
+      <div><dt>Look</dt><dd>Mouse</dd></div>
+      <div><dt>Dig / build</dt><dd>Left / right click</dd></div>
+      <div><dt>Select an item</dt><dd>1–8 / mouse wheel</dd></div>
+      <div><dt>Inventory &amp; crafting</dt><dd>I</dd></div>
+      <div><dt>Close inventory / pause menu</dt><dd>Escape</dd></div>
+    </dl>
+    <p><strong>To craft:</strong> press <kbd>I</kbd> and open the <strong>Crafting</strong> tab. Place materials in the 3×3 grid, then take the item from the output slot. The <strong>Recipes</strong> tab shows recipes. Press <kbd>Esc</kbd> to return to the world.</p>
     <p>Start with a steel pickaxe, wood, dirt, and torches. Try digging, building, and returning to your saved world. Leave through the game menu before closing the tab.</p>
     <button id="start" type="button" disabled>Checking browser…</button>
     <p id="status" role="status" aria-live="polite">Checking engine requirements.</p>

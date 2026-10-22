@@ -71,6 +71,24 @@ start.addEventListener('click', async () => {
       } else if (kind === 'error') { say(String(data), true); showStopped(String(data)); }
     } });
     engine.onMainStarted(() => {
+      const controls = document.createElement('aside');
+      controls.id = 'miners-controls';
+      controls.setAttribute('aria-label', 'Game controls');
+      const title = document.createElement('strong');
+      title.textContent = 'I — Inventory & crafting';
+      controls.appendChild(title);
+      for (const text of [
+        'WASD move · Mouse look · Space jump',
+        'Left click dig · Right click build',
+        '1–8 / wheel select item · Esc close / menu',
+        'Crafting: materials → 3×3 grid → output',
+        'Recipes tab: browse crafting recipes',
+      ]) {
+        const line = document.createElement('div');
+        line.textContent = text;
+        controls.appendChild(line);
+      }
+      document.body.appendChild(controls);
       const overlay = document.createElement('div');
       overlay.id = 'miners-playtest-overlay';
       overlay.textContent = 'MINERS SOLO PLAYTEST · ' + (launcher.isPersistent() ? 'Browser storage active' : 'Temporary world — storage unavailable') + ' · Esc: menu';

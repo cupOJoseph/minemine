@@ -39,7 +39,7 @@ let ticketSecret = '';
 let leakedCredential = false;
 const record = value => {
   if (ticketSecret && value.includes(ticketSecret)) leakedCredential = true;
-  if (events.length < 100) events.push(ticketSecret ? value.replaceAll(ticketSecret, '[redacted]') : value);
+  if (events.length < 100) events.push((ticketSecret ? value.replaceAll(ticketSecret, '[redacted]') : value).slice(0, 500));
 };
 try {
   const wallet = new Wallet('0x' + '12'.repeat(32));
@@ -52,8 +52,9 @@ try {
   const errors = [];
   page.on('pageerror', error => { errors.push(error.message); record(`pageerror ${error.message}`); });
   page.on('console', message => {
-    record(`console ${message.type()} ${message.text().slice(0, 300)}`);
-    if (message.type() === 'error') errors.push(message.text());
+    const value = message.text();
+    record(`console ${message.type()} ${value}`);
+    if (message.type() === 'error') errors.push((ticketSecret ? value.replaceAll(ticketSecret, '[redacted]') : value).slice(0, 500));
   });
   page.on('requestfailed', request => record(`request failed ${request.url()} ${request.failure()?.errorText}`));
   page.on('response', response => {

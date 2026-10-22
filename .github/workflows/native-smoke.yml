@@ -118,5 +118,6 @@ jobs:
             runtime/browser-native-engine.log
             runtime/browser-api.log
             runtime/native-world/town-probe-result.txt
+            runtime/native-world/town-probe-reconnect-result.txt
             runtime/browser-artifacts/
           if-no-files-found: ignore

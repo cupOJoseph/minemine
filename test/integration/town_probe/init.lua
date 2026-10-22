@@ -3,6 +3,15 @@
 local world = core.get_worldpath()
 local elapsed = 0
 local finished = false
+local owner_name, guest_name, claim_pos, inventory_slot
+local owner_left = false
+
+local function write_result(filename, status, ok)
+    local file = assert(io.open(world .. "/" .. filename, "w"))
+    file:write(status, "\n")
+    file:close()
+    core.log(ok and "action" or "error", "Town probe: " .. status)
+end
 
 local function read_config()
     local file = io.open(world .. "/town-probe-config.json", "r")
@@ -47,8 +56,35 @@ local function run(config)
     ok, message = command(owner, "kick " .. guest)
     check(ok, "member removal failed: " .. tostring(message))
     check(core.is_protected(pos, guest), "removed member can still build in protected claim")
+    local inventory = player:get_inventory()
+    local slot = inventory:get_size("main")
+    check(slot >= 1, "owner has no main inventory")
+    inventory:set_stack("main", slot, "default:diamond 3")
+    check(inventory:get_stack("main", slot):get_count() == 3, "inventory fixture could not be set")
+    owner_name, guest_name, claim_pos, inventory_slot = owner, guest, pos, slot
     return "PASS owner/outsider/member protection, paid quota, invitation and removal"
 end
+
+core.register_on_leaveplayer(function(player)
+    if finished and player:get_player_name() == owner_name then owner_left = true end
+end)
+
+core.register_on_joinplayer(function(player)
+    if not owner_left or player:get_player_name() ~= owner_name then return end
+    owner_left = false
+    core.after(1, function()
+        local ok, result = pcall(function()
+            local current = core.get_player_by_name(owner_name)
+            check(current ~= nil, "owner disappeared after reconnect")
+            local stack = current:get_inventory():get_stack("main", inventory_slot)
+            check(stack:get_name() == "default:diamond" and stack:get_count() == 3,
+                "inventory stack was not restored after reconnect")
+            check(core.is_protected(claim_pos, guest_name), "town claim was lost after reconnect")
+            return "PASS inventory and town protection survive wallet reconnect"
+        end)
+        write_result("town-probe-reconnect-result.txt", ok and result or "FAIL " .. tostring(result), ok)
+    end)
+end)
 
 core.register_globalstep(function(dtime)
     if finished then return end
@@ -60,8 +96,5 @@ core.register_globalstep(function(dtime)
     finished = true
     local ok, result = pcall(run, config)
     local status = ok and result or "FAIL " .. tostring(result)
-    local file = assert(io.open(world .. "/town-probe-result.txt", "w"))
-    file:write(status, "\n")
-    file:close()
-    core.log(ok and "action" or "error", "Town probe: " .. status)
+    write_result("town-probe-result.txt", status, ok)
 end)

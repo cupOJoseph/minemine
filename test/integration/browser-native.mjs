@@ -143,6 +143,13 @@ try {
   observe(reconnectPage);
   await reconnectPage.goto(origin + '/engine/connect.html', { waitUntil: 'domcontentloaded' });
   await waitForJoin(reSigned.session, reconnectPage, 2);
+  let reconnectProbe = '';
+  for (let attempt = 0; attempt < 30; attempt++) {
+    reconnectProbe = await readFile(path.join(worldDir, 'town-probe-reconnect-result.txt'), 'utf8').catch(() => '');
+    if (reconnectProbe) break;
+    await sleep(1000);
+  }
+  assert.match(reconnectProbe, /^PASS /, `native reconnect probe failed: ${reconnectProbe || 'no result'}`);
 
   assert.equal(errors.length, 0, `browser console errors: ${errors.join(' | ')}`);
   assert.equal(leakedCredential, false, 'browser console exposed the short-lived game credential');
@@ -162,7 +169,8 @@ try {
   const expectedHash = ticketSecrets[0] ? createHash('sha1').update(session.playerName + ticketSecrets[0]).digest('base64').replace(/=+$/, '') : null;
   const grantHashMatches = Boolean(grant && expectedHash && grant.password_hash === expectedHash);
   const townProbe = await readFile(path.join(worldDir, 'town-probe-result.txt'), 'utf8').catch(() => '');
-  await writeFile(artifacts + '/diagnostics.json', JSON.stringify({ error: redact(error.message), events, grantExists: Boolean(grant), ticketCaptured: ticketSecrets.length > 0, grantHashMatches, townProbe, nativeTail: nativeLog.slice(-5000) }, null, 2));
+  const reconnectProbe = await readFile(path.join(worldDir, 'town-probe-reconnect-result.txt'), 'utf8').catch(() => '');
+  await writeFile(artifacts + '/diagnostics.json', JSON.stringify({ error: redact(error.message), events, grantExists: Boolean(grant), ticketCaptured: ticketSecrets.length > 0, grantHashMatches, townProbe, reconnectProbe, nativeTail: nativeLog.slice(-5000) }, null, 2));
   console.error('Browser diagnostics:', JSON.stringify(events));
   throw error;
 } finally {

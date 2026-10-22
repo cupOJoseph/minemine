@@ -94,7 +94,7 @@ jobs:
           set -euo pipefail
           cp -a test/integration/town_probe runtime/native-world/worldmods/town_probe
           printf '\nload_mod_town_probe = true\n' >> runtime/native-world/world.mt
-          (cd vendor/native && bin/luantiserver --info --world "$GITHUB_WORKSPACE/runtime/native-world" --config "$GITHUB_WORKSPACE/game/minetest.conf" --logfile "$GITHUB_WORKSPACE/runtime/browser-native-engine.log") > runtime/browser-native.log 2>&1 &
+          (cd vendor/native && exec bin/luantiserver --info --world "$GITHUB_WORKSPACE/runtime/native-world" --config "$GITHUB_WORKSPACE/game/minetest.conf" --logfile "$GITHUB_WORKSPACE/runtime/browser-native-engine.log") > runtime/browser-native.log 2>&1 &
           native_pid=$!
           GAME_ENABLED=true ENGINE_ADAPTER_READY=true DEBUG_GAME_PROXY=true WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" node server/index.mjs > runtime/browser-api.log 2>&1 &
           api_pid=$!
@@ -106,7 +106,7 @@ jobs:
           WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" NATIVE_LOG=runtime/browser-native.log node test/integration/browser-native.mjs
           kill -TERM "$native_pid"
           wait "$native_pid"
-          (cd vendor/native && bin/luantiserver --info --world "$GITHUB_WORKSPACE/runtime/native-world" --config "$GITHUB_WORKSPACE/game/minetest.conf" --logfile "$GITHUB_WORKSPACE/runtime/browser-native-restart-engine.log") > runtime/browser-native-restart.log 2>&1 &
+          (cd vendor/native && exec bin/luantiserver --info --world "$GITHUB_WORKSPACE/runtime/native-world" --config "$GITHUB_WORKSPACE/game/minetest.conf" --logfile "$GITHUB_WORKSPACE/runtime/browser-native-restart-engine.log") > runtime/browser-native-restart.log 2>&1 &
           native_pid=$!
           for attempt in {1..30}; do
             if grep -Fq 'listening on 127.0.0.1:30000' runtime/browser-native-restart.log; then break; fi

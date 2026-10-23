@@ -39,8 +39,10 @@ let secondContext;
 let secondPage;
 let secondSession;
 let reconnectContext;
+let replayContext;
 const events = [];
 const ticketSecrets = [];
+const tickets = [];
 let leakedCredential = false;
 const redact = value => ticketSecrets.reduce((result, secret) => result.replaceAll(secret, '[redacted]'), value);
 const record = value => {
@@ -57,7 +59,9 @@ function observe(page) {
   });
   page.on('requestfailed', request => record(`request failed ${request.url()} ${request.failure()?.errorText}`));
   page.on('response', response => {
-    if (response.url().endsWith('/api/game/ticket')) response.json().then(data => { if (data.password) ticketSecrets.push(data.password); }).catch(() => {});
+    if (response.url().endsWith('/api/game/ticket')) response.json().then(data => {
+      if (data.password) { ticketSecrets.push(data.password); tickets.push(data); }
+    }).catch(() => {});
     if (response.url().includes('/api/') || response.status() >= 400) record(`HTTP ${response.status()} ${response.url()}`);
   });
   page.on('websocket', socket => {
@@ -421,6 +425,34 @@ try {
     await sleep(1000);
   }
   assert.equal(disconnected, true, 'native server did not disconnect the closed browser');
+  assert.equal(tickets[0]?.name, session.playerName, 'original wallet ticket was not captured');
+  assert.equal(expiredGrant.password_hash,
+    createHash('sha1').update(session.playerName + tickets[0].password).digest('base64').replace(/=+$/, ''),
+    'replay candidate is not the original native credential');
+  replayContext = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  await replayContext.addCookies([{ name, value, url: origin, httpOnly: true, sameSite: 'Strict' }]);
+  const replayPage = await replayContext.newPage();
+  await replayPage.route('**/api/game/ticket', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ ...tickets[0], expiresAt: Date.now() + 120_000 }),
+  }));
+  const replayLogStart = (await readFile(logPath, 'utf8')).length;
+  await replayPage.goto(origin + '/engine/connect.html', { waitUntil: 'domcontentloaded' });
+  let replayDenied = false;
+  for (let attempt = 0; attempt < 90; attempt++) {
+    const currentLog = (await readFile(logPath, 'utf8').catch(() => '')).slice(replayLogStart);
+    if (currentLog.includes(`Player with the name "${session.playerName}" tried to connect`) &&
+        currentLog.includes('Sign in with your wallet at the MineMine launcher')) {
+      replayDenied = true;
+      break;
+    }
+    await sleep(1000);
+  }
+  assert.equal(replayDenied, true, 'native server did not reject the expired wallet ticket replay');
+  assert.equal(joinCount(await readFile(logPath, 'utf8'), session.playerName), 1,
+    'expired wallet ticket replay rejoined the native world');
+  await replayContext.close();
+  replayContext = null;
   const reSigned = await signedSession(wallet);
   assert.equal(reSigned.session.playerName, session.playerName, 'wallet reconnect must retain character identity');
   reconnectContext = await browser.newContext({ viewport: { width: 1280, height: 720 } });
@@ -509,6 +541,7 @@ try {
   console.error('Browser diagnostics:', JSON.stringify(events));
   throw error;
 } finally {
+  if (replayContext) await replayContext.close();
   if (reconnectContext) await reconnectContext.close();
   if (secondContext) await secondContext.close();
   await context.close();

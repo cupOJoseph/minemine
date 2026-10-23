@@ -164,7 +164,7 @@ try {
     ['function pricePerBlock() view returns (uint256)', 'function buyBlocks(uint256)',
       'function purchased(address) view returns (uint256)'], economyProvider);
   const cost = (await town.pricePerBlock()) * 9n;
-  for (const [signer, signed] of [[wallet, signed], [secondWallet, secondSigned]]) {
+  for (const [signer, login] of [[wallet, signed], [secondWallet, secondSigned]]) {
     const payer = signer.connect(economyProvider);
     const before = await token.balanceOf(signer.address);
     await (await token.connect(payer).approve(process.env.TOWN_CONTRACT_ADDRESS, cost)).wait();
@@ -175,7 +175,7 @@ try {
     for (let attempt = 0; attempt < 20; attempt++) {
       const response = await fetch(origin + '/api/towns/sync', {
         method: 'POST',
-        headers: { Origin: origin, 'Content-Type': 'application/json', Cookie: signed.cookie },
+        headers: { Origin: origin, 'Content-Type': 'application/json', Cookie: login.cookie },
         body: '{}',
       });
       assert.equal(response.status, 200, 'authenticated town credit sync');
@@ -184,7 +184,7 @@ try {
       await sleep(250);
     }
     assert.equal(synced.purchasedBlocks, 9, 'confirmed on-chain credits reached Node');
-    const quota = JSON.parse(await readFile(path.join(worldDir, 'town_quotas', `${signed.session.playerName}.json`), 'utf8'));
+    const quota = JSON.parse(await readFile(path.join(worldDir, 'town_quotas', `${login.session.playerName}.json`), 'utf8'));
     assert.equal(quota.blocks, 9, 'native quota comes from the on-chain purchase');
     assert.equal(quota.address.toLowerCase(), signer.address.toLowerCase());
   }

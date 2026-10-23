@@ -7,6 +7,10 @@ local balance_dir = core.get_worldpath() .. "/wallet_balances/"
 local heartbeat_path = core.get_worldpath() .. "/minemine-server-heartbeat"
 local identities = {}
 local pending = {}
+-- Valid unpadded base64 for a SHA-1 digest with no known password preimage.
+-- Connected players still need auth lookups for privilege checks after a ticket
+-- expires, but their old ticket must not authenticate a second connection.
+local expired_password_hash = "AAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
 local heartbeat_elapsed = 0
 local heartbeat_error_logged = false
@@ -81,9 +85,14 @@ core.register_authentication_handler({
         if not value and core.get_player_by_name(name) then
             -- Luanti asks for auth again when a client becomes ready and for
             -- privilege checks during play. Only an already emerged player
-            -- may use the expired grant accepted at the start of its login.
+            -- may retain privileges from the grant accepted at login. Return
+            -- an unusable password hash so the expired ticket cannot log in
+            -- again while this player remains connected.
             local current = grant(name, true)
-            if same_grant(current, pending[name] or identities[name]) then value = current end
+            if same_grant(current, pending[name] or identities[name]) then
+                return { password = expired_password_hash, privileges = privileges(name),
+                    last_login = storage:get_int("last_login:" .. name) }
+            end
         end
         if not value then return nil end
         return { password = value.password_hash, privileges = privileges(name),

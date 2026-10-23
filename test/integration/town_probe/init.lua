@@ -544,11 +544,20 @@ core.register_globalstep(function()
     expired_grant_checked = true
     local ok, result = pcall(function()
         check(core.get_player_by_name(owner_name) ~= nil, "owner disconnected before expiry check")
+        local file = assert(io.open(world .. "/wallet_grants/" .. owner_name .. ".json", "r"))
+        local expired_grant = core.parse_json(file:read("*a"))
+        file:close()
+        check(expired_grant and expired_grant.expires_at <= os.time(), "ticket was not expired for the check")
+        local auth = core.get_auth_handler().get_auth(owner_name)
+        check(auth and auth.password ~= expired_grant.password_hash,
+            "expired ticket password remained usable while owner was connected")
+        check(auth.privileges.interact == true,
+            "expired ticket auth lookup lost interact privilege")
         check(core.get_player_privs(owner_name).interact == true,
             "authenticated owner lost interact privilege after ticket expiry")
         check(not core.is_protected(claim_pos, owner_name),
             "authenticated owner lost access to own claim after ticket expiry")
-        return "PASS connected owner retains interact and town access after ticket expiry"
+        return "PASS expired ticket password rejected while connected owner retains interact and town access"
     end)
     write_result("town-expired-grant-check-result.txt", ok and result or "FAIL " .. tostring(result), ok)
 end)

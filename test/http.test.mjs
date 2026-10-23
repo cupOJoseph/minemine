@@ -88,6 +88,13 @@ test('static files supply isolation headers; private paths and invalid bodies ar
   const screenshot = await request('/screenshots/crafting-playtest.jpg');
   assert.equal(screenshot.status, 200);
   assert.equal(screenshot.headers.get('Content-Type'), 'image/jpeg');
+  assert.equal(screenshot.headers.get('Cache-Control'), 'public, max-age=0, must-revalidate');
+  const etag = screenshot.headers.get('ETag');
+  assert.match(etag, /^W\/"[0-9a-f-]+"$/);
+  const unchanged = await request('/screenshots/crafting-playtest.jpg', undefined, null, { 'If-None-Match': etag });
+  assert.equal(unchanged.status, 304);
+  assert.equal(await unchanged.text(), '');
+  assert.equal(unchanged.headers.get('Cross-Origin-Embedder-Policy'), 'require-corp');
   const engine = await request('/engine/not-installed.html');
   assert.equal(engine.status, 404);
   assert.ok(engine.headers.get('Content-Security-Policy').includes("style-src 'self' 'unsafe-inline'"));
@@ -95,6 +102,7 @@ test('static files supply isolation headers; private paths and invalid bodies ar
   const remoteFrame = await request('/engine/connect.html');
   assert.ok(remoteFrame.headers.get('Content-Security-Policy').includes("frame-ancestors 'self'"));
   const config = await request('/api/config');
+  assert.equal(config.headers.get('Cache-Control'), 'no-store');
   const { soloPlaytestAvailable } = await config.json();
   assert.equal(typeof soloPlaytestAvailable, 'boolean');
   const play = await request('/play/');

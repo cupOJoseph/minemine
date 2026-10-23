@@ -178,6 +178,14 @@ export function createApp(config) {
       if (!file.startsWith(publicRoot + path.sep)) throw new AuthError('Not found.', 404);
       const info = await stat(file);
       if (!info.isFile()) throw new AuthError('Not found.', 404);
+      const etag = `W/"${info.size.toString(16)}-${Math.floor(info.mtimeMs).toString(16)}-${Math.floor(info.ctimeMs).toString(16)}"`;
+      res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+      res.setHeader('ETag', etag);
+      if (req.headers['if-none-match']?.split(',').map(value => value.trim()).includes(etag)) {
+        res.writeHead(304);
+        res.end();
+        return;
+      }
       res.writeHead(200, { 'Content-Type': mime[path.extname(file)] || 'application/octet-stream', 'Content-Length': info.size });
       if (req.method === 'HEAD') res.end();
       else await pipeline(createReadStream(file), res);

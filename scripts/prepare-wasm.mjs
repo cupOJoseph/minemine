@@ -56,6 +56,13 @@ export function patchOpenSslBuildScript(source) {
   return source.replace(wrap, '').replace(oldPatch, '"$BASE_DIR"/openssl-3.5-wasm.patch');
 }
 
+export function patchCurlBuildScript(source) {
+  const option = '  -DCURL_ZLIB=ON \\\n';
+  if (source.split(option).length !== 2) throw new Error('Pinned curl build script changed; review before patching.');
+  // curl 8.23 enables libpsl by default, but this WASM sysroot has no libpsl.
+  return source.replace(option, '  -DCURL_USE_LIBPSL=OFF \\\n' + option);
+}
+
 export function prepareWasm(root = project, env = process.env) {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'upstream.sources.json'), 'utf8'));
   const source = path.join(root, 'vendor/wasm');
@@ -73,6 +80,7 @@ export function prepareWasm(root = project, env = process.env) {
     'build_all.sh': patchBuildAll(fs.readFileSync(path.join(source, 'build_all.sh'), 'utf8')),
     'fetch_sources.sh': patchWasmArchives(fs.readFileSync(path.join(source, 'fetch_sources.sh'), 'utf8'), manifest.wasmArchives),
     'build_openssl.sh': patchOpenSslBuildScript(fs.readFileSync(path.join(source, 'build_openssl.sh'), 'utf8')),
+    'build_curl.sh': patchCurlBuildScript(fs.readFileSync(path.join(source, 'build_curl.sh'), 'utf8')),
     [opensslPatchName]: fs.readFileSync(path.join(root, 'scripts', opensslPatchName), 'utf8'),
     'miners-patch-args.mjs': fs.readFileSync(path.join(root, 'scripts/patch-wasm-args.mjs'), 'utf8'),
     ...dependencies,

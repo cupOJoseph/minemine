@@ -1,5 +1,11 @@
 # Validation record
 
+## Live Ethereum-mainnet ENS resolution — 2026-10-23 EDT
+
+The opt-in `test/integration/ens-live.mjs` smoke test ran with `ENS_RPC_URL=https://ethereum-rpc.publicnode.com npm run test:ens-live` and passed. It used the [ENS Docs forward-verified `vitalik.eth` example](https://docs.ens.domains/ensip/23/): reverse resolution of `0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045` returned `vitalik.eth`, and forward resolution returned the same address. The test then started a disposable local MineMine Node app, signed a normal login challenge with a new unfunded wallet, and received the same address and name from its authenticated `/api/currency/recipient` route. The disposable wallet's `/api/identity` returned no ENS name. No transaction, funded key, domain, or permanent account was created. A live RPC check can change as records or provider behavior change; the test accepts `ENS_TEST_NAME` and `ENS_TEST_ADDRESS` overrides for another documented pair.
+
+This closes the live-mainnet recipient lookup gap for the example pair. It does not prove an ENS owner's signed login carries that name through a game ticket into a native session, nor an installed wallet's MINE transfer to the resolved address. Those still need deployment QA.
+
 ## ENS name reaches native Luanti — 2026-10-23 EDT
 
 [Native run 40008746916](https://github.com/cupOJoseph/minemine/actions/runs/40008746916) passed the full two-wallet browser and local-Anvil paid-town sequence. The ENS resolver's unit test checked mainnet chain selection, normalized `.eth` recipients, and displayed a reverse name only when forward resolution returned the signed wallet. To test the native boundary without a live mainnet RPC, the browser test put that verified-name fixture (`builder.eth`) into the disposable owner's server grant before delivering the game ticket. The native probe read the joined player's nametag and `/wallet` response and reported `PASS wallet-only auth and ENS nametag`. Its later restart probe reported that the placed node, paid-size claim, and owner/outsider protection survived. The Luanti/Node service cgroup peaked at 152,141,824 bytes with zero OOM kills; Anvil, browsers, Caddy and the VM OS were outside that cap.

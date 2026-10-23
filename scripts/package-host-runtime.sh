@@ -24,7 +24,7 @@ test -f public/engine/adapter.js
 test -f public/engine/connect.html
 test -f package-lock.json
 
-mkdir -p "$stage/vendor/native/bin" "$stage/vendor/native/games" "$stage/deploy" "$stage/scripts"
+mkdir -p "$stage/vendor/native/bin" "$stage/vendor/native/games" "$stage/deploy" "$stage/scripts" "$stage/test/integration"
 cp -a vendor/native/bin/luantiserver "$stage/vendor/native/bin/"
 cp -a vendor/native/builtin vendor/native/textures "$stage/vendor/native/"
 cp -a vendor/native/games/minetest "$stage/vendor/native/games/"
@@ -33,6 +33,7 @@ cp -a vendor/native/LICENSE.txt vendor/native/COPYING.LESSER "$stage/vendor/nati
 cp -a public server game "$stage/"
 cp -a deploy/vps "$stage/deploy/"
 cp -a scripts/setup-world.mjs "$stage/scripts/"
+cp -a test/integration/ens-live.mjs "$stage/test/integration/"
 cp package.json package-lock.json upstream.sources.json .env.example "$stage/"
 git rev-parse HEAD > "$stage/BUILD_COMMIT"
 ldd vendor/native/bin/luantiserver > "$stage/native-library-dependencies.txt"

@@ -178,6 +178,8 @@ Record deployment receipt and verify the source. Set `TOKEN_ADDRESS` and confirm
 
 Set `ENS_RPC_URL` to an Ethereum-mainnet RPC to resolve ENS names, even while MINE runs on Sepolia. The service checks the ENS RPC chain and forward-verifies reverse names before display. Players send MINE directly through their browser wallets after a token is deployed and configured; the server never signs these transfers.
 
+Before enabling ENS for the rehearsal, run `ENS_RPC_URL=<reviewed-mainnet-rpc> npm run test:ens-live` from the host package or a trusted workstation. This read-only test checks a published forward-verified ENS name against mainnet and then through MineMine's signed-session recipient API. It starts and removes a disposable local world; it does not send a token transaction or verify a real name owner's in-game login. Repeat that owner-login and wallet-send check with an installed extension during the remote rehearsal.
+
 For prototype town payments, set `TOWN_TREASURY` and `TOWN_PRICE_PER_BLOCK`, then run `npm run towns:deploy`. Review its ignored deployment record, verify source and set `TOWN_CONTRACT_ADDRESS`. The wallet lab can then approve exact MINE allowance, buy credits, and sync confirmed totals into the private world. Sepolia quota sync reads at least six blocks behind the head. See [TOWNS.md](TOWNS.md) for commands, trust boundaries, test coverage and native-engine blockers.
 
 Never deploy these prototypes to mainnet or advertise paid land until contract, wallet, chain-reorg, economy and native-game abuse reviews pass.

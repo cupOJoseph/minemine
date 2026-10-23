@@ -549,7 +549,7 @@ try {
   }
   assert.equal(logoutDisconnected, true, 'native server retained a player after wallet logout and grant revocation');
   await writeFile(path.join(worldDir, 'town-probe-config.json'),
-    JSON.stringify({ phase: 'restart', owner: session.playerName, guest: secondSession.playerName }), { mode: 0o600 });
+    JSON.stringify({ phase: 'restart', owner: session.playerName, guest: secondSession.playerName, ensName: 'builder.eth' }), { mode: 0o600 });
 } catch (error) {
   const failedPage = secondPage && !secondPage.isClosed() ? secondPage : page;
   if (failedPage && !failedPage.isClosed()) {

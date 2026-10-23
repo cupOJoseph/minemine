@@ -28,8 +28,7 @@ local function read_config()
     file:close()
     if not raw or #raw > 4096 then return nil end
     local config = core.parse_json(raw)
-    if type(config) ~= "table" or type(config.owner) ~= "string" or type(config.guest) ~= "string" or
-        config.ensName ~= "builder.eth" then return nil end
+    if type(config) ~= "table" or type(config.owner) ~= "string" or type(config.guest) ~= "string" then return nil end
     return config
 end
 
@@ -49,6 +48,7 @@ local function read_state()
 end
 
 local function run(config)
+    check(config.ensName == "builder.eth", "verified ENS fixture missing")
     local town = core.registered_chatcommands.town
     check(town and type(town.func) == "function", "town chat command missing")
     local function command(name, param)

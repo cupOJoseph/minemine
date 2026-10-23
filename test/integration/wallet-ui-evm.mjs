@@ -94,7 +94,16 @@ try {
   });
   await page.addInitScript(() => {
     window.__mineRejectNextTransaction = false;
+    window.__legacyWalletRequests = 0;
     window.ethereum = {
+      request() {
+        window.__legacyWalletRequests++;
+        throw new Error('The unselected legacy wallet was used.');
+      },
+      on() {}, removeListener() {},
+    };
+    const walletListeners = new Map();
+    const chosenWallet = {
       request(request) {
         if (request.method === 'eth_sendTransaction' && window.__mineRejectNextTransaction) {
           window.__mineRejectNextTransaction = false;
@@ -102,10 +111,24 @@ try {
         }
         return window.mineWalletRpc(request);
       },
-      on() {}, removeListener() {},
+      on(name, listener) {
+        if (!walletListeners.has(name)) walletListeners.set(name, new Set());
+        walletListeners.get(name).add(listener);
+      },
+      removeListener(name, listener) { walletListeners.get(name)?.delete(listener); },
     };
+    window.__emitChosenWallet = (name, value) => {
+      for (const listener of walletListeners.get(name) || []) listener(value);
+    };
+    const announcement = new CustomEvent('eip6963:announceProvider', { detail: {
+      info: { uuid: 'c458a5bb-4986-49eb-b36b-078b9a84c34c', name: 'Mine Test Wallet',
+        icon: 'data:image/png;base64,', rdns: 'gg.minemine.test' }, provider: chosenWallet,
+    } });
+    window.addEventListener('eip6963:requestProvider', () => window.dispatchEvent(announcement));
   });
   await page.goto(origin, { waitUntil: 'domcontentloaded' });
+  await page.locator('#wallet-choice').waitFor({ state: 'visible' });
+  await page.locator('#wallet-provider').selectOption({ label: 'Mine Test Wallet' });
   await page.locator('#connect').click();
   await until(async () => page.locator('#identity').isVisible(), 'wallet sign-in');
   await until(async () => (await page.locator('#balance').textContent()).includes('100'), 'initial MINE balance');
@@ -152,8 +175,14 @@ try {
   assert.equal(await token.balanceOf(walletAddress), unit(77));
   assert.equal(await token.balanceOf(recipientAddress), unit(5));
   assert.equal(walletTransactions.length, 3, 'rejected wallet transaction did not reach the chain');
+  assert.equal(await page.evaluate(() => window.__legacyWalletRequests), 0,
+    'sign-in, transfer, and town purchase must use the selected announced wallet');
+  await page.evaluate(() => window.__emitChosenWallet('accountsChanged', []));
+  await until(async () => page.locator('#identity').isHidden(), 'account-change sign-out');
+  assert.equal(await page.evaluate(async () => (await fetch('/api/session')).status), 401,
+    'selected wallet account change revokes the browser session');
   assert.deepEqual(pageErrors, []);
-  console.log('PASS injected browser wallet signed in, sent 5 MINE, bought 9 paid land columns, synced a private quota, and handled a rejected transaction.');
+  console.log('PASS selected EIP-6963 wallet signed in, paid, handled a rejected transaction, and revoked its session on account change.');
 } finally {
   await browser?.close();
   if (app?.listening) await new Promise(resolve => app.close(resolve));

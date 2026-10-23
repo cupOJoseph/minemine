@@ -31,7 +31,7 @@ if (!preflight) {
   for (const file of ['playtest.js', 'playtest.css', 'diagnostics.css', 'session.mjs']) fs.copyFileSync(path.join(root, 'playtest', file), path.join(play, file));
   build.launcherRevision = process.env.GITHUB_SHA || null;
   fs.writeFileSync(path.join(play, 'build.json'), JSON.stringify(build, null, 2) + '\n');
-  for (const file of ['index.html', 'style.css', 'app.js', 'transfer.mjs']) fs.copyFileSync(path.join(root, 'public', file), path.join(target, file));
+  for (const file of ['index.html', 'style.css', 'app.js', 'transfer.mjs', 'wallet-providers.mjs']) fs.copyFileSync(path.join(root, 'public', file), path.join(target, file));
   fs.cpSync(path.join(root, 'public/screenshots'), path.join(target, 'screenshots'), { recursive: true });
 }
 for (const file of fs.readdirSync(hosting)) fs.copyFileSync(path.join(hosting, file), path.join(preflight ? target : path.join(target, 'play'), file));

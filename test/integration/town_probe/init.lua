@@ -57,6 +57,27 @@ local function run(config)
     local player = core.get_player_by_name(owner)
     check(player and core.get_player_by_name(guest), "both wallet players must be connected")
 
+    local auth_handler = core.get_auth_handler()
+    local owner_auth = auth_handler.get_auth(owner)
+    local ungranted = "probe_no_wallet_grant"
+    check(owner_auth and owner_auth.password, "wallet owner authentication missing")
+    check(auth_handler.get_auth(ungranted) == nil, "ungranted account has authentication")
+    check(auth_handler.create_auth(ungranted, "arbitrary-password") == false,
+        "password registration was accepted")
+    check(auth_handler.get_auth(ungranted) == nil, "password registration created an account")
+    check(auth_handler.set_password(owner, "arbitrary-password") == false,
+        "wallet password change was accepted")
+    check(auth_handler.delete_auth(owner) == false, "wallet account deletion was accepted")
+    check(auth_handler.get_auth(owner).password == owner_auth.password,
+        "wallet credential changed through an ordinary auth operation")
+    local owner_privs = core.get_player_privs(owner)
+    check(owner_privs.interact == true and owner_privs.shout == true,
+        "wallet owner lacks ordinary play privileges")
+    for privilege in pairs(owner_privs) do
+        check(privilege == "interact" or privilege == "shout",
+            "wallet owner gained an unexpected privilege: " .. privilege)
+    end
+
     local ok, message = command(owner, "create Probe Town")
     check(ok, "town creation failed: " .. tostring(message))
     ok, message = command(owner, "claim 2")
@@ -127,7 +148,7 @@ local function run(config)
     local state_file = assert(io.open(world .. "/town-probe-state.json", "w"))
     state_file:write(assert(core.write_json({ owner = owner, guest = guest, pos = pos, edit_pos = edit_pos, slot = slot })))
     state_file:close()
-    return "PASS owner/outsider/member protection, paid quota, invitation/removal and node edit handlers"
+    return "PASS wallet-only auth operations and privileges, owner/outsider/member protection, paid quota, invitation/removal and node edit handlers"
 end
 
 local function run_restart(config)

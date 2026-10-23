@@ -52,6 +52,22 @@ local function same_grant(value, started)
         value.session_hash == started.session_hash and value.address:lower() == started.address:lower()
 end
 
+-- Ticket expiry limits new logins but does not end an established game session.
+-- A removed or replaced grant means logout, server restart, or a new wallet
+-- session took ownership; do not leave that character present until UDP timeout.
+local revocation_elapsed = 0
+core.register_globalstep(function(dtime)
+    revocation_elapsed = revocation_elapsed + dtime
+    if revocation_elapsed < 2 then return end
+    revocation_elapsed = 0
+    for name, identity in pairs(identities) do
+        if not same_grant(grant(name, true), identity) then
+            identities[name] = nil
+            core.kick_player(name, "Wallet session ended; sign in again at the MineMine launcher.")
+        end
+    end
+end)
+
 local function privileges(name)
     local saved = storage:get_string("privs:" .. name)
     -- Never grant server/admin privileges just because someone owns a wallet.

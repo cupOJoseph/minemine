@@ -490,7 +490,7 @@ try {
   await assert.rejects(readFile(grantPath, 'utf8'), { code: 'ENOENT' },
     'logout must remove the wallet game grant');
   let logoutDisconnected = false;
-  for (let attempt = 0; attempt < 60; attempt++) {
+  for (let attempt = 0; attempt < 20; attempt++) {
     const currentLog = (await readFile(logPath, 'utf8').catch(() => '')).slice(beforeLogout);
     if (currentLog.includes(`${session.playerName} leaves game.`) ||
         currentLog.includes(`${session.playerName} times out.`)) {
@@ -499,7 +499,7 @@ try {
     }
     await sleep(1000);
   }
-  assert.equal(logoutDisconnected, true, 'native server retained a player after wallet logout');
+  assert.equal(logoutDisconnected, true, 'native server retained a player after wallet logout and grant revocation');
   await writeFile(path.join(worldDir, 'town-probe-config.json'),
     JSON.stringify({ phase: 'restart', owner: session.playerName, guest: secondSession.playerName }), { mode: 0o600 });
 } catch (error) {

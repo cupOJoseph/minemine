@@ -15,7 +15,8 @@ test('SIWE signature creates an address-bound session and cannot be replayed', a
   const signature = await wallet.signMessage(challenge.message);
   const login = auth.verify(challenge.token, signature);
   assert.equal(auth.get(login.token).address, wallet.address);
-  assert.match(login.session.playerName, /^w_[0-9a-f]{18}$/);
+  assert.match(login.session.playerName, /^w_[0-9a-f]{17}$/);
+  assert.ok(login.session.playerName.length <= 19, 'pinned browser client rejects longer player names');
   assert.throws(() => auth.verify(challenge.token, signature), /expired or already used/);
   auth.revoke(login.token);
   assert.equal(auth.get(login.token), undefined);
@@ -67,4 +68,7 @@ test('configuration requires TLS for public hosts and restricts initial chains',
   assert.throws(() => readConfig({ CHAIN_ID: '1' }), /Sepolia/);
   assert.throws(() => readConfig({ PORT: '-1' }), /port/);
   assert.equal(readConfig({}).origin, 'http://localhost:3000');
+  assert.throws(() => readConfig({ TOWN_CONFIRMATIONS: '0' }), /six confirmation/);
+  assert.throws(() => readConfig({ TRUST_LOOPBACK_PROXY: 'true' }), /HTTPS and a loopback HOST/);
+  assert.throws(() => readConfig({ PUBLIC_ORIGIN: 'https://play.example', HOST: '0.0.0.0', TRUST_LOOPBACK_PROXY: 'true' }), /loopback HOST/);
 });

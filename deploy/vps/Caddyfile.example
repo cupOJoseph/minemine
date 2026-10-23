@@ -1,0 +1,13 @@
+# Replace this temporary hostname with the tested HTTPS host before installation.
+# A purchased minemine.gg domain is not required for the technical alpha.
+# Caddy manages HTTPS and forwards WebSocket upgrades on this same origin.
+play.203.0.113.10.sslip.io {
+    # The 15 MB WASM compresses to about 5 MB with standard zstd. Browsers
+    # without zstd receive gzip. Caddy preserves the upstream isolation headers.
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:3000 {
+        # Overwrite any header supplied by the visitor. Node trusts this value
+        # only when its peer is loopback and TRUST_LOOPBACK_PROXY=true.
+        header_up X-MineMine-Client-IP {remote_host}
+    }
+}

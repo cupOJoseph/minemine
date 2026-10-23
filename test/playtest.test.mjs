@@ -4,9 +4,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
-import { patchBuildScript, patchDependencyScripts } from '../scripts/prepare-wasm.mjs';
+import { patchBuildScript, patchBuildAll, patchDependencyScripts, patchWasmArchives, patchOpenSslBuildScript, patchCurlBuildScript } from '../scripts/prepare-wasm.mjs';
+import { removeStartupArgumentDump } from '../scripts/patch-wasm-args.mjs';
 import { releaseId, validateWasm } from '../scripts/stage-playtest.mjs';
 import { configureSoloLauncher, makeSoloArgs, makeSoloSession } from '../playtest/session.mjs';
+import { makeRemoteArgs, sameOriginProxyUrl } from '../playtest/remote-session.mjs';
 
 class Args {
   constructor() { this.name = ''; this.password = ''; this.address = ''; this.packs = []; }
@@ -35,6 +37,16 @@ test('solo playtest uses a local world and never requests a remote wallet creden
   assert.equal(args.name, '', 'An explicit name selects local multiplayer and rejects the reserved singleplayer name');
   assert.equal(args.password, '');
   assert.equal(args.address, '');
+});
+test('remote client uses only an unexpired wallet ticket and same-origin proxy', () => {
+  const ticket = { name: 'w_1234567890abcdef1', password: 's'.repeat(43), address: '10.0.0.1', port: 30000, expiresAt: 2_000_000 };
+  const args = makeRemoteArgs(ticket, Args, 1_000_000);
+  assert.deepEqual([args.name, args.password, args.address, args.port, args.gameid, args.go], [ticket.name, ticket.password, '10.0.0.1', 30000, 'minetest', true]);
+  assert.equal(sameOriginProxyUrl('https://minemine.gg'), 'wss://minemine.gg/game-proxy');
+  assert.equal(sameOriginProxyUrl('http://localhost:3000'), 'ws://localhost:3000/game-proxy');
+  assert.throws(() => makeRemoteArgs({ ...ticket, expiresAt: 1_000_000 }, Args, 1_000_000), /expired/);
+  assert.throws(() => makeRemoteArgs({ ...ticket, address: '8.8.8.8' }, Args, 1_000_000), /invalid/);
+  assert.throws(() => sameOriginProxyUrl('https://minemine.gg/other'), /origin/);
 });
 test('engine launch waits for readiness and successful game-pack installation', async () => {
   const launcher = fakeLauncher();
@@ -104,6 +116,9 @@ test('adapter contract matches the actual downloaded Luanti classes', { skip: !f
   assert.deepEqual(Array.from(args.toArray()), ['--go', '--gameid', 'minetest', '--world', '/luanti/worlds/miners-playtest']);
   const build = fs.readFileSync(new URL('../vendor/wasm/build_luanti.sh', import.meta.url), 'utf8');
   assert.match(patchBuildScript(build), /-sINITIAL_MEMORY=536870912/);
+  const all = fs.readFileSync(new URL('../vendor/wasm/build_all.sh', import.meta.url), 'utf8');
+  assert.match(patchBuildAll(all), /node miners-patch-args\.mjs sources\/luanti\/src\/mainloop\.cpp/);
+  assert.throws(() => patchBuildAll('different'), /changed/);
   const patched = patchDependencyScripts(
     fs.readFileSync(new URL('../vendor/wasm/build_libarchive.sh', import.meta.url), 'utf8'),
     fs.readFileSync(new URL('../vendor/wasm/build_libzip.sh', import.meta.url), 'utf8'),
@@ -111,4 +126,43 @@ test('adapter contract matches the actual downloaded Luanti classes', { skip: !f
   assert.match(patched['build_libarchive.sh'], /--host=wasm32-unknown-none/);
   assert.match(patched['build_libzip.sh'], /-DBUILD_SHARED_LIBS=OFF/);
   assert.throws(() => patchDependencyScripts('different', 'different'), /changed/);
+  const locks = JSON.parse(fs.readFileSync(new URL('../upstream.sources.json', import.meta.url), 'utf8')).wasmArchives;
+  const fetch = fs.readFileSync(new URL('../vendor/wasm/fetch_sources.sh', import.meta.url), 'utf8');
+  const updatedFetch = patchWasmArchives(fetch, locks);
+  for (const entry of Object.values(locks)) {
+    assert.ok(updatedFetch.includes(`getsource "${entry.url}" ${entry.sha256}`));
+  }
+  assert.doesNotMatch(updatedFetch, /openssl-1\.1\.1n|curl-7\.82\.0|libarchive-3\.6\.1/);
+  assert.throws(() => patchWasmArchives('changed upstream', locks), /changed/);
+  const opensslBuild = patchOpenSslBuildScript(fs.readFileSync(new URL('../vendor/wasm/build_openssl.sh', import.meta.url), 'utf8'));
+  assert.doesNotMatch(opensslBuild, /wrap\.py/);
+  assert.match(opensslBuild, /openssl-3\.5-wasm\.patch/);
+  assert.throws(() => patchOpenSslBuildScript('changed upstream'), /changed/);
+  const curlBuild = patchCurlBuildScript(fs.readFileSync(new URL('../vendor/wasm/build_curl.sh', import.meta.url), 'utf8'));
+  assert.match(curlBuild, /-DCURL_USE_LIBPSL=OFF/);
+  assert.match(curlBuild, /-DHAVE_ACCEPT4=0/);
+  assert.throws(() => patchCurlBuildScript('changed upstream'), /changed/);
+});
+test('pinned browser source patch removes raw command-line logging', () => {
+  const original = 'before\n    std::cout << "Main received args:" << std::endl;\n    for (int i = 0; i < main_argc; i++) {\n        std::cout << "    " << main_argv[i] << std::endl;\n    }\nafter\n';
+  const patched = removeStartupArgumentDump(original);
+  assert.doesNotMatch(patched, /main_argv\[i\]/);
+  assert.throws(() => removeStartupArgumentDump('changed upstream'), /changed/);
+});
+test('restricted bridge packet shape matches the pinned webshims encoder', { skip: !fs.existsSync(new URL('../vendor/webshims/src/emsocket/proxy.js', import.meta.url)) && 'Pinned webshims source is not downloaded in this checkout.' }, () => {
+  const context = vm.createContext({ WebSocket: class {}, console: { log() {} } });
+  context.self = context;
+  vm.runInContext(fs.readFileSync(new URL('../vendor/webshims/src/emsocket/proxy.js', import.meta.url), 'utf8'), context);
+  const frame = Buffer.from(vm.runInContext("self.encapsulate('10.0.0.1', 30000, new Uint8Array([79, 69, 116, 3]))", context));
+  assert.equal(context.self.EP_MAGIC, 0x778b4cf6);
+  assert.equal(context.self.EP_HEADER_LEN, 24);
+  assert.equal(frame.readUInt32BE(0), context.self.EP_MAGIC);
+  assert.deepEqual(frame.subarray(4, 20), Buffer.from([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 10, 0, 0, 1]));
+  assert.equal(frame.readUInt16BE(20), 30000);
+  assert.equal(frame.readUInt16BE(22), 4);
+  assert.deepEqual(frame.subarray(24), Buffer.from([79, 69, 116, 3]));
+  const packet = vm.runInContext("self.unencapsulate(self.encapsulate('10.0.0.1', 30000, new Uint8Array([79, 69, 116, 3])))", context);
+  assert.equal(packet[0], '10.0.0.1');
+  assert.equal(packet[1], 30000);
+  assert.deepEqual(Buffer.from(packet[2]), Buffer.from([79, 69, 116, 3]));
 });

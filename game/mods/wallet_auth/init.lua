@@ -3,10 +3,34 @@
 -- by the Node service; this mod reads its two-minute grants inside the world dir.
 local storage = core.get_mod_storage()
 local dir = core.get_worldpath() .. "/wallet_grants/"
+local balance_dir = core.get_worldpath() .. "/wallet_balances/"
+local heartbeat_path = core.get_worldpath() .. "/minemine-server-heartbeat"
 local identities = {}
+local pending = {}
+-- Valid unpadded base64 for a SHA-1 digest with no known password preimage.
+-- Connected players still need auth lookups for privilege checks after a ticket
+-- expires, but their old ticket must not authenticate a second connection.
+local expired_password_hash = "AAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
-local function grant(name)
-    if type(name) ~= "string" or not name:match("^w_%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x$") then return nil end
+local heartbeat_elapsed = 0
+local heartbeat_error_logged = false
+local function write_heartbeat()
+    if core.safe_file_write(heartbeat_path, tostring(os.time()) .. "\n") then
+        heartbeat_error_logged = false
+    elseif not heartbeat_error_logged then
+        core.log("error", "MineMine cannot write the native server heartbeat")
+        heartbeat_error_logged = true
+    end
+end
+core.register_globalstep(function(dtime)
+    heartbeat_elapsed = heartbeat_elapsed + dtime
+    if heartbeat_elapsed < 2 then return end
+    heartbeat_elapsed = 0
+    write_heartbeat()
+end)
+
+local function grant(name, allow_expired)
+    if type(name) ~= "string" or not name:match("^w_%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x$") then return nil end
     local file = io.open(dir .. name .. ".json", "r")
     if not file then return nil end
     local raw = file:read(4097)
@@ -14,13 +38,35 @@ local function grant(name)
     if not raw or #raw > 4096 then return nil end
     local value = core.parse_json(raw)
     if type(value) ~= "table" or value.name ~= name then return nil end
-    if type(value.expires_at) ~= "number" or value.expires_at <= os.time() then return nil end
+    if type(value.expires_at) ~= "number" or (not allow_expired and value.expires_at <= os.time()) then return nil end
     if type(value.address) ~= "string" or not value.address:match("^0x%x+$") or #value.address ~= 42 then return nil end
-    if type(value.password_hash) ~= "string" or #value.password_hash ~= 28 then return nil end
+    if type(value.password_hash) ~= "string" or #value.password_hash ~= 27 then return nil end
+    if value.ens_name ~= nil and (type(value.ens_name) ~= "string" or #value.ens_name > 255 or value.ens_name:find("[%c]")) then return nil end
     local known = storage:get_string("address:" .. name)
     if known ~= "" and known:lower() ~= value.address:lower() then return nil end
     return value
 end
+
+local function same_grant(value, started)
+    return value and started and value.password_hash == started.password_hash and
+        value.session_hash == started.session_hash and value.address:lower() == started.address:lower()
+end
+
+-- Ticket expiry limits new logins but does not end an established game session.
+-- A removed or replaced grant means logout, server restart, or a new wallet
+-- session took ownership; do not leave that character present until UDP timeout.
+local revocation_elapsed = 0
+core.register_globalstep(function(dtime)
+    revocation_elapsed = revocation_elapsed + dtime
+    if revocation_elapsed < 2 then return end
+    revocation_elapsed = 0
+    for name, identity in pairs(identities) do
+        if not same_grant(grant(name, true), identity) then
+            identities[name] = nil
+            core.kick_player(name, "Wallet session ended; sign in again at the MineMine launcher.")
+        end
+    end
+end)
 
 local function privileges(name)
     local saved = storage:get_string("privs:" .. name)
@@ -29,9 +75,41 @@ local function privileges(name)
     return core.deserialize(saved, true) or {}
 end
 
+local function observed_balance(name, address)
+    if not name:match("^w_%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x$") then return nil end
+    local file = io.open(balance_dir .. name .. ".json", "r")
+    if not file then return nil end
+    local raw = file:read(4097)
+    file:close()
+    if not raw or #raw > 4096 then return nil end
+    local value = core.parse_json(raw)
+    if type(value) ~= "table" or value.name ~= name or type(value.address) ~= "string" or
+        value.address:lower() ~= address:lower() then return nil end
+    if type(value.token) ~= "string" or #value.token ~= 42 or not value.token:match("^0x%x+$") then return nil end
+    if type(value.raw) ~= "string" or #value.raw > 128 or not value.raw:match("^%d+$") then return nil end
+    if type(value.formatted) ~= "string" or #value.formatted > 128 or
+        not value.formatted:match("^%d+%.?%d*$") then return nil end
+    if type(value.chain_id) ~= "number" or type(value.block_number) ~= "number" or
+        value.block_number < 0 or value.block_number ~= math.floor(value.block_number) then return nil end
+    if type(value.expires_at) ~= "number" or value.expires_at <= os.time() then return nil end
+    return value
+end
+
 core.register_authentication_handler({
     get_auth = function(name)
         local value = grant(name)
+        if not value and core.get_player_by_name(name) then
+            -- Luanti asks for auth again when a client becomes ready and for
+            -- privilege checks during play. Only an already emerged player
+            -- may retain privileges from the grant accepted at login. Return
+            -- an unusable password hash so the expired ticket cannot log in
+            -- again while this player remains connected.
+            local current = grant(name, true)
+            if same_grant(current, pending[name] or identities[name]) then
+                return { password = expired_password_hash, privileges = privileges(name),
+                    last_login = storage:get_int("last_login:" .. name) }
+            end
+        end
         if not value then return nil end
         return { password = value.password_hash, privileges = privileges(name),
             last_login = storage:get_int("last_login:" .. name) }
@@ -50,23 +128,47 @@ core.register_authentication_handler({
 })
 
 core.register_on_prejoinplayer(function(name)
-    if not grant(name) then return "Sign in with your wallet at the Miners launcher and request a fresh game session." end
+    local value = grant(name)
+    if not value then return "Sign in with your wallet at the MineMine launcher and request a fresh game session." end
+    -- The engine authenticates before downloading media and joining the world.
+    -- Keep the grant identity from the start of that handshake so a slow load
+    -- can finish after the short ticket expires, without accepting a revoked
+    -- or replaced grant.
+    pending[name] = value
 end)
 
 core.register_on_joinplayer(function(player)
     local name = player:get_player_name()
-    local value = grant(name)
-    if not value then core.kick_player(name, "Wallet grant expired; please relaunch.") return end
-    identities[name] = value.address
+    local value = grant(name, true)
+    local started = pending[name]
+    pending[name] = nil
+    if not same_grant(value, started) then
+        core.kick_player(name, "Wallet grant changed or was revoked; please relaunch.")
+        return
+    end
+    identities[name] = value
     storage:set_string("address:" .. name, value.address)
-    core.chat_send_player(name, "Wallet connected. Use /wallet to see your address. Currency gameplay is not enabled yet.")
+    if value.ens_name then player:set_nametag_attributes({ text = value.ens_name }) end
+    core.chat_send_player(name, "Wallet connected. Use /wallet for your address, /wallet balance for a recent MINE balance, or /town to manage claims.")
 end)
-core.register_on_leaveplayer(function(player) identities[player:get_player_name()] = nil end)
+core.register_on_leaveplayer(function(player)
+    local name = player:get_player_name()
+    identities[name] = nil
+    pending[name] = nil
+end)
 core.register_chatcommand("wallet", {
-    description = "Show the Ethereum address linked to your character",
-    func = function(name)
-        local address = identities[name]
-        if not address then return false, "No verified wallet for this connection." end
-        return true, "Wallet: " .. address
+    params = "[balance]",
+    description = "Show your verified wallet or recent observed MINE balance",
+    func = function(name, param)
+        local identity = identities[name]
+        if not identity then return false, "No verified wallet for this connection." end
+        if param == "balance" then
+            local value = observed_balance(name, identity.address)
+            if not value then return false, "No recent MINE balance. Refresh balance in the MineMine wallet panel, then try again." end
+            return true, "Observed MINE balance: " .. value.formatted .. " on chain " .. value.chain_id ..
+                " at block " .. value.block_number .. ". This is a wallet snapshot, not spendable town credit."
+        end
+        if param ~= nil and param ~= "" then return false, "Usage: /wallet [balance]" end
+        return true, "Wallet: " .. identity.address .. (identity.ens_name and " · ENS: " .. identity.ens_name or "")
     end,
 })

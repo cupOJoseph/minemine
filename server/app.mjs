@@ -1,15 +1,20 @@
 import { createServer } from 'node:http';
 import { realpath, stat } from 'node:fs/promises';
-import { existsSync, createReadStream, readFileSync } from 'node:fs';
+import { existsSync, createReadStream, readFileSync, statSync } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
+import { isIP } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { Contract, FetchRequest, JsonRpcProvider, formatUnits } from 'ethers';
 import { AuthError, createAuth } from './auth.mjs';
 import { createGrants } from './grants.mjs';
+import { createEnsResolver } from './ens.mjs';
+import { createTownCredits } from './towns.mjs';
+import { writeBalanceSnapshot } from './balance-snapshot.mjs';
+import { attachGameProxy } from './game-proxy.mjs';
 
 const publicRoot = path.resolve(fileURLToPath(new URL('../public/', import.meta.url)));
-const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.png': 'image/png', '.ogg': 'audio/ogg' };
+const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.ogg': 'audio/ogg' };
 function cookies(req) {
   return Object.fromEntries((req.headers.cookie || '').split(';').map(s => s.trim().split('=')).filter(p => p.length === 2));
 }
@@ -32,6 +37,7 @@ async function body(req) {
 export function createApp(config) {
   const auth = createAuth(config);
   const grants = createGrants(config.worldDir);
+  const ens = createEnsResolver(config.ensRpcUrl);
   grants.clear();
   const limits = new Map();
   const secureSuffix = config.secure ? '; Secure' : '';
@@ -39,7 +45,13 @@ export function createApp(config) {
   const challengeCookie = config.secure ? '__Host-miners_challenge' : 'miners_challenge';
   const cookie = (name, value, age) => `${name}=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${age}${secureSuffix}`;
   const json = (res, status, data) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(data)); };
-  const available = () => config.gameEnabled && config.adapterReady && existsSync(path.join(publicRoot, 'engine/adapter.js')) && existsSync(path.join(publicRoot, 'engine/index.html'));
+  const nativeReady = () => {
+    try {
+      const age = Date.now() - statSync(path.join(config.worldDir, 'minemine-server-heartbeat')).mtimeMs;
+      return age >= -1_000 && age < 10_000;
+    } catch { return false; }
+  };
+  const available = () => config.gameEnabled && config.adapterReady && nativeReady() && existsSync(path.join(publicRoot, 'engine/adapter.js')) && existsSync(path.join(publicRoot, 'engine/index.html'));
   const soloAvailable = () => {
     try {
       const build = JSON.parse(readFileSync(path.join(publicRoot, 'engine/build.json'), 'utf8'));
@@ -53,11 +65,12 @@ export function createApp(config) {
     request.timeout = 8000;
     provider = new JsonRpcProvider(request);
   }
+  const towns = createTownCredits(config, provider);
   const balances = new Map();
-  async function balance(address) {
+  async function balance(address, fresh = false) {
     if (!config.tokenAddress || !provider) return { configured: false };
     const cached = balances.get(address);
-    if (cached && Date.now() - cached.at < 15_000) return cached.value;
+    if (!fresh && cached && Date.now() - cached.at < 15_000) return cached.value;
     if (Number((await provider.getNetwork()).chainId) !== config.chainId) throw new AuthError('Currency RPC uses the wrong chain.', 503);
     const token = new Contract(config.tokenAddress, ['function balanceOf(address) view returns (uint256)', 'function decimals() view returns (uint8)'], provider);
     const blockNumber = await provider.getBlockNumber();
@@ -77,7 +90,9 @@ export function createApp(config) {
     // Upstream engine builds its own runtime styles and menu event attributes.
     // Keep those permissions scoped to the engine; wallet pages retain strict CSP.
     const enginePage = req.url?.startsWith('/engine/');
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; " + (enginePage ? "script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " : "style-src 'self'; ") + "img-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
+    const wsOrigin = config.origin.replace(/^http/, 'ws');
+    const frameAncestors = req.url === '/engine/connect.html' ? "'self'" : "'none'";
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; " + (enginePage ? "script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " : "style-src 'self'; ") + "img-src 'self' data:; connect-src 'self' " + wsOrigin + "; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors " + frameAncestors);
     if (config.secure) res.setHeader('Strict-Transport-Security', 'max-age=31536000');
     try {
       if (req.headers.host !== new URL(config.origin).host) throw new AuthError('Unexpected host.', 400);
@@ -85,8 +100,12 @@ export function createApp(config) {
       if (url.origin !== config.origin) throw new AuthError('Unexpected origin.', 400);
       if (req.method === 'POST' && req.headers.origin !== config.origin) throw new AuthError('Unexpected request origin.', 403);
       if (url.pathname.startsWith('/api/')) {
-        // Do not trust X-Forwarded-For. Reverse proxies need an explicit, verified trust policy.
-        const ip = req.socket.remoteAddress || 'unknown';
+        // Caddy overwrites this dedicated header. Trust it only when the API is
+        // bound to loopback, HTTPS is configured, and the peer is loopback.
+        const peer = req.socket.remoteAddress || 'unknown';
+        const proxied = req.headers['x-minemine-client-ip'];
+        const ip = config.trustedLoopbackProxy && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(peer) &&
+          typeof proxied === 'string' && isIP(proxied) ? proxied : peer;
         const now = Date.now();
         for (const [key, value] of limits) if (value.until <= now) limits.delete(key);
         let limit = limits.get(ip);
@@ -98,8 +117,8 @@ export function createApp(config) {
         const jar = cookies(req);
         const sessionToken = jar[sessionCookie];
         const session = auth.get(sessionToken);
-        if (req.method === 'GET' && url.pathname === '/api/config') return json(res, 200, { chainId: config.chainId, tokenAddress: config.tokenAddress, currencySymbol: 'MINE', gameReady: available(), soloPlaytestAvailable: soloAvailable(), enginePresent: existsSync(path.join(publicRoot, 'engine/index.html')), milestone: 'foundation', walletSupport: 'EOA' });
-        if (req.method === 'GET' && url.pathname === '/api/health') return json(res, 200, { ok: true, gameReady: available(), currencyConfigured: Boolean(config.tokenAddress && config.rpcUrl) });
+        if (req.method === 'GET' && url.pathname === '/api/config') return json(res, 200, { chainId: config.chainId, tokenAddress: config.tokenAddress, townContractAddress: config.townContractAddress, currencySymbol: 'MINE', gameReady: available(), soloPlaytestAvailable: soloAvailable(), enginePresent: existsSync(path.join(publicRoot, 'engine/index.html')), ensAvailable: Boolean(config.ensRpcUrl), milestone: 'solo-playtest', walletSupport: 'EOA' });
+        if (req.method === 'GET' && url.pathname === '/api/health') return json(res, 200, { ok: true, nativeReady: nativeReady(), gameReady: available(), currencyConfigured: Boolean(config.tokenAddress && config.rpcUrl) });
         if (req.method === 'POST' && url.pathname === '/api/auth/challenge') {
           const data = await body(req);
           const challenge = auth.issue(data.address, data.chainId, jar[challengeCookie]);
@@ -109,27 +128,46 @@ export function createApp(config) {
         if (req.method === 'POST' && url.pathname === '/api/auth/verify') {
           const data = await body(req);
           const verified = auth.verify(jar[challengeCookie], data.signature);
-          if (session) { grants.revoke(session, sessionToken); auth.revoke(sessionToken); }
+          if (session) { grants.revoke(session, sessionToken); auth.revoke(sessionToken); gameProxy.revoke(sessionToken); }
           res.setHeader('Set-Cookie', [cookie(sessionCookie, verified.token, 43200), cookie(challengeCookie, '', 0)]);
           return json(res, 200, verified.session);
         }
         if (req.method === 'POST' && url.pathname === '/api/auth/logout') {
           if (session) grants.revoke(session, sessionToken);
           auth.revoke(sessionToken);
+          gameProxy.revoke(sessionToken);
           auth.cancel(jar[challengeCookie]);
           res.setHeader('Set-Cookie', [cookie(sessionCookie, '', 0), cookie(challengeCookie, '', 0)]);
           return json(res, 200, { ok: true });
         }
         if (!session) throw new AuthError('Sign in with your wallet first.');
         if (req.method === 'GET' && url.pathname === '/api/session') return json(res, 200, session);
+        if (req.method === 'GET' && url.pathname === '/api/identity') return json(res, 200, { ...session, ensName: await ens.name(session.address) });
+        if (req.method === 'GET' && url.pathname === '/api/currency/recipient') return json(res, 200, await ens.recipient(url.searchParams.get('input')));
         if (req.method === 'GET' && url.pathname === '/api/currency/balance') return json(res, 200, await balance(session.address));
+        if (req.method === 'POST' && url.pathname === '/api/currency/sync') {
+          await body(req);
+          const value = await balance(session.address, true);
+          if (!value.configured) throw new AuthError('MINE is not configured.', 503);
+          writeBalanceSnapshot(config, session, value);
+          return json(res, 200, value);
+        }
+        if (req.method === 'GET' && url.pathname === '/api/towns/status') return json(res, 200, await towns.status(session.address));
+        if (req.method === 'POST' && url.pathname === '/api/towns/sync') return json(res, 200, await towns.sync(session));
         if (req.method === 'POST' && url.pathname === '/api/game/ticket') {
           if (!available()) throw new AuthError('The Luanti engine and server adapter are not ready yet. See the roadmap.', 503);
-          return json(res, 200, { ...grants.issue(session, sessionToken), address: config.gameAddress, port: config.gamePort });
+          let ensName = null;
+          try { ensName = await ens.name(session.address); } catch { /* Identity remains the signed address when ENS is unavailable. */ }
+          return json(res, 200, { ...grants.issue(session, sessionToken, ensName), address: config.gameAddress, port: config.gamePort });
         }
         throw new AuthError('Unknown API route.', 404);
       }
       if (!['GET', 'HEAD'].includes(req.method)) throw new AuthError('Method not allowed.', 405);
+      if (url.pathname === '/play' || url.pathname === '/play/') {
+        res.writeHead(302, { Location: soloAvailable() ? '/engine/index.html' : 'https://cupojoseph.github.io/minemine/play/' });
+        res.end();
+        return;
+      }
       let relative;
       try { relative = decodeURIComponent(url.pathname); } catch { throw new AuthError('Invalid path.', 400); }
       if (relative.includes('\0') || relative.split('/').some(s => s.startsWith('.') || s.includes('\\'))) throw new AuthError('Not found.', 404);
@@ -140,6 +178,14 @@ export function createApp(config) {
       if (!file.startsWith(publicRoot + path.sep)) throw new AuthError('Not found.', 404);
       const info = await stat(file);
       if (!info.isFile()) throw new AuthError('Not found.', 404);
+      const etag = `W/"${info.size.toString(16)}-${Math.floor(info.mtimeMs).toString(16)}-${Math.floor(info.ctimeMs).toString(16)}"`;
+      res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+      res.setHeader('ETag', etag);
+      if (req.headers['if-none-match']?.split(',').map(value => value.trim()).includes(etag)) {
+        res.writeHead(304);
+        res.end();
+        return;
+      }
       res.writeHead(200, { 'Content-Type': mime[path.extname(file)] || 'application/octet-stream', 'Content-Length': info.size });
       if (req.method === 'HEAD') res.end();
       else await pipeline(createReadStream(file), res);
@@ -151,6 +197,8 @@ export function createApp(config) {
   });
   server.requestTimeout = 15_000;
   server.headersTimeout = 10_000;
-  server.on('close', () => provider?.destroy());
+  const gameProxy = attachGameProxy(server, config, request => cookies(request)[sessionCookie], token => Boolean(auth.get(token)));
+  server.stopGameProxy = () => gameProxy.close();
+  server.on('close', () => { gameProxy.close(); provider?.destroy(); ens.close(); });
   return server;
 }

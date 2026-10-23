@@ -23,5 +23,19 @@
     "note": "Observed in upstream fetch_sources.sh via GitHub; recheck after wrapper commit is pinned.",
     "luanti": "81aacca2dcf12e622a49146844edf4510f389c35",
     "webshims": "70653a91c974aa2b20df09a39f858d92e663c1a7"
+  },
+  "wasmArchives": {
+    "openssl": {
+      "url": "https://github.com/openssl/openssl/releases/download/openssl-3.5.9/openssl-3.5.9.tar.gz",
+      "sha256": "603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a"
+    },
+    "curl": {
+      "url": "https://curl.se/download/curl-8.23.0.tar.bz2",
+      "sha256": "95b22eb32bf6d1fa6e3e9463bdb61cece3efc56d86576a9b3cbd428246a6d854"
+    },
+    "libarchive": {
+      "url": "https://www.libarchive.org/downloads/libarchive-3.8.10.tar.xz",
+      "sha256": "56cad765459d5ee25a3b761f90c47d99379d28297fbfb72d908880d6b875fb96"
+    }
   }
 }

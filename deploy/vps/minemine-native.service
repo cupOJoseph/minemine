@@ -1,0 +1,19 @@
+[Unit]
+Description=MineMine native Luanti world
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=minemine
+Group=minemine
+WorkingDirectory=/srv/minemine/app/vendor/native
+ExecStart=/srv/minemine/app/vendor/native/bin/luantiserver --world /srv/minemine/world --config /srv/minemine/app/game/minetest.conf --logfile /srv/minemine/world/luanti.log
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=120s
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

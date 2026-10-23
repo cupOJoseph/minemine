@@ -2,7 +2,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import { getAddress, verifyMessage } from 'ethers';
 
 export const digest = (value) => createHash('sha256').update(value).digest('hex');
-export const playerName = (address) => `w_${digest(getAddress(address).toLowerCase()).slice(0, 18)}`;
+// The pinned browser client accepts at most 19 characters (PLAYERNAME_SIZE - 1).
+export const playerName = (address) => `w_${digest(getAddress(address).toLowerCase()).slice(0, 17)}`;
 const random = () => randomBytes(32).toString('hex');
 export class AuthError extends Error {
   constructor(message, status = 401) { super(message); this.status = status; }
@@ -32,7 +33,7 @@ export function createAuth({ origin, chainId, now = Date.now, capacity = 10_000 
       const issuedAt = new Date(now()).toISOString();
       const expiresAt = now() + challengeTTL;
       const url = new URL(origin);
-      const message = `${url.protocol}//${url.host} wants you to sign in with your Ethereum account:\n${address}\n\nSign in to Miners. This does not authorize a transaction.\n\nURI: ${origin}\nVersion: 1\nChain ID: ${chainId}\nNonce: ${nonce}\nIssued At: ${issuedAt}\nExpiration Time: ${new Date(expiresAt).toISOString()}`;
+      const message = `${url.protocol}//${url.host} wants you to sign in with your Ethereum account:\n${address}\n\nSign in to MineMine. This does not authorize a transaction.\n\nURI: ${origin}\nVersion: 1\nChain ID: ${chainId}\nNonce: ${nonce}\nIssued At: ${issuedAt}\nExpiration Time: ${new Date(expiresAt).toISOString()}`;
       challenges.set(digest(token), { address, message, expiresAt });
       return { token, message, expiresAt };
     },

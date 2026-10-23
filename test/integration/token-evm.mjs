@@ -4,14 +4,15 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { ContractFactory, Interface, JsonRpcProvider, ZeroAddress, parseUnits } from 'ethers';
-import { compile } from '../../scripts/compile-contracts.mjs';
+import { compile, compileTownBlocks } from '../../scripts/compile-contracts.mjs';
 import { createApp } from '../../server/app.mjs';
 import { readConfig } from '../../server/config.mjs';
+import { createTownCredits } from '../../server/towns.mjs';
 import { send } from '../helpers/http.mjs';
 
 test('MINE executes supply, transfer, allowance and burn rules in a local EVM', { timeout: 30_000 }, async t => {
@@ -69,7 +70,7 @@ test('MINE executes supply, transfer, allowance and burn rules in a local EVM', 
   const units = value => parseUnits(String(value), 18);
   const supply = units(1_000_000);
   await t.test('treasury receives all tokens with the intended metadata', async () => {
-    assert.equal(await token.name(), 'Miners Credit');
+    assert.equal(await token.name(), 'MineMine Credit');
     assert.equal(await token.symbol(), 'MINE');
     assert.equal(await token.decimals(), 18n);
     assert.equal(await token.totalSupply(), supply);
@@ -106,37 +107,113 @@ test('MINE executes supply, transfer, allowance and burn rules in a local EVM', 
     await assert.rejects(provider.call({ to: await token.getAddress(), data: mint.encodeFunctionData('mint', [treasuryAddress, 1n]) }), rejected);
     assert.equal(await token.totalSupply(), supply - units(15));
   });
+  const townArtifact = compileTownBlocks();
+  const town = await new ContractFactory(townArtifact.abi, townArtifact.bytecode, treasury).deploy(await token.getAddress(), treasuryAddress, units(2));
+  await town.waitForDeployment();
+  await t.test('town purchases transfer exact MINE and increment only the buyer quota', async () => {
+    assert.equal(await town.pricePerBlock(), units(2));
+    await (await token.connect(spender).approve(await town.getAddress(), units(30))).wait();
+    const before = await token.balanceOf(treasuryAddress);
+    await (await town.connect(spender).buyBlocks(12)).wait();
+    assert.equal(await town.purchased(spenderAddress), 12n);
+    assert.equal(await town.purchased(recipientAddress), 0n);
+    assert.equal(await token.balanceOf(treasuryAddress), before + units(24));
+    assert.equal(await token.allowance(spenderAddress, await town.getAddress()), units(6));
+    await assert.rejects(town.connect(spender).buyBlocks.staticCall(0), rejected);
+    await assert.rejects(town.connect(spender).buyBlocks.staticCall(4097), rejected);
+    await assert.rejects(town.connect(recipient).buyBlocks.staticCall(1), rejected);
+    await (await token.approve(await town.getAddress(), units(6))).wait();
+    await (await town.buyBlocks(3)).wait();
+  });
   for (const chainId of [31337, 11155111]) await t.test('authenticated balance API ' + (chainId === 31337 ? 'reads the deployed contract' : 'rejects an RPC on the wrong chain'), async () => {
     const worldDir = mkdtempSync(path.join(tmpdir(), 'miners-evm-world-'));
-    const config = readConfig({ CHAIN_ID: String(chainId), RPC_URL: url, TOKEN_ADDRESS: await token.getAddress(), WORLD_DIR: worldDir });
+    const config = readConfig({ CHAIN_ID: String(chainId), RPC_URL: url, TOKEN_ADDRESS: await token.getAddress(), TOWN_CONTRACT_ADDRESS: await town.getAddress(), TOWN_CONFIRMATIONS: chainId === 31337 ? '0' : '6', WORLD_DIR: worldDir });
     const server = createApp(config);
     server.listen(0, '127.0.0.1');
     try {
       await once(server, 'listening');
       const appUrl = 'http://127.0.0.1:' + server.address().port;
       const headers = { Host: 'localhost:3000', Origin: config.origin, 'Content-Type': 'application/json' };
+      const deniedSync = await send(appUrl + '/api/currency/sync', { method: 'POST', headers, body: '{}' });
+      assert.equal(deniedSync.status, 401);
       const challengeResponse = await send(appUrl + '/api/auth/challenge', { method: 'POST', headers, body: JSON.stringify({ address: treasuryAddress, chainId }) });
       assert.equal(challengeResponse.status, 200);
       const signature = await treasury.signMessage(challengeResponse.json().message);
       const verified = await send(appUrl + '/api/auth/verify', { method: 'POST', headers: { ...headers, Cookie: challengeResponse.headers['set-cookie'][0].split(';')[0] }, body: JSON.stringify({ signature }) });
       assert.equal(verified.status, 200);
       const response = await send(appUrl + '/api/currency/balance', { headers: { ...headers, Cookie: verified.headers['set-cookie'][0].split(';')[0] } });
+      const cookie = verified.headers['set-cookie'][0].split(';')[0];
+      const syncBalance = await send(appUrl + '/api/currency/sync', { method: 'POST', headers: { ...headers, Cookie: cookie }, body: '{}' });
+      const name = verified.json().playerName;
+      const snapshotPath = path.join(worldDir, 'wallet_balances', name + '.json');
       if (chainId !== 31337) {
         assert.equal(response.status, 503);
         assert.match(response.json().error, /wrong chain/);
+        assert.equal(syncBalance.status, 503);
+        assert.equal(existsSync(snapshotPath), false);
       } else {
         assert.equal(response.status, 200);
         const value = response.json();
         assert.equal(value.configured, true);
         assert.equal(value.chainId, chainId);
-        assert.equal(value.raw, (supply - units(135)).toString());
-        assert.equal(value.formatted, '999865.0');
+        assert.equal(value.raw, (supply - units(111)).toString());
+        assert.equal(value.formatted, '999889.0');
         assert.equal(value.decimals, 18);
         assert.ok(value.blockNumber > 0);
         assert.ok(Date.parse(value.observedAt));
+        assert.equal(syncBalance.status, 200);
+        const snapshot = JSON.parse(readFileSync(snapshotPath, 'utf8'));
+        assert.equal(snapshot.name, name);
+        assert.equal(snapshot.address, treasuryAddress);
+        assert.equal(snapshot.token, await token.getAddress());
+        assert.equal(snapshot.raw, value.raw);
+        assert.equal(snapshot.formatted, value.formatted);
+        assert.equal(snapshot.chain_id, chainId);
+        assert.equal(snapshot.block_number, syncBalance.json().blockNumber);
+        assert.ok(snapshot.expires_at > Math.floor(Date.now() / 1000));
+        assert.equal(statSync(snapshotPath).mode & 0o777, 0o600);
+        const townStatus = await send(appUrl + '/api/towns/status', { headers: { ...headers, Cookie: cookie } });
+        assert.equal(townStatus.status, 200);
+        assert.equal(townStatus.json().purchasedBlocks, 3);
+        const synced = await send(appUrl + '/api/towns/sync', { method: 'POST', headers: { ...headers, Cookie: cookie }, body: '{}' });
+        assert.equal(synced.status, 200);
+        const quota = JSON.parse(readFileSync(path.join(worldDir, 'town_quotas', name + '.json'), 'utf8'));
+        assert.equal(quota.blocks, 3);
+        assert.equal(quota.address, treasuryAddress);
       }
     } finally {
       await new Promise(resolve => server.close(resolve));
+      rmSync(worldDir, { recursive: true, force: true });
+    }
+  });
+  await t.test('town credits wait six blocks and ignore a reverted provisional purchase', async () => {
+    const worldDir = mkdtempSync(path.join(tmpdir(), 'miners-finality-world-'));
+    const checkedProvider = new JsonRpcProvider(url, 31337, { cacheTimeout: -1 });
+    const config = readConfig({ CHAIN_ID: '31337', RPC_URL: url, TOKEN_ADDRESS: await token.getAddress(),
+      TOWN_CONTRACT_ADDRESS: await town.getAddress(), TOWN_CONFIRMATIONS: '6', WORLD_DIR: worldDir });
+    const credits = createTownCredits(config, checkedProvider);
+    const session = { address: recipientAddress, playerName: 'w_0123456789abcdef0' };
+    const quotaPath = path.join(worldDir, 'town_quotas', session.playerName + '.json');
+    try {
+      await (await token.connect(recipient).approve(await town.getAddress(), units(6))).wait();
+      await (await town.connect(recipient).buyBlocks(2)).wait();
+      assert.equal((await credits.sync(session)).purchasedBlocks, 0, 'new purchase is not yet confirmed');
+      await checkedProvider.send('anvil_mine', ['0x5']);
+      assert.equal((await credits.sync(session)).purchasedBlocks, 0, 'five blocks still do not confirm six');
+      await checkedProvider.send('anvil_mine', ['0x1']);
+      assert.equal((await credits.sync(session)).purchasedBlocks, 2, 'sixth block makes the purchase claimable');
+      assert.equal(JSON.parse(readFileSync(quotaPath, 'utf8')).blocks, 2);
+
+      const snapshot = await checkedProvider.send('evm_snapshot', []);
+      await (await town.connect(recipient).buyBlocks(1)).wait();
+      await checkedProvider.send('anvil_mine', ['0x5']);
+      assert.equal((await credits.sync(session)).purchasedBlocks, 2, 'provisional third column remains unavailable');
+      assert.equal(await checkedProvider.send('evm_revert', [snapshot]), true);
+      await checkedProvider.send('anvil_mine', ['0x6']);
+      assert.equal((await credits.sync(session)).purchasedBlocks, 2, 'reverted purchase never becomes claimable');
+      assert.equal(JSON.parse(readFileSync(quotaPath, 'utf8')).blocks, 2);
+    } finally {
+      checkedProvider.destroy();
       rmSync(worldDir, { recursive: true, force: true });
     }
   });

@@ -22,7 +22,7 @@ function showStopped(message) {
 function checkBrowser() {
   if (!isSecureContext) throw new Error('Open this playtest over HTTPS or localhost.');
   if (!crossOriginIsolated || typeof SharedArrayBuffer === 'undefined') throw new Error('Hosting must send COOP and COEP headers for the threaded engine.');
-  if (typeof WebAssembly.Suspending !== 'function' || typeof WebAssembly.promising !== 'function') throw new Error('This engine build requires WebAssembly JSPI. Try an up-to-date desktop Chromium browser.');
+  if (typeof WebAssembly.Suspending !== 'function' || typeof WebAssembly.promising !== 'function') throw new Error('This engine build requires WebAssembly JSPI. Try an up-to-date desktop browser with JSPI support.');
   const canvas = document.createElement('canvas');
   const gl = canvas.getContext('webgl2');
   if (!gl) throw new Error('WebGL 2 is unavailable. Enable hardware acceleration or try another browser.');
@@ -91,7 +91,7 @@ start.addEventListener('click', async () => {
       document.body.appendChild(controls);
       const overlay = document.createElement('div');
       overlay.id = 'miners-playtest-overlay';
-      overlay.textContent = 'MINERS SOLO PLAYTEST · ' + (launcher.isPersistent() ? 'Browser storage active' : 'Temporary world — storage unavailable') + ' · Esc: menu';
+      overlay.textContent = 'MINEMINE SOLO PLAYTEST · ' + (launcher.isPersistent() ? 'Browser storage active' : 'Temporary world — storage unavailable') + ' · Esc: menu';
       document.body.appendChild(overlay);
     });
     await session.start();

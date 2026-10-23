@@ -1,9 +1,9 @@
 {
-  "name": "miners-browser",
+  "name": "minemine-browser",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Browser Luanti research build with Ethereum wallet authentication and testnet currency",
+  "description": "MineMine browser Luanti playtest with wallet identity and testnet currency",
   "engines": {
     "node": ">=22.16.0"
   },
@@ -11,19 +11,25 @@
     "start": "node --env-file-if-exists=.env server/index.mjs",
     "dev": "node --env-file-if-exists=.env --watch server/index.mjs",
     "test": "node --test test/*.test.mjs",
-    "test:http": "node --test test/integration/socket.mjs",
+    "test:http": "node --test test/integration/socket.mjs test/integration/game-proxy.mjs",
     "contracts:compile": "node scripts/compile-contracts.mjs",
     "contracts:deploy": "node --env-file-if-exists=.env scripts/deploy-token.mjs",
+    "towns:deploy": "node --env-file-if-exists=.env scripts/deploy-towns.mjs",
     "doctor": "node scripts/doctor.mjs",
+    "adapter:install": "node scripts/install-remote-adapter.mjs",
     "upstream:fetch": "node scripts/fetch-upstream.mjs",
-    "test:evm": "node --test test/integration/token-evm.mjs"
+    "test:evm": "node --test test/integration/token-evm.mjs",
+    "test:wallet-ui": "node test/integration/wallet-ui-evm.mjs",
+    "test:ens-live": "node --env-file-if-exists=.env test/integration/ens-live.mjs"
   },
   "dependencies": {
-    "ethers": "6.16.0"
+    "ethers": "6.17.0",
+    "ws": "8.22.0"
   },
   "devDependencies": {
     "@foundry-rs/anvil": "1.7.1",
     "@openzeppelin/contracts": "4.9.6",
+    "playwright": "1.64.1",
     "solc": "0.8.26"
   }
 }

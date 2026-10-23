@@ -89,7 +89,42 @@ The user's approved solo-browser hosts are their personal Vercel account or GitH
 
 The remaining instructions apply to the future shared-server milestone:
 
-Use a Linux host with persistent disk, adequate memory for the measured build/world, and HTTPS/WSS ingress. Start with a single region and single auth process. The [revised VPS recommendation](VPS_RECOMMENDATION.md) proposes a NYC3 1 GiB/1 vCPU Basic Droplet with daily backups for a $7.80/month listed base before tax and overages. Rehearse the small-world workload under a 1 GiB limit and check exact account charges before provisioning; DigitalOcean spend alerts are not hard caps. The owner will connect the account later. No VM or domain has been purchased, and a temporary HTTPS address is sufficient for the technical alpha.
+Use a Linux host with persistent disk and HTTPS/WSS ingress. Start with a single region and single auth process. The [revised VPS recommendation](VPS_RECOMMENDATION.md) proposes a NYC3 1 GiB/1 vCPU Basic Droplet with daily backups for a $7.80/month listed base before tax and overages. A short two-wallet run passed with Luanti and Node inside a 1 GiB, zero-swap service cgroup; a whole-VM rehearsal and exact account charges still gate provisioning. DigitalOcean spend alerts are not hard caps. The owner will connect the account later. No VM or domain has been purchased. Use a temporary HTTPS address for the technical alpha; defer `minemine.gg` until the technology is viable and there is public interest.
+
+The native CI [run 39890982736](https://github.com/cupOJoseph/minemine/actions/runs/39890982736) built and tested a relocated Ubuntu 22.04 x86-64 host archive. The named artifact `minemine-host-runtime-ubuntu22-x64` contains the pinned native binary/game, verified WASM client and adapter, Node source and lockfile, mods, config, license files, and service templates. Its compressed archive is 18 MB; the example SHA-256 is `40d7be561271ba5e39cc8f5db0c4a9c5516a218f428b3f83553f0222f4c7c276`. Check the sidecar for the particular run used; this hash is not a blanket approval for future archives. The archive contains no world, grants or production configuration. GitHub may expire the artifact, in which case rerun the reviewed workflow and use the new checksum.
+
+On a trusted workstation with repository access, download and check one successful reviewed run (replace the run ID if using a later build):
+
+```sh
+gh run download 39890982736 -n minemine-host-runtime-ubuntu22-x64 -D /tmp/minemine-host-download
+cd /tmp/minemine-host-download
+shasum -a 256 -c minemine-host-runtime-ubuntu22-x64.tar.gz.sha256
+```
+
+Copy the archive and sidecar to the Ubuntu 22.04 x86-64 VM through the approved SSH route. On that VM, check the checksum **again** before extracting. The following commands assume the files are in `/tmp/minemine-host-download` and are run by an administrator; the temporary HTTPS host, SSH access and spending check must already be settled:
+
+```sh
+cd /tmp/minemine-host-download
+sha256sum -c minemine-host-runtime-ubuntu22-x64.tar.gz.sha256
+sudo useradd --system --home-dir /srv/minemine --shell /usr/sbin/nologin minemine
+sudo install -d -o minemine -g minemine -m 0750 /srv/minemine /srv/minemine/app /srv/minemine/world
+sudo tar -C /srv/minemine/app -xzf minemine-host-runtime-ubuntu22-x64.tar.gz
+sudo chown -R minemine:minemine /srv/minemine/app
+cat /srv/minemine/app/BUILD_COMMIT
+```
+
+Use a fresh destination for each deployment; `useradd` is only for first setup. Install Node 24 so `/usr/bin/node` exists, plus Ubuntu 22.04 native runtime packages. The archive's `native-library-dependencies.txt` records the tested runner's shared libraries; install matching distribution packages and check the deployed binary with `ldd`. The main direct runtime packages on the tested runner include `zlib1g`, `libzstd1`, `libsqlite3-0`, `libjsoncpp25`, `libluajit-5.1-2`, `libgmp10`, `libncursesw6`, `libpq5`, and `libcurl3-gnutls`; their package names are corroborated by the [Ubuntu 22.04 server package dependencies](https://packages.ubuntu.com/jammy/minetest-server), and their dependencies come from apt. If the target distribution's package names or ABI differ, stop and rebuild the archive for that target instead of copying shared libraries from CI. Then:
+
+```sh
+ldd /srv/minemine/app/vendor/native/bin/luantiserver
+test -z "$(ldd /srv/minemine/app/vendor/native/bin/luantiserver | grep 'not found' || true)"
+sudo -u minemine -H sh -c 'cd /srv/minemine/app && npm ci --omit=dev'
+sudo -u minemine -H sh -c 'cd /srv/minemine/app && WORLD_DIR=/srv/minemine/world /usr/bin/node scripts/setup-world.mjs'
+```
+
+Create `/etc/minemine/minemine.env` with owner `root`, group `minemine`, and mode `0640`. Start from the variable names in `.env.example` in the source repository, with `HOST=127.0.0.1`, `PORT=3000`, `PUBLIC_ORIGIN=https://<temporary-host>`, `WORLD_DIR=/srv/minemine/world`, `GAME_ENABLED=false`, and `ENGINE_ADAPTER_READY=false`. Set reviewed chain/RPC values only when needed. Do not put deployment keys in this service environment. Install the archived `deploy/vps/minemine-native.service` and `deploy/vps/minemine-web.service` under `/etc/systemd/system`, then run `sudo systemctl daemon-reload` and start both. The world heartbeat should make `/api/health` report `nativeReady: true`; with launch flags false, `gameReady` should be false. A fresh heartbeat proves the world ticked recently, not that a remote browser can reach the UDP bridge.
+
+Install Caddy and adapt the archived `deploy/vps/Caddyfile.example` to the verified temporary hostname. Its automatic HTTPS needs the temporary hostname to resolve to the VM and ports 80/443 reachable. Validate the Caddyfile before starting Caddy. Keep Node 3000 and native UDP 30000 on loopback; permit only 80/443 and narrowly scoped SSH at the firewall. Check external HTTPS, WSS, COOP/COEP and `crossOriginIsolated`, then conduct the remote two-wallet joins, shared edits, reconnect, expired-ticket and authorization checks. Turn on both launch flags only for this controlled rehearsal; retain the button gate until those checks, backup/restore, and whole-VM resource measurements pass. Record a stopped-world backup and actually restore it. The [VPS gates](VPS_RECOMMENDATION.md#provisioning-and-launch-gates) remain authoritative before announcing a public URL.
 
 The included `deploy/Dockerfile` packages the Node launcher/auth service and restricted WebSocket bridge. It does not package a native game server or a verified playable world. Build from project root:
 
@@ -97,7 +132,7 @@ The included `deploy/Dockerfile` packages the Node launcher/auth service and res
 docker build -f deploy/Dockerfile -t minemine-auth:dev .
 ```
 
-Configure `PUBLIC_ORIGIN` to the exact temporary HTTPS origin, TLS termination, same-origin WSS routing, and a private world directory shared with the native game process. Preserve the original Host header; the app validates it against PUBLIC_ORIGIN. Do not trust arbitrary forwarded headers. The current limiter groups clients behind a reverse proxy by proxy IP; replace it with a limiter at the trusted ingress before a multi-user launch. Defer buying `minemine.gg` until technical viability and public interest justify it.
+Configure `PUBLIC_ORIGIN` to the exact temporary HTTPS origin, TLS termination, same-origin WSS routing, and a private world directory shared with the native game process. Preserve the original Host header; the app validates it against PUBLIC_ORIGIN. Do not trust arbitrary forwarded headers. The current limiter groups clients behind a reverse proxy by proxy IP; replace it with a limiter at the trusted ingress before a multi-user launch.
 
 Only expose web ports; native UDP remains private. Run a backup/restore drill, test restarts and disk exhaustion, and verify remote access from two browsers before advertising the server.
 

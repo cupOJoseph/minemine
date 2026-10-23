@@ -9,7 +9,9 @@ on:
       - 'playtest/**'
       - 'test/integration/browser-native.mjs'
       - 'test/integration/browser-native-restart.mjs'
+      - 'test/integration/wallet-ui-evm.mjs'
       - 'test/integration/town_probe/**'
+      - 'package.json'
       - 'scripts/setup-world.mjs'
       - 'scripts/sample-stack-memory.sh'
       - 'scripts/ci-native-service.sh'
@@ -94,6 +96,8 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps chromium
+      - name: Exercise wallet transfer and paid town credits in Chromium
+        run: npm run test:wallet-ui
       - uses: actions/download-artifact@v4
         with:
           name: miners-solo-playtest

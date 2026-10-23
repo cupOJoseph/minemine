@@ -18,7 +18,8 @@
     "doctor": "node scripts/doctor.mjs",
     "adapter:install": "node scripts/install-remote-adapter.mjs",
     "upstream:fetch": "node scripts/fetch-upstream.mjs",
-    "test:evm": "node --test test/integration/token-evm.mjs"
+    "test:evm": "node --test test/integration/token-evm.mjs",
+    "test:wallet-ui": "node test/integration/wallet-ui-evm.mjs"
   },
   "dependencies": {
     "ethers": "6.17.0",

@@ -15,9 +15,14 @@ export function readConfig(env = process.env) {
   if (!Number.isInteger(townConfirmations) || townConfirmations < 0 || townConfirmations > 64) throw new Error('Invalid town confirmation depth.');
   if (chainId === 11155111 && townConfirmations < 6) throw new Error('Sepolia town credits require at least six confirmation blocks.');
   if (env.TOWN_CONTRACT_ADDRESS && (!env.TOKEN_ADDRESS || !env.RPC_URL)) throw new Error('Town contract requires TOKEN_ADDRESS and RPC_URL.');
+  const trustedLoopbackProxy = env.TRUST_LOOPBACK_PROXY === 'true';
+  if (trustedLoopbackProxy && (origin.protocol !== 'https:' || !['127.0.0.1', '::1'].includes(env.HOST || '127.0.0.1'))) {
+    throw new Error('TRUST_LOOPBACK_PROXY requires HTTPS and a loopback HOST.');
+  }
   return {
     origin: origin.origin, host: env.HOST || '127.0.0.1', port, chainId,
     secure: origin.protocol === 'https:',
+    trustedLoopbackProxy,
     worldDir: path.resolve(env.WORLD_DIR || './runtime/world'),
     gameEnabled: env.GAME_ENABLED === 'true', adapterReady: env.ENGINE_ADAPTER_READY === 'true',
     gameAddress: env.GAME_ADDRESS || '10.0.0.1', gamePort,

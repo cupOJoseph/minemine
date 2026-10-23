@@ -8,18 +8,18 @@ import { Wallet } from 'ethers';
 import { createApp } from '../server/app.mjs';
 import { readConfig } from '../server/config.mjs';
 
-async function fixture(t) {
+async function fixture(t, env = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), 'miners-http-'));
-  const config = { ...readConfig({}), worldDir: dir };
+  const config = { ...readConfig(env), worldDir: dir };
   const server = createApp(config);
   t.after(() => { server.close(); rmSync(dir, { recursive: true, force: true }); });
   const origin = config.origin;
   // Exercise the actual Node request handler without a listening socket. The
   // separate integration/socket.mjs suite exercises real HTTP when permitted.
-  const request = async (route, data, cookie, extra = {}) => {
+  const request = async (route, data, cookie, extra = {}, remoteAddress = '127.0.0.1') => {
     const headers = Object.fromEntries(Object.entries({ Host: new URL(origin).host, ...(data !== undefined ? { 'Content-Type': 'application/json', Origin: origin } : {}), ...(cookie ? { Cookie: cookie } : {}), ...extra }).map(([k,v]) => [k.toLowerCase(), v]));
     const req = Readable.from(data === undefined ? [] : [Buffer.from(JSON.stringify(data))]);
-    Object.assign(req, { url: route, method: data === undefined ? 'GET' : 'POST', headers, socket: { remoteAddress: '127.0.0.1' } });
+    Object.assign(req, { url: route, method: data === undefined ? 'GET' : 'POST', headers, socket: { remoteAddress } });
     const resultHeaders = new Map();
     const chunks = [];
     const res = new Writable({ write(chunk, encoding, done) { chunks.push(chunk); done(); } });
@@ -111,4 +111,21 @@ test('rate limiting bounds anonymous authentication attempts', async t => {
   let response;
   for (let n = 0; n < 121; n++) response = await request('/api/config');
   assert.equal(response.status, 429);
+});
+test('trusted local Caddy gives visitors separate limits and cannot be spoofed by a remote peer', async t => {
+  const { request } = await fixture(t, { PUBLIC_ORIGIN: 'https://play.example', TRUST_LOOPBACK_PROXY: 'true' });
+  const first = { 'X-MineMine-Client-IP': '198.51.100.1' };
+  const second = { 'X-MineMine-Client-IP': '198.51.100.2' };
+  for (let n = 0; n < 120; n++) assert.equal((await request('/api/config', undefined, undefined, first)).status, 200);
+  assert.equal((await request('/api/config', undefined, undefined, first)).status, 429);
+  assert.equal((await request('/api/config', undefined, undefined, second)).status, 200);
+  const remote = '203.0.113.9';
+  for (let n = 0; n < 120; n++) {
+    assert.equal((await request('/api/config', undefined, undefined,
+      { 'X-MineMine-Client-IP': `198.51.100.${n % 20 + 10}` }, remote)).status, 200);
+  }
+  assert.equal((await request('/api/config', undefined, undefined, second, remote)).status, 429);
+  const invalid = { 'X-MineMine-Client-IP': '198.51.100.3, 198.51.100.4' };
+  for (let n = 0; n < 120; n++) assert.equal((await request('/api/config', undefined, undefined, invalid)).status, 200);
+  assert.equal((await request('/api/config', undefined, undefined, invalid)).status, 429);
 });

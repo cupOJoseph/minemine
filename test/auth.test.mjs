@@ -69,4 +69,6 @@ test('configuration requires TLS for public hosts and restricts initial chains',
   assert.throws(() => readConfig({ PORT: '-1' }), /port/);
   assert.equal(readConfig({}).origin, 'http://localhost:3000');
   assert.throws(() => readConfig({ TOWN_CONFIRMATIONS: '0' }), /six confirmation/);
+  assert.throws(() => readConfig({ TRUST_LOOPBACK_PROXY: 'true' }), /HTTPS and a loopback HOST/);
+  assert.throws(() => readConfig({ PUBLIC_ORIGIN: 'https://play.example', HOST: '0.0.0.0', TRUST_LOOPBACK_PROXY: 'true' }), /loopback HOST/);
 });

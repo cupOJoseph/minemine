@@ -2,5 +2,9 @@
 # A purchased minemine.gg domain is not required for the technical alpha.
 # Caddy manages HTTPS and forwards WebSocket upgrades on this same origin.
 play.203.0.113.10.sslip.io {
-    reverse_proxy 127.0.0.1:3000
+    reverse_proxy 127.0.0.1:3000 {
+        # Overwrite any header supplied by the visitor. Node trusts this value
+        # only when its peer is loopback and TRUST_LOOPBACK_PROXY=true.
+        header_up X-MineMine-Client-IP {remote_host}
+    }
 }

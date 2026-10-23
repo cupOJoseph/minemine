@@ -3,6 +3,7 @@ import { realpath, stat } from 'node:fs/promises';
 import { existsSync, createReadStream, readFileSync, statSync } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
+import { isIP } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { Contract, FetchRequest, JsonRpcProvider, formatUnits } from 'ethers';
 import { AuthError, createAuth } from './auth.mjs';
@@ -99,8 +100,12 @@ export function createApp(config) {
       if (url.origin !== config.origin) throw new AuthError('Unexpected origin.', 400);
       if (req.method === 'POST' && req.headers.origin !== config.origin) throw new AuthError('Unexpected request origin.', 403);
       if (url.pathname.startsWith('/api/')) {
-        // Do not trust X-Forwarded-For. Reverse proxies need an explicit, verified trust policy.
-        const ip = req.socket.remoteAddress || 'unknown';
+        // Caddy overwrites this dedicated header. Trust it only when the API is
+        // bound to loopback, HTTPS is configured, and the peer is loopback.
+        const peer = req.socket.remoteAddress || 'unknown';
+        const proxied = req.headers['x-minemine-client-ip'];
+        const ip = config.trustedLoopbackProxy && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(peer) &&
+          typeof proxied === 'string' && isIP(proxied) ? proxied : peer;
         const now = Date.now();
         for (const [key, value] of limits) if (value.until <= now) limits.delete(key);
         let limit = limits.get(ip);

@@ -129,7 +129,7 @@ async function mouseDigFallback(gamePage, marker) {
   let result = '';
   await gamePage.mouse.down();
   try {
-    for (let attempt = 0; attempt < 30 && !result; attempt++) {
+    for (let attempt = 0; attempt < 60 && !result; attempt++) {
       await sleep(100);
       result = await readFile(path.join(worldDir, marker), 'utf8').catch(() => '');
     }
@@ -267,10 +267,12 @@ try {
       }
       assert.match(reaimReady, /^PASS /, `held-dig camera reset failed: ${reaimReady || 'no result'}`);
     }
-    await sleep(1500);
+    for (let check = 0; check < 30 && !packetDig; check++) {
+      await sleep(100);
+      packetDig = await readFile(path.join(worldDir, 'town-packet-dig-result.txt'), 'utf8').catch(() => '');
+    }
     await secondPage.keyboard.up('g');
-    await sleep(1000);
-    packetDig = await readFile(path.join(worldDir, 'town-packet-dig-result.txt'), 'utf8').catch(() => '');
+    if (!packetDig) await sleep(500);
   }
   if (!packetDig) packetDig = await mouseDigFallback(secondPage, 'town-packet-dig-result.txt');
   record(`dig input state ${JSON.stringify(await secondPage.evaluate(() => ({

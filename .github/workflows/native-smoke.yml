@@ -118,6 +118,7 @@ jobs:
           test -x runtime/host-bundle-check/vendor/native/bin/luantiserver
           test -f runtime/host-bundle-check/.env.example
           test -f runtime/host-bundle-check/public/engine/adapter.js
+          test -f runtime/host-bundle-check/deploy/vps/backup-world.sh
           test -f runtime/host-bundle-check/vendor/native/games/minetest/game.conf
           set +e
           (cd runtime/host-bundle-check/vendor/native && timeout --signal=INT 8s bin/luantiserver --info --world "$GITHUB_WORKSPACE/runtime/restore/native-world" --config "$GITHUB_WORKSPACE/runtime/host-bundle-check/game/minetest.conf" --logfile "$GITHUB_WORKSPACE/runtime/host-bundle-check-smoke.log") > runtime/host-bundle-check-console.log 2>&1

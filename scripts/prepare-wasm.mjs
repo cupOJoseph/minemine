@@ -60,7 +60,8 @@ export function patchCurlBuildScript(source) {
   const option = '  -DCURL_ZLIB=ON \\\n';
   if (source.split(option).length !== 2) throw new Error('Pinned curl build script changed; review before patching.');
   // curl 8.23 enables libpsl by default, but this WASM sysroot has no libpsl.
-  return source.replace(option, '  -DCURL_USE_LIBPSL=OFF \\\n' + option);
+  // The browser socket shim implements accept(), but not the sysroot's accept4().
+  return source.replace(option, '  -DCURL_USE_LIBPSL=OFF \\\n  -DHAVE_ACCEPT4=0 \\\n' + option);
 }
 
 export function prepareWasm(root = project, env = process.env) {

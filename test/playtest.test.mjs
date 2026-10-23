@@ -140,6 +140,7 @@ test('adapter contract matches the actual downloaded Luanti classes', { skip: !f
   assert.throws(() => patchOpenSslBuildScript('changed upstream'), /changed/);
   const curlBuild = patchCurlBuildScript(fs.readFileSync(new URL('../vendor/wasm/build_curl.sh', import.meta.url), 'utf8'));
   assert.match(curlBuild, /-DCURL_USE_LIBPSL=OFF/);
+  assert.match(curlBuild, /-DHAVE_ACCEPT4=0/);
   assert.throws(() => patchCurlBuildScript('changed upstream'), /changed/);
 });
 test('pinned browser source patch removes raw command-line logging', () => {

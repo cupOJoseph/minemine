@@ -28,7 +28,8 @@ local function read_config()
     file:close()
     if not raw or #raw > 4096 then return nil end
     local config = core.parse_json(raw)
-    if type(config) ~= "table" or type(config.owner) ~= "string" or type(config.guest) ~= "string" then return nil end
+    if type(config) ~= "table" or type(config.owner) ~= "string" or type(config.guest) ~= "string" or
+        config.ensName ~= "builder.eth" then return nil end
     return config
 end
 
@@ -56,6 +57,8 @@ local function run(config)
     local owner, guest = config.owner, config.guest
     local player = core.get_player_by_name(owner)
     check(player and core.get_player_by_name(guest), "both wallet players must be connected")
+    local nametag = player:get_nametag_attributes()
+    check(nametag and nametag.text == config.ensName, "verified ENS name did not reach the native nametag")
 
     local auth_handler = core.get_auth_handler()
     local owner_auth = auth_handler.get_auth(owner)
@@ -123,6 +126,8 @@ local function run(config)
     local wallet_ok, wallet_message = wallet.func(owner, "")
     local address = wallet_message and wallet_message:match("Wallet: (0x%x+)")
     check(wallet_ok and address and #address == 42, "wallet identity command failed")
+    check(wallet_message:find("ENS: " .. config.ensName, 1, true) ~= nil,
+        "verified ENS name did not reach the native wallet command")
     local balance_ok, balance_message = wallet.func(owner, "balance")
     check(not balance_ok and balance_message:find("No recent MINE balance", 1, true), "missing wallet balance was not explained")
     core.mkdir(world .. "/wallet_balances")
@@ -148,7 +153,7 @@ local function run(config)
     local state_file = assert(io.open(world .. "/town-probe-state.json", "w"))
     state_file:write(assert(core.write_json({ owner = owner, guest = guest, pos = pos, edit_pos = edit_pos, slot = slot })))
     state_file:close()
-    return "PASS wallet-only auth operations and privileges, owner/outsider/member protection, paid quota, invitation/removal and node edit handlers"
+    return "PASS wallet-only auth and ENS nametag, owner/outsider/member protection, paid quota, invitation/removal and node edit handlers"
 end
 
 local function run_restart(config)

@@ -148,6 +148,22 @@ try {
   page = await context.newPage();
   observe(page);
   await bindTestInteractionKeys(page);
+  // The resolver's reverse/forward check is covered by the ENS unit test.
+  // Inject its verified output into this disposable world before the engine
+  // receives a ticket, then check the real native join applied the nametag.
+  await page.route('**/api/game/ticket', async route => {
+    const response = await route.fetch();
+    assert.equal(response.status(), 200, 'owner game ticket');
+    const ticket = await response.json();
+    const grantPath = path.join(worldDir, 'wallet_grants', `${ticket.name}.json`);
+    const grant = JSON.parse(await readFile(grantPath, 'utf8'));
+    assert.equal(grant.address.toLowerCase(), wallet.address.toLowerCase());
+    grant.ens_name = 'builder.eth';
+    const stagedPath = `${grantPath}.ens-test.tmp`;
+    await writeFile(stagedPath, JSON.stringify(grant), { mode: 0o600 });
+    await rename(stagedPath, grantPath);
+    await route.fulfill({ response });
+  });
   await page.goto(origin + '/engine/connect.html', { waitUntil: 'domcontentloaded' });
   await waitForJoin(session, page);
 
@@ -189,7 +205,7 @@ try {
     assert.equal(quota.address.toLowerCase(), signer.address.toLowerCase());
   }
   await writeFile(path.join(worldDir, 'town-probe-config.json'),
-    JSON.stringify({ owner: session.playerName, guest: secondSession.playerName }), { mode: 0o600 });
+    JSON.stringify({ owner: session.playerName, guest: secondSession.playerName, ensName: 'builder.eth' }), { mode: 0o600 });
   secondContext = await browser.newContext({ viewport: { width: 1280, height: 720 } });
   const [secondName, secondValue] = secondSigned.cookie.split('=');
   await secondContext.addCookies([{ name: secondName, value: secondValue, url: origin, httpOnly: true, sameSite: 'Strict' }]);

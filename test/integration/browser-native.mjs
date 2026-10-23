@@ -440,6 +440,34 @@ try {
 
   assert.equal(errors.length, 0, `browser console errors: ${errors.join(' | ')}`);
   assert.equal(leakedCredential, false, 'browser console exposed the short-lived game credential');
+  assert.ok(await readFile(grantPath, 'utf8'), 'reconnected wallet has a current game grant');
+  const beforeLogout = (await readFile(logPath, 'utf8')).length;
+  const logout = await fetch(origin + '/api/auth/logout', {
+    method: 'POST',
+    headers: { Origin: origin, 'Content-Type': 'application/json', Cookie: reSigned.cookie },
+    body: '{}',
+  });
+  assert.equal(logout.status, 200, 'wallet logout');
+  assert.equal((await fetch(origin + '/api/session', { headers: { Cookie: reSigned.cookie } })).status,
+    401, 'logged-out cookie cannot restore a wallet session');
+  assert.equal((await fetch(origin + '/api/game/ticket', {
+    method: 'POST',
+    headers: { Origin: origin, 'Content-Type': 'application/json', Cookie: reSigned.cookie },
+    body: '{}',
+  })).status, 401, 'logged-out cookie cannot issue another game ticket');
+  await assert.rejects(readFile(grantPath, 'utf8'), { code: 'ENOENT' },
+    'logout must remove the wallet game grant');
+  let logoutDisconnected = false;
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const currentLog = (await readFile(logPath, 'utf8').catch(() => '')).slice(beforeLogout);
+    if (currentLog.includes(`${session.playerName} leaves game.`) ||
+        currentLog.includes(`${session.playerName} times out.`)) {
+      logoutDisconnected = true;
+      break;
+    }
+    await sleep(1000);
+  }
+  assert.equal(logoutDisconnected, true, 'native server retained a player after wallet logout');
   await writeFile(path.join(worldDir, 'town-probe-config.json'),
     JSON.stringify({ phase: 'restart', owner: session.playerName, guest: secondSession.playerName }), { mode: 0o600 });
 } catch (error) {

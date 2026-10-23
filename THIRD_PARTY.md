@@ -12,6 +12,9 @@ This source snapshot does not include a downloaded Luanti engine, WASM binary, o
 | OpenSSL 3.5.9 | Browser TLS/crypto build dependency | Apache-2.0; upstream `LICENSE.txt` is copied into the staged browser notices. |
 | curl 8.23.0 | Browser HTTP transport | curl license; upstream `COPYING` is copied into the staged browser notices. |
 | libarchive 3.8.10 | Browser game-pack/archive handling | BSD-style license and third-party notices in upstream `COPYING`, copied into the staged browser notices. |
+| libzip 1.11.4 | Browser ZIP handling | Upstream `LICENSE` copied into staged browser notices. |
+| zstd (pinned commit `f8745da6`) | Browser compression | Upstream `LICENSE` copied into staged browser notices. |
+| paradust7/webshims (pinned commit `70653a91`) | Browser socket and system shims | Upstream `LICENSE` copied into staged browser notices. |
 | Luanti engine | Actual native/WASM game engine | Preserve its LGPL notices and applicable source/relinking obligations; inspect pinned distribution |
 | Minetest Game | Initial reference game/content | Code and media licenses vary; inspect pinned game notices before redistribution |
 | Landing page game images | Source game preview and two direct captures from our browser playtest | Pinned [Minetest Game source](https://github.com/luanti-org/minetest_game/tree/c42e4d0c0ff9d27ff7b9b308c3cfc14098dd3a0f) and [CC BY-SA 3.0 media license](https://github.com/luanti-org/minetest_game/blob/c42e4d0c0ff9d27ff7b9b308c3cfc14098dd3a0f/LICENSE.txt); see `public/screenshots/NOTICE.txt` for origin and changes. |

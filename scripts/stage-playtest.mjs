@@ -74,6 +74,11 @@ export function stagePlaytest(buildSource, root = project) {
     ['build/openssl/LICENSE.txt', 'openssl-LICENSE.txt'],
     ['build/curl/COPYING', 'curl-COPYING.txt'],
     ['build/libarchive/COPYING', 'libarchive-COPYING.txt'],
+    ['build/libzip/LICENSE', 'libzip-LICENSE.txt'],
+    ['sources/zstd/LICENSE', 'zstd-LICENSE.txt'],
+    ['sources/webshims/LICENSE', 'webshims-LICENSE.txt'],
+    ['sources/luanti/LICENSE.txt', 'web-engine-LICENSE.txt'],
+    ['sources/luanti/COPYING.LESSER', 'web-engine-COPYING.LESSER.txt'],
   ]) {
     fs.copyFileSync(path.join(buildSource, source), path.join(staged, 'notices', target));
   }

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
-import { patchBuildScript, patchBuildAll, patchDependencyScripts } from '../scripts/prepare-wasm.mjs';
+import { patchBuildScript, patchBuildAll, patchDependencyScripts, patchWasmArchives } from '../scripts/prepare-wasm.mjs';
 import { removeStartupArgumentDump } from '../scripts/patch-wasm-args.mjs';
 import { releaseId, validateWasm } from '../scripts/stage-playtest.mjs';
 import { configureSoloLauncher, makeSoloArgs, makeSoloSession } from '../playtest/session.mjs';
@@ -126,6 +126,14 @@ test('adapter contract matches the actual downloaded Luanti classes', { skip: !f
   assert.match(patched['build_libarchive.sh'], /--host=wasm32-unknown-none/);
   assert.match(patched['build_libzip.sh'], /-DBUILD_SHARED_LIBS=OFF/);
   assert.throws(() => patchDependencyScripts('different', 'different'), /changed/);
+  const locks = JSON.parse(fs.readFileSync(new URL('../upstream.sources.json', import.meta.url), 'utf8')).wasmArchives;
+  const fetch = fs.readFileSync(new URL('../vendor/wasm/fetch_sources.sh', import.meta.url), 'utf8');
+  const updatedFetch = patchWasmArchives(fetch, locks);
+  for (const entry of Object.values(locks)) {
+    assert.ok(updatedFetch.includes(`getsource "${entry.url}" ${entry.sha256}`));
+  }
+  assert.doesNotMatch(updatedFetch, /openssl-1\.1\.1n|curl-7\.82\.0|libarchive-3\.6\.1/);
+  assert.throws(() => patchWasmArchives('changed upstream', locks), /changed/);
 });
 test('pinned browser source patch removes raw command-line logging', () => {
   const original = 'before\n    std::cout << "Main received args:" << std::endl;\n    for (int i = 0; i < main_argc; i++) {\n        std::cout << "    " << main_argv[i] << std::endl;\n    }\nafter\n';

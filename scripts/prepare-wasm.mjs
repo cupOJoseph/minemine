@@ -28,6 +28,22 @@ export function patchBuildAll(source) {
   return source.replace(original, './fetch_sources.sh\nnode miners-patch-args.mjs sources/luanti/src/mainloop.cpp\n\n# Dependencies');
 }
 
+export function patchWasmArchives(source, archives) {
+  const old = {
+    openssl: 'getsource "https://www.openssl.org/source/openssl-1.1.1n.tar.gz" 40dceb51a4f6a5275bde0e6bf20ef4b91bfc32ed57c0552e2e8e15463372b17a',
+    curl: 'getsource "https://curl.se/download/curl-7.82.0.tar.bz2" 46d9a0400a33408fd992770b04a44a7434b3036f2e8089ac28b57573d59d371f',
+    libarchive: 'getsource "https://www.libarchive.org/downloads/libarchive-3.6.1.tar.xz" 5a411aceb978f43e626f0c2d1812ddd8807b645ed892453acabd532376c148e6',
+  };
+  let patched = source;
+  for (const [name, original] of Object.entries(old)) {
+    const { url, sha256 } = archives[name] || {};
+    if (!/^https:\/\//.test(url || '') || !/^[0-9a-f]{64}$/.test(sha256 || '')) throw new Error(`Invalid ${name} archive lock.`);
+    if (patched.split(original).length !== 2) throw new Error(`Pinned ${name} source line changed; review before patching.`);
+    patched = patched.replace(original, `getsource "${url}" ${sha256}`);
+  }
+  return patched;
+}
+
 export function prepareWasm(root = project, env = process.env) {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'upstream.sources.json'), 'utf8'));
   const source = path.join(root, 'vendor/wasm');
@@ -39,9 +55,15 @@ export function prepareWasm(root = project, env = process.env) {
   const threads = Number(env.WASM_PTHREAD_POOL_SIZE || 8);
   const patched = patchBuildScript(fs.readFileSync(path.join(source, 'build_luanti.sh'), 'utf8'), { memoryMiB, threads });
   const dependencies = patchDependencyScripts(fs.readFileSync(path.join(source, 'build_libarchive.sh'), 'utf8'), fs.readFileSync(path.join(source, 'build_libzip.sh'), 'utf8'));
+  const opensslScript = fs.readFileSync(path.join(source, 'build_openssl.sh'), 'utf8');
+  const opensslPatchName = 'openssl-3.5-wasm.patch';
+  if (opensslScript.split('"$BASE_DIR"/openssl.patch').length !== 2) throw new Error('Pinned OpenSSL build script changed; review before patching.');
   const scripts = {
     'build_luanti.sh': patched,
     'build_all.sh': patchBuildAll(fs.readFileSync(path.join(source, 'build_all.sh'), 'utf8')),
+    'fetch_sources.sh': patchWasmArchives(fs.readFileSync(path.join(source, 'fetch_sources.sh'), 'utf8'), manifest.wasmArchives),
+    'build_openssl.sh': opensslScript.replace('"$BASE_DIR"/openssl.patch', `"$BASE_DIR"/${opensslPatchName}`),
+    [opensslPatchName]: fs.readFileSync(path.join(root, 'scripts', opensslPatchName), 'utf8'),
     'miners-patch-args.mjs': fs.readFileSync(path.join(root, 'scripts/patch-wasm-args.mjs'), 'utf8'),
     ...dependencies,
   };
@@ -63,6 +85,9 @@ export function prepareWasm(root = project, env = process.env) {
     const parts = path.relative(source, file).split(path.sep);
     return !parts.includes('.git') && !['emsdk', 'www'].includes(parts[0]) && !/^build(?:-|$)/.test(parts[0]);
   } });
+  for (const name of ['openssl-1.1.1n.tar.gz', 'curl-7.82.0.tar.bz2', 'libarchive-3.6.1.tar.xz']) {
+    fs.rmSync(path.join(buildSource, 'sources', name));
+  }
   for (const [name, text] of Object.entries(scripts)) fs.writeFileSync(path.join(buildSource, name), text);
   fs.writeFileSync(stamp, JSON.stringify(profile, null, 2) + '\n');
   return buildSource;

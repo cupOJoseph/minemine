@@ -33,7 +33,7 @@ cp -a vendor/native/LICENSE.txt vendor/native/COPYING.LESSER "$stage/vendor/nati
 cp -a public server game "$stage/"
 cp -a deploy/vps "$stage/deploy/"
 cp -a scripts/setup-world.mjs "$stage/scripts/"
-cp package.json package-lock.json upstream.sources.json "$stage/"
+cp package.json package-lock.json upstream.sources.json .env.example "$stage/"
 git rev-parse HEAD > "$stage/BUILD_COMMIT"
 ldd vendor/native/bin/luantiserver > "$stage/native-library-dependencies.txt"
 if grep -q 'not found' "$stage/native-library-dependencies.txt"; then

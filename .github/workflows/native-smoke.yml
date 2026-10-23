@@ -111,6 +111,7 @@ jobs:
           mkdir -p runtime/host-bundle-check
           tar -C runtime/host-bundle-check -xzf runtime/minemine-host-runtime-ubuntu22-x64.tar.gz
           test -x runtime/host-bundle-check/vendor/native/bin/luantiserver
+          test -f runtime/host-bundle-check/.env.example
           test -f runtime/host-bundle-check/public/engine/adapter.js
           test -f runtime/host-bundle-check/vendor/native/games/minetest/game.conf
           set +e

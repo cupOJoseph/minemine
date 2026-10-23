@@ -14,6 +14,7 @@ on:
       - 'scripts/sample-stack-memory.sh'
       - 'scripts/ci-native-service.sh'
       - 'scripts/ci-api-service.sh'
+      - 'scripts/package-host-runtime.sh'
       - 'upstream.sources.json'
 permissions:
   contents: read
@@ -103,6 +104,27 @@ jobs:
         run: |
           cp -a runtime/downloaded-build/public/engine public/engine
           npm run adapter:install
+      - name: Package and test relocated host runtime
+        run: |
+          bash scripts/package-host-runtime.sh runtime/minemine-host-runtime-ubuntu22-x64.tar.gz
+          (cd runtime && sha256sum -c minemine-host-runtime-ubuntu22-x64.tar.gz.sha256)
+          mkdir -p runtime/host-bundle-check
+          tar -C runtime/host-bundle-check -xzf runtime/minemine-host-runtime-ubuntu22-x64.tar.gz
+          test -x runtime/host-bundle-check/vendor/native/bin/luantiserver
+          test -f runtime/host-bundle-check/public/engine/adapter.js
+          test -f runtime/host-bundle-check/vendor/native/games/minetest/game.conf
+          set +e
+          (cd runtime/host-bundle-check/vendor/native && timeout --signal=INT 8s bin/luantiserver --info --world "$GITHUB_WORKSPACE/runtime/restore/native-world" --config "$GITHUB_WORKSPACE/runtime/host-bundle-check/game/minetest.conf" --logfile "$GITHUB_WORKSPACE/runtime/host-bundle-check-smoke.log") > runtime/host-bundle-check-console.log 2>&1
+          result=$?
+          set -e
+          if [ "$result" -ne 124 ]; then
+            cat runtime/host-bundle-check-console.log
+            echo "Relocated native runtime exited before the smoke interval (status $result)."
+            exit 1
+          fi
+          grep -Fq 'listening on 127.0.0.1:30000' runtime/host-bundle-check-console.log
+          grep -Fq 'Mod "wallet_auth" loaded' runtime/host-bundle-check-console.log
+          grep -Fq 'Mod "town_claims" loaded' runtime/host-bundle-check-console.log
       - name: Two browser wallets join native world
         run: |
           set -euo pipefail
@@ -222,6 +244,8 @@ jobs:
             runtime/native-console.log
             runtime/restore-smoke.log
             runtime/restore-console.log
+            runtime/host-bundle-check-console.log
+            runtime/host-bundle-check-smoke.log
             runtime/native-world/debug.txt
             runtime/browser-native.log
             runtime/browser-native-engine.log
@@ -268,3 +292,12 @@ jobs:
             runtime/native-world/town-packet-removed-place-result.txt
             runtime/browser-artifacts/
           if-no-files-found: ignore
+      - name: Publish tested host runtime archive
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: minemine-host-runtime-ubuntu22-x64
+          path: |
+            runtime/minemine-host-runtime-ubuntu22-x64.tar.gz
+            runtime/minemine-host-runtime-ubuntu22-x64.tar.gz.sha256
+          if-no-files-found: error

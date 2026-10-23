@@ -169,6 +169,8 @@ try {
 
   const canvas = secondPage.locator('#canvas');
   await canvas.waitFor({ state: 'visible', timeout: 60_000 });
+  await secondPage.bringToFront();
+  await canvas.evaluate(element => { element.tabIndex = 0; });
   await sleep(5000);
   await writeFile(path.join(worldDir, 'town-packet-arm.txt'), 'dig\n', { mode: 0o600 });
   let packetReady = '';
@@ -185,6 +187,11 @@ try {
   await secondPage.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
   await canvas.click({ position: { x: bounds.width / 2, y: bounds.height / 2 } });
   record(`game canvas pointer lock: ${await secondPage.evaluate(() => document.pointerLockElement?.id || 'none')}`);
+  await secondPage.evaluate(() => {
+    window.__mineInputProbe = { keys: 0, mouse: 0 };
+    document.addEventListener('keydown', event => { if (event.code === 'KeyG') window.__mineInputProbe.keys++; }, true);
+    document.addEventListener('mousedown', event => { if (event.button === 0) window.__mineInputProbe.mouse++; }, true);
+  });
   await writeFile(path.join(worldDir, 'town-packet-aim.txt'), 'aim\n', { mode: 0o600 });
   let aimReady = '';
   for (let attempt = 0; attempt < 30; attempt++) {
@@ -217,6 +224,10 @@ try {
     packetDig = await readFile(path.join(worldDir, 'town-packet-dig-result.txt'), 'utf8').catch(() => '');
   }
   if (!packetDig) packetDig = await mouseDigFallback(secondPage, 'town-packet-dig-result.txt');
+  record(`dig input state ${JSON.stringify(await secondPage.evaluate(() => ({
+    ...window.__mineInputProbe, focused: document.hasFocus(), active: document.activeElement?.id,
+    pointerLock: document.pointerLockElement?.id,
+  })))}`);
   assert.match(packetDig, /^PASS /, `browser dig packet did not hit protected claim: ${packetDig || 'no result'}`);
 
   await writeFile(path.join(worldDir, 'town-packet-place-arm.txt'), 'place\n', { mode: 0o600 });
@@ -250,6 +261,8 @@ try {
 
   const ownerCanvas = page.locator('#canvas');
   await ownerCanvas.waitFor({ state: 'visible', timeout: 60_000 });
+  await page.bringToFront();
+  await ownerCanvas.evaluate(element => { element.tabIndex = 0; });
   const ownerBounds = await ownerCanvas.boundingBox();
   assert.ok(ownerBounds && ownerBounds.width > 100 && ownerBounds.height > 100, 'owner game canvas was not usable');
   await page.mouse.move(ownerBounds.x + ownerBounds.width / 2, ownerBounds.y + ownerBounds.height / 2);

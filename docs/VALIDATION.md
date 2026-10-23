@@ -10,6 +10,8 @@ The Node static handler now sends weak ETags and `public, max-age=0, must-revali
 
 Headless Chromium launched the actual solo game through that HTTPS proxy. Its first-context transfer was 12,639,305 bytes and same-context reload 5,727,941 bytes, with no page errors and a 1280×720 canvas. These measurements support the transfer improvement on the test machine. The certificate was a temporary local test certificate with browser certificate errors ignored; a public certificate, external bandwidth/latency, engine FPS, peak memory and lower-end hardware remain untested.
 
+[Native run 39992250016](https://github.com/cupOJoseph/minemine/actions/runs/39992250016) passed the complete wallet, paid-town, browser gameplay, reconnect and restart sequence on the branch that added static revalidation and the Caddy template. Its host archive includes `encode zstd gzip`; a separate download matched sidecar SHA-256 `d8ad04f83e39b70972cfc27349e1fb955a0803e35aca4971d8c2d63680083ea4`, and `BUILD_COMMIT` is `d66774a2b7d6e93504444161fb78d05d95e29909`.
+
 ## Browser wallet payment reaches native town protection — 2026-10-23 EDT
 
 [Native Actions run 39986686016](https://github.com/cupOJoseph/minemine/actions/runs/39986686016) passed the complete Linux workflow. Its first Chromium test used an injected EIP-1193 provider connected to disposable local Anvil, signed in through the wallet panel, sent 5 MINE directly to another address, approved and bought nine TownBlocks columns, synced the private quota, and verified that a rejected transaction did not change balances. The provider shim exercises the browser UI and real chain transactions; it is not an installed wallet extension.

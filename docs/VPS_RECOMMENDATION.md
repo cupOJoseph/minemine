@@ -1,6 +1,6 @@
 # VPS recommendation for the first MineMine online alpha
 
-Revised 2026-10-22 for the owner's **$10/month maximum** and decision to defer buying `minemine.gg`. This is a proposed technical alpha, not a purchased server or a claim that an MMO fits this size.
+Revised 2026-10-23 for the owner's **$10/month maximum** and decision to defer buying `minemine.gg`. This is a proposed technical alpha, not a purchased server or a claim that an MMO fits this size.
 
 ## Recommended first public test host
 
@@ -14,6 +14,8 @@ Use one [DigitalOcean Basic Droplet](https://www.digitalocean.com/pricing/drople
 
 [Actions run 39892709610](https://github.com/cupOJoseph/minemine/actions/runs/39892709610) passed the full local two-wallet native test, heartbeat readiness, expired-ticket auth lookup, reconnect and restart. It produced a **tested Ubuntu 22.04 x86-64 host archive** (`minemine-host-runtime-ubuntu22-x64`, 18 MB compressed) with the run-in-place native binary, its game files, the verified browser engine/adapter, Node source and package lock, and service templates. CI checked the archive checksum, unpacked it at a different path, and started the relocated native world with both mods. The example archive SHA-256 is `f28a0de3a3982d04311958507041dadc6a19eafaacdd8bf7303bd7f0ea507fd7`. It is tied to the exact CI checkout recorded in `BUILD_COMMIT`; later builds need their own checksum. This removes compilation and WASM staging from the proposed 1 GiB host. It does not test a full 1 GiB VM, target library installation, Caddy, or an outside-network browser.
 
+[Final candidate run 39915834630](https://github.com/cupOJoseph/minemine/actions/runs/39915834630) repeated the two-wallet, town-protection, expired-ticket, reconnect and restart checks with the upgraded browser engine and a six-mapblock native send/generation cap. Its shared 1 GiB, zero-swap Luanti/Node service cgroup peaked at 143,671,296 bytes, with zero OOM kills; browser clients and the operating system were outside the cap. The new 18 MB host archive includes the final browser release and checked SHA-256 `d045f1007ae02a8944f0f617862eda656c1839e7f7b1d6537ee2ca5db4363d87`. One preceding run missed a synthetic dig input under heavy map delivery, then passed unchanged on rerun; longer reliability testing remains necessary. This archive is the current deployment candidate, but it has not run on a full 1 GiB Droplet or outside-network browser.
+
 DigitalOcean's [spend alerts](https://docs.digitalocean.com/platform/billing/spend-alerts/) are **not hard spending caps**; tax and [outbound transfer beyond the allowance](https://docs.digitalocean.com/platform/billing/bandwidth/) can make the bill exceed $10. Set a total-spend alert below $10 and monitor transfer, but treat the strict ceiling as a provisioning gate: if the account's tax or other unavoidable charges remove the $2.20 margin, do not create the Droplet. The 2 GiB Basic plan is listed at $12/month before backups, so it does not meet the limit.
 
 ## Single-host layout
@@ -26,7 +28,7 @@ DigitalOcean's [spend alerts](https://docs.digitalocean.com/platform/billing/spe
 
 ## Prepared host configuration
 
-The repository includes a [Caddyfile example](../deploy/vps/Caddyfile.example) and separate [web](../deploy/vps/minemine-web.service) and [native](../deploy/vps/minemine-native.service) systemd units. They assume an Ubuntu **22.04 x86-64** VM with a dedicated `minemine` user, the reviewed archive extracted at `/srv/minemine/app`, the world at `/srv/minemine/world`, Node 24 at `/usr/bin/node`, and the pinned run-in-place Luanti binary at `/srv/minemine/app/vendor/native/bin/luantiserver`. The [native game config](../game/minetest.conf) caps the technical alpha at two concurrent players; raise that cap only after measuring the actual host. The current [native CI workflow](../.github/workflows/native-smoke.yml) builds and tests the portable archive. These templates have not been run on a public host.
+The repository includes a [Caddyfile example](../deploy/vps/Caddyfile.example) and separate [web](../deploy/vps/minemine-web.service) and [native](../deploy/vps/minemine-native.service) systemd units. They assume an Ubuntu **22.04 x86-64** VM with a dedicated `minemine` user, the reviewed archive extracted at `/srv/minemine/app`, the world at `/srv/minemine/world`, Node 24 at `/usr/bin/node`, and the pinned run-in-place Luanti binary at `/srv/minemine/app/vendor/native/bin/luantiserver`. The [native game config](../game/minetest.conf) caps the technical alpha at two concurrent players and six-mapblock send/generation radii; raise these only after measuring the actual host. The current [native CI workflow](../.github/workflows/native-smoke.yml) builds and tests the portable archive. These templates have not been run on a public host.
 
 After the account owner connects DigitalOcean and a temporary HTTPS host has been selected:
 

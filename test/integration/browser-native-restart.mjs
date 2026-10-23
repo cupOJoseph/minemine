@@ -12,7 +12,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function signedSession(wallet) {
   const headers = { Origin: origin, 'Content-Type': 'application/json' };
   const challengeResponse = await fetch(origin + '/api/auth/challenge', {
-    method: 'POST', headers, body: JSON.stringify({ address: wallet.address, chainId: 11155111 }),
+    method: 'POST', headers, body: JSON.stringify({ address: wallet.address, chainId: Number(process.env.CHAIN_ID || 11155111) }),
   });
   assert.equal(challengeResponse.status, 200, 'wallet challenge after restart');
   const challenge = await challengeResponse.json();

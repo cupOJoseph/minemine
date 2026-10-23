@@ -16,6 +16,7 @@ on:
       - 'scripts/sample-stack-memory.sh'
       - 'scripts/ci-native-service.sh'
       - 'scripts/ci-api-service.sh'
+      - 'scripts/ci-deploy-economy.mjs'
       - 'scripts/package-host-runtime.sh'
       - 'upstream.sources.json'
 permissions:
@@ -145,7 +146,7 @@ jobs:
             sudo systemd-run --quiet --unit="minemine-ci-native-$phase" --slice=minemine-ci.slice --uid="$USER" --same-dir --property=Type=exec \
               /usr/bin/bash "$GITHUB_WORKSPACE/scripts/ci-native-service.sh" "$world_dir" "$GITHUB_WORKSPACE/runtime/$engine_log" "$GITHUB_WORKSPACE/runtime/$native_log"
             sudo systemd-run --quiet --unit="minemine-ci-api-$phase" --slice=minemine-ci.slice --uid="$USER" --same-dir --property=Type=exec \
-              /usr/bin/bash "$GITHUB_WORKSPACE/scripts/ci-api-service.sh" "$world_dir" "$GITHUB_WORKSPACE/runtime/$api_log" "$node_binary"
+              /usr/bin/bash "$GITHUB_WORKSPACE/scripts/ci-api-service.sh" "$world_dir" "$GITHUB_WORKSPACE/runtime/$api_log" "$node_binary" "$GITHUB_WORKSPACE/runtime/ci-economy.env"
             test "$(systemctl show -P Slice "minemine-ci-native-$phase.service")" = 'minemine-ci.slice'
             test "$(systemctl show -P Slice "minemine-ci-api-$phase.service")" = 'minemine-ci.slice'
           }
@@ -172,10 +173,24 @@ jobs:
           cleanup() {
             touch runtime/server-memory-first.stop runtime/server-memory-restart.stop
             capture_cgroup "$current_phase"
-            sudo systemctl stop minemine-ci-api-first.service minemine-ci-native-first.service minemine-ci-api-restart.service minemine-ci-native-restart.service 2>/dev/null || true
+            sudo systemctl stop minemine-ci-api-first.service minemine-ci-native-first.service minemine-ci-api-restart.service minemine-ci-native-restart.service minemine-ci-anvil.service 2>/dev/null || true
           }
           current_phase=first
           trap cleanup EXIT
+          # The disposable payment chain runs outside the 1 GiB Luanti/Node
+          # service slice. The production VM will use an external RPC.
+          sudo systemd-run --quiet --unit=minemine-ci-anvil --uid="$USER" --same-dir --property=Type=exec \
+            "$node_binary" "$GITHUB_WORKSPACE/node_modules/@foundry-rs/anvil/bin.mjs" \
+            --quiet --host 127.0.0.1 --port 8545 --chain-id 31337 --accounts 3 --no-cors
+          for attempt in {1..30}; do
+            if curl -fsS -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' http://127.0.0.1:8545 | node -e 'let input=""; process.stdin.on("data", chunk => input += chunk); process.stdin.on("end", () => process.exit(JSON.parse(input).result === "0x7a69" ? 0 : 1));'; then break; fi
+            if ! systemctl is-active --quiet minemine-ci-anvil.service; then echo 'CI Anvil exited before RPC readiness.'; exit 1; fi
+            sleep 1
+          done
+          node scripts/ci-deploy-economy.mjs runtime/ci-economy.env
+          set -a
+          source runtime/ci-economy.env
+          set +a
           start_stack first browser-native-engine.log browser-native.log browser-api.log
           for attempt in {1..30}; do
             if curl -fsS http://localhost:3000/api/health > /dev/null; then break; fi

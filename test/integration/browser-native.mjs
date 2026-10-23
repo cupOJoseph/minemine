@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile, mkdir, rename, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { Wallet } from 'ethers';
+import { Contract, JsonRpcProvider, Wallet } from 'ethers';
 import { chromium } from 'playwright';
 
 const origin = process.env.PUBLIC_ORIGIN || 'http://localhost:3000';
@@ -14,7 +14,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function signedSession(wallet) {
   const headers = { Origin: origin, 'Content-Type': 'application/json' };
   const challengeResponse = await fetch(origin + '/api/auth/challenge', {
-    method: 'POST', headers, body: JSON.stringify({ address: wallet.address, chainId: 11155111 }),
+    method: 'POST', headers, body: JSON.stringify({ address: wallet.address, chainId: Number(process.env.CHAIN_ID || 11155111) }),
   });
   assert.equal(challengeResponse.status, 200, 'wallet challenge');
   const challenge = await challengeResponse.json();
@@ -40,6 +40,7 @@ let secondPage;
 let secondSession;
 let reconnectContext;
 let replayContext;
+let economyProvider;
 const events = [];
 const ticketSecrets = [];
 const tickets = [];
@@ -154,9 +155,38 @@ try {
   const secondSigned = await signedSession(secondWallet);
   secondSession = secondSigned.session;
   assert.notEqual(secondSession.playerName, session.playerName, 'distinct wallets need distinct characters');
-  for (const character of [session, secondSession]) {
-    await writeFile(path.join(worldDir, 'town_quotas', `${character.playerName}.json`),
-      JSON.stringify({ name: character.playerName, blocks: 9 }), { mode: 0o600 });
+  assert.ok(process.env.RPC_URL && process.env.TOKEN_ADDRESS && process.env.TOWN_CONTRACT_ADDRESS,
+    'native integration needs deployed local MINE and TownBlocks contracts');
+  economyProvider = new JsonRpcProvider(process.env.RPC_URL);
+  const token = new Contract(process.env.TOKEN_ADDRESS,
+    ['function approve(address,uint256) returns (bool)', 'function balanceOf(address) view returns (uint256)'], economyProvider);
+  const town = new Contract(process.env.TOWN_CONTRACT_ADDRESS,
+    ['function pricePerBlock() view returns (uint256)', 'function buyBlocks(uint256)',
+      'function purchased(address) view returns (uint256)'], economyProvider);
+  const cost = (await town.pricePerBlock()) * 9n;
+  for (const [signer, signed] of [[wallet, signed], [secondWallet, secondSigned]]) {
+    const payer = signer.connect(economyProvider);
+    const before = await token.balanceOf(signer.address);
+    await (await token.connect(payer).approve(process.env.TOWN_CONTRACT_ADDRESS, cost)).wait();
+    await (await town.connect(payer).buyBlocks(9)).wait();
+    assert.equal(await token.balanceOf(signer.address), before - cost, 'town purchase spent exact MINE');
+    assert.equal(await town.purchased(signer.address), 9n, 'town purchase credited the wallet');
+    let synced;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const response = await fetch(origin + '/api/towns/sync', {
+        method: 'POST',
+        headers: { Origin: origin, 'Content-Type': 'application/json', Cookie: signed.cookie },
+        body: '{}',
+      });
+      assert.equal(response.status, 200, 'authenticated town credit sync');
+      synced = await response.json();
+      if (synced.purchasedBlocks === 9) break;
+      await sleep(250);
+    }
+    assert.equal(synced.purchasedBlocks, 9, 'confirmed on-chain credits reached Node');
+    const quota = JSON.parse(await readFile(path.join(worldDir, 'town_quotas', `${signed.session.playerName}.json`), 'utf8'));
+    assert.equal(quota.blocks, 9, 'native quota comes from the on-chain purchase');
+    assert.equal(quota.address.toLowerCase(), signer.address.toLowerCase());
   }
   await writeFile(path.join(worldDir, 'town-probe-config.json'),
     JSON.stringify({ owner: session.playerName, guest: secondSession.playerName }), { mode: 0o600 });
@@ -546,4 +576,5 @@ try {
   if (secondContext) await secondContext.close();
   await context.close();
   await browser.close();
+  economyProvider?.destroy();
 }

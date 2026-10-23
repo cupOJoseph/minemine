@@ -12,6 +12,7 @@ import { ContractFactory, Interface, JsonRpcProvider, ZeroAddress, parseUnits } 
 import { compile, compileTownBlocks } from '../../scripts/compile-contracts.mjs';
 import { createApp } from '../../server/app.mjs';
 import { readConfig } from '../../server/config.mjs';
+import { createTownCredits } from '../../server/towns.mjs';
 import { send } from '../helpers/http.mjs';
 
 test('MINE executes supply, transfer, allowance and burn rules in a local EVM', { timeout: 30_000 }, async t => {
@@ -182,6 +183,37 @@ test('MINE executes supply, transfer, allowance and burn rules in a local EVM', 
       }
     } finally {
       await new Promise(resolve => server.close(resolve));
+      rmSync(worldDir, { recursive: true, force: true });
+    }
+  });
+  await t.test('town credits wait six blocks and ignore a reverted provisional purchase', async () => {
+    const worldDir = mkdtempSync(path.join(tmpdir(), 'miners-finality-world-'));
+    const checkedProvider = new JsonRpcProvider(url, 31337, { cacheTimeout: -1 });
+    const config = readConfig({ CHAIN_ID: '31337', RPC_URL: url, TOKEN_ADDRESS: await token.getAddress(),
+      TOWN_CONTRACT_ADDRESS: await town.getAddress(), TOWN_CONFIRMATIONS: '6', WORLD_DIR: worldDir });
+    const credits = createTownCredits(config, checkedProvider);
+    const session = { address: recipientAddress, playerName: 'w_0123456789abcdef0' };
+    const quotaPath = path.join(worldDir, 'town_quotas', session.playerName + '.json');
+    try {
+      await (await token.connect(recipient).approve(await town.getAddress(), units(6))).wait();
+      await (await town.connect(recipient).buyBlocks(2)).wait();
+      assert.equal((await credits.sync(session)).purchasedBlocks, 0, 'new purchase is not yet confirmed');
+      await checkedProvider.send('anvil_mine', ['0x5']);
+      assert.equal((await credits.sync(session)).purchasedBlocks, 0, 'five blocks still do not confirm six');
+      await checkedProvider.send('anvil_mine', ['0x1']);
+      assert.equal((await credits.sync(session)).purchasedBlocks, 2, 'sixth block makes the purchase claimable');
+      assert.equal(JSON.parse(readFileSync(quotaPath, 'utf8')).blocks, 2);
+
+      const snapshot = await checkedProvider.send('evm_snapshot', []);
+      await (await town.connect(recipient).buyBlocks(1)).wait();
+      await checkedProvider.send('anvil_mine', ['0x5']);
+      assert.equal((await credits.sync(session)).purchasedBlocks, 2, 'provisional third column remains unavailable');
+      assert.equal(await checkedProvider.send('evm_revert', [snapshot]), true);
+      await checkedProvider.send('anvil_mine', ['0x6']);
+      assert.equal((await credits.sync(session)).purchasedBlocks, 2, 'reverted purchase never becomes claimable');
+      assert.equal(JSON.parse(readFileSync(quotaPath, 'utf8')).blocks, 2);
+    } finally {
+      checkedProvider.destroy();
       rmSync(worldDir, { recursive: true, force: true });
     }
   });

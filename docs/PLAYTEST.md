@@ -32,7 +32,7 @@ On a machine that permits local sockets, run npm start.
 
 Visit http://localhost:3000/engine/index.html. The main launcher also reveals a Solo playtest link when the expected bundle files exist. This means an engine bundle is installed, not that gameplay has been verified.
 
-Use an up-to-date desktop browser that passes the runtime WebGL 2, SharedArrayBuffer/cross-origin-isolation, and JSPI checks. Browser support must be measured; no Firefox/Safari support claim is made. The Node service supplies the required COOP/COEP headers, streams large binaries, and permits the engine's dynamic styling/menu handlers only under /engine/. Wallet pages retain their stricter CSP.
+Use an up-to-date desktop browser that passes the runtime WebGL 2, SharedArrayBuffer/cross-origin-isolation, and JSPI checks. The local upgraded solo bundle rendered a world and opened inventory in Playwright WebKit 27.2 on macOS; that is a WebKit test, not validation of a shipping Safari release or persistent storage. Firefox 157 on the same Mac entered the solo world but showed a black viewport in headless Playwright, so Firefox gameplay is unverified. See [VALIDATION.md](VALIDATION.md) for the exact result. The Node service supplies the required COOP/COEP headers, streams large binaries, and permits the engine's dynamic styling/menu handlers only under /engine/. Wallet pages retain their stricter CSP.
 
 A public host needs HTTPS, application/wasm for the binary, COOP same-origin, and COEP require-corp. Do not use an arbitrary static host without checking those headers and asset-size limits.
 

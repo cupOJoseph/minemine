@@ -1,5 +1,11 @@
 # Validation record
 
+## Multi-wallet provider selection — 2026-10-23 EDT
+
+The wallet panel now follows the finalized [EIP-6963 discovery events](https://eips.ethereum.org/EIPS/eip-6963) and offers a selector when multiple providers are present. It retains the legacy `window.ethereum` path for a single injected wallet. The selected provider supplies every signing, transfer, allowance and town-purchase RPC call, and its account/chain events trigger sign-out. Names from wallet announcements are inserted as text, without rendering wallet-supplied icons or markup.
+
+`npm test` passed 31 source/handler tests. `PLAYWRIGHT_BROWSERS_PATH=/tmp/minemine-playwright npm run test:wallet-ui` passed locally with Chromium and disposable Anvil: a deliberately unusable legacy provider and a separately announced EIP-6963 provider were both shown, the announced wallet was selected, then it signed in, sent 5 MINE, bought nine columns, synced its private quota, and handled a rejected transaction. The legacy provider received zero requests. A selected-provider `accountsChanged` event revoked the browser session, and `/api/session` returned 401. This verifies provider routing through a browser test shim, not actual installed extensions, smart-contract wallets, live ENS or Sepolia.
+
 ## Six-block town finality and compressed browser delivery — 2026-10-23 EDT
 
 `npm run test:evm` now exercises the configured six-block town-credit delay on disposable Anvil. A two-column purchase stayed at zero claimable quota immediately and after five blocks, then became two after the sixth block. A subsequent one-column purchase stayed provisional after five blocks; Anvil reverted that branch and mined an alternate six blocks, and the private quota remained two. This verifies shallow rollback before delivery on a local chain. It does not prove Sepolia finality or recover claims already granted before a deeper reorg.

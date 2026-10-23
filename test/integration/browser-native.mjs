@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile, mkdir, rename, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { Contract, JsonRpcProvider, Wallet } from 'ethers';
+import { Contract, JsonRpcProvider, NonceManager, Wallet } from 'ethers';
 import { chromium } from 'playwright';
 
 const origin = process.env.PUBLIC_ORIGIN || 'http://localhost:3000';
@@ -165,7 +165,7 @@ try {
       'function purchased(address) view returns (uint256)'], economyProvider);
   const cost = (await town.pricePerBlock()) * 9n;
   for (const [signer, login] of [[wallet, signed], [secondWallet, secondSigned]]) {
-    const payer = signer.connect(economyProvider);
+    const payer = new NonceManager(signer.connect(economyProvider));
     const before = await token.balanceOf(signer.address);
     await (await token.connect(payer).approve(process.env.TOWN_CONTRACT_ADDRESS, cost)).wait();
     await (await town.connect(payer).buyBlocks(9)).wait();

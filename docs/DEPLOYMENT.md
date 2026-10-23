@@ -91,12 +91,12 @@ The remaining instructions apply to the future shared-server milestone:
 
 Use a Linux host with persistent disk and HTTPS/WSS ingress. Start with a single region and single auth process. The [revised VPS recommendation](VPS_RECOMMENDATION.md) proposes a NYC3 1 GiB/1 vCPU Basic Droplet with daily backups for a $7.80/month listed base before tax and overages. A short two-wallet run passed with Luanti and Node inside a 1 GiB, zero-swap service cgroup; a whole-VM rehearsal and exact account charges still gate provisioning. DigitalOcean spend alerts are not hard caps. The owner will connect the account later. No VM or domain has been purchased. Use a temporary HTTPS address for the technical alpha; defer `minemine.gg` until the technology is viable and there is public interest.
 
-The native CI [run 39890982736](https://github.com/cupOJoseph/minemine/actions/runs/39890982736) built and tested a relocated Ubuntu 22.04 x86-64 host archive. The named artifact `minemine-host-runtime-ubuntu22-x64` contains the pinned native binary/game, verified WASM client and adapter, Node source and lockfile, mods, config, license files, and service templates. Its compressed archive is 18 MB; the example SHA-256 is `40d7be561271ba5e39cc8f5db0c4a9c5516a218f428b3f83553f0222f4c7c276`. Check the sidecar for the particular run used; this hash is not a blanket approval for future archives. The archive contains no world, grants or production configuration. GitHub may expire the artifact, in which case rerun the reviewed workflow and use the new checksum.
+The native CI [run 39892709610](https://github.com/cupOJoseph/minemine/actions/runs/39892709610) built and tested a relocated Ubuntu 22.04 x86-64 host archive after the expired-ticket auth fix. The named artifact `minemine-host-runtime-ubuntu22-x64` contains the pinned native binary/game, verified WASM client and adapter, Node source and lockfile, mods, config, license files, and service templates. Its compressed archive is 18 MB; the example SHA-256 is `f28a0de3a3982d04311958507041dadc6a19eafaacdd8bf7303bd7f0ea507fd7`. Check the sidecar for the particular run used; this hash is not a blanket approval for future archives. The archive contains no world, grants or production configuration. GitHub may expire the artifact, in which case rerun the reviewed workflow and use the new checksum.
 
 On a trusted workstation with repository access, download and check one successful reviewed run (replace the run ID if using a later build):
 
 ```sh
-gh run download 39890982736 -n minemine-host-runtime-ubuntu22-x64 -D /tmp/minemine-host-download
+gh run download 39892709610 -n minemine-host-runtime-ubuntu22-x64 -D /tmp/minemine-host-download
 cd /tmp/minemine-host-download
 shasum -a 256 -c minemine-host-runtime-ubuntu22-x64.tar.gz.sha256
 ```

@@ -63,10 +63,20 @@ export function stagePlaytest(buildSource, root = project) {
   fs.mkdirSync(path.join(staged, 'notices'), { recursive: true });
   for (const file of ['LICENSE', 'THIRD_PARTY.md']) fs.copyFileSync(path.join(root, file), path.join(staged, 'notices', file));
   fs.copyFileSync(path.join(buildSource, 'build_luanti.sh'), path.join(staged, 'notices', 'build_luanti.sh.txt'));
+  for (const name of ['fetch_sources.sh', 'build_openssl.sh', 'build_curl.sh', 'openssl-3.5-wasm.patch']) {
+    fs.copyFileSync(path.join(buildSource, name), path.join(staged, 'notices', name + '.txt'));
+  }
   fs.copyFileSync(path.join(buildSource, 'miners-patch-args.mjs'), path.join(staged, 'notices', 'startup-argument-redaction-patch.mjs.txt'));
   for (const name of ['build_libarchive.sh', 'build_libzip.sh']) fs.copyFileSync(path.join(buildSource, name), path.join(staged, 'notices', name + '.txt'));
   fs.copyFileSync(path.join(buildSource, 'LICENSE'), path.join(staged, 'notices', 'wasm-wrapper-LICENSE.txt'));
   fs.copyFileSync(path.join(root, 'vendor/native/LICENSE.txt'), path.join(staged, 'notices', 'engine-LICENSE.txt'));
+  for (const [source, target] of [
+    ['build/openssl/LICENSE.txt', 'openssl-LICENSE.txt'],
+    ['build/curl/COPYING', 'curl-COPYING.txt'],
+    ['build/libarchive/COPYING', 'libarchive-COPYING.txt'],
+  ]) {
+    fs.copyFileSync(path.join(buildSource, source), path.join(staged, 'notices', target));
+  }
   const game = path.join(root, 'vendor/game');
   for (const name of fs.readdirSync(game).filter(name => /^licen[cs]e/i.test(name))) {
     const target = path.join(game, name);

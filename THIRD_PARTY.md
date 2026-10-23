@@ -9,6 +9,9 @@ This source snapshot does not include a downloaded Luanti engine, WASM binary, o
 | solc 0.8.26 | Local Solidity compiler | Compiler package and bundled compiler notices retained in installation; review exact distribution licenses |
 | @foundry-rs/anvil 1.7.1 | Development-only local Ethereum test node | MIT OR Apache-2.0; platform packages/integrities are pinned in package-lock.json; excluded from production dependencies |
 | paradust7/luanti-wasm | Candidate build wrapper | Repository reports MIT for wrapper; bundled dependencies have separate licenses |
+| OpenSSL 3.5.9 | Browser TLS/crypto build dependency | Apache-2.0; upstream `LICENSE.txt` is copied into the staged browser notices. |
+| curl 8.23.0 | Browser HTTP transport | curl license; upstream `COPYING` is copied into the staged browser notices. |
+| libarchive 3.8.10 | Browser game-pack/archive handling | BSD-style license and third-party notices in upstream `COPYING`, copied into the staged browser notices. |
 | Luanti engine | Actual native/WASM game engine | Preserve its LGPL notices and applicable source/relinking obligations; inspect pinned distribution |
 | Minetest Game | Initial reference game/content | Code and media licenses vary; inspect pinned game notices before redistribution |
 | Landing page game images | Source game preview and two direct captures from our browser playtest | Pinned [Minetest Game source](https://github.com/luanti-org/minetest_game/tree/c42e4d0c0ff9d27ff7b9b308c3cfc14098dd3a0f) and [CC BY-SA 3.0 media license](https://github.com/luanti-org/minetest_game/blob/c42e4d0c0ff9d27ff7b9b308c3cfc14098dd3a0f/LICENSE.txt); see `public/screenshots/NOTICE.txt` for origin and changes. |

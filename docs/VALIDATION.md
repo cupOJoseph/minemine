@@ -1,5 +1,9 @@
 # Validation record
 
+## Cold world backup command — 2026-10-23 EDT
+
+The host package now includes `deploy/vps/backup-world.sh`, based on [Luanti's cold-backup guidance](https://docs.luanti.org/for-server-hosts/backup-solutions/). It requires installed native and web systemd units, stops active units before copying the SQLite-backed world, writes an archive and SHA-256 sidecar outside the world, then resumes only units that were active beforehand. `bash test/backup-world.sh` passed locally with simulated systemd units: the archive checksum matched, scratch extraction preserved `world.mt` and the town quota, the restored SQLite database passed `PRAGMA integrity_check` and retained a record, an injected tar failure still restarted both services, and a previously inactive web unit stayed inactive. A real VM stop/restore/native-start drill remains unverified.
+
 ## Multi-wallet provider selection — 2026-10-23 EDT
 
 The wallet panel now follows the finalized [EIP-6963 discovery events](https://eips.ethereum.org/EIPS/eip-6963) and offers a selector when multiple providers are present. It retains the legacy `window.ethereum` path for a single injected wallet. The selected provider supplies every signing, transfer, allowance and town-purchase RPC call, and its account/chain events trigger sign-out. Names from wallet announcements are inserted as text, without rendering wallet-supplied icons or markup.

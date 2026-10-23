@@ -126,6 +126,36 @@ Create `/etc/minemine/minemine.env` with owner `root`, group `minemine`, and mod
 
 Install Caddy and adapt the archived `deploy/vps/Caddyfile.example` to the verified temporary hostname. Its automatic HTTPS needs the temporary hostname to resolve to the VM and ports 80/443 reachable. Validate the Caddyfile before starting Caddy. Keep Node 3000 and native UDP 30000 on loopback; permit only 80/443 and narrowly scoped SSH at the firewall. Check external HTTPS, WSS, COOP/COEP and `crossOriginIsolated`, then conduct the remote two-wallet joins, shared edits, reconnect, expired-ticket and authorization checks. Turn on both launch flags only for this controlled rehearsal; retain the button gate until those checks, backup/restore, and whole-VM resource measurements pass. Record a stopped-world backup and actually restore it. The [VPS gates](VPS_RECOMMENDATION.md#provisioning-and-launch-gates) remain authoritative before announcing a public URL.
 
+### Cold world backup and restore drill
+
+[Luanti's backup guide](https://docs.luanti.org/for-server-hosts/backup-solutions/) recommends a cold copy for a consistent SQLite world and warns that copying live SQLite files can produce a corrupt backup. The archived `deploy/vps/backup-world.sh` verifies both MineMine systemd units are installed, stops any running web and native units, archives the entire world with a SHA-256 sidecar, and restarts only units that were active before it ran. A local shell test checks a restored SQLite database and town quota, plus service restart after an archive failure. This is a **local script test**, not a production-host restore drill.
+
+On the VM, keep `/srv/minemine/backups` root-only and outside the public web root. Check free disk space first; the 25 GiB Droplet disk must hold the live world, temporary archive and restore rehearsal. Run these commands in a root shell after the deployment is healthy:
+
+```sh
+install -d -m 0700 /srv/minemine/backups
+bash /srv/minemine/app/deploy/vps/backup-world.sh
+archive=$(find /srv/minemine/backups -maxdepth 1 -name 'minemine-world-*.tar.gz' -printf '%T@ %p\n' | sort -nr | head -n1 | cut -d' ' -f2-)
+test -n "$archive"
+(cd /srv/minemine/backups && sha256sum -c "$(basename "$archive").sha256")
+test ! -e /srv/minemine/restore-check
+mkdir -m 0700 /srv/minemine/restore-check
+tar -C /srv/minemine/restore-check -xzf "$archive"
+test -f /srv/minemine/restore-check/world/world.mt
+python3 - <<'PY'
+from pathlib import Path
+import sqlite3
+databases = list(Path('/srv/minemine/restore-check/world').glob('*.sqlite'))
+assert databases, 'no restored SQLite databases'
+for database in databases:
+    with sqlite3.connect(database) as connection:
+        assert connection.execute('PRAGMA integrity_check').fetchone() == ('ok',), database
+print('Restored SQLite databases passed integrity_check')
+PY
+```
+
+Inspect the restored `world.mt`, town quota files and mod storage, then start the restored world with the archived native binary while the regular services are stopped and confirm the server reaches its listening state. Restart the regular native and web units after that drill. Keep the original world untouched during the rehearsal. Store or transfer a verified backup according to the recovery plan, and remove the scratch restore after inspection so it does not consume the small VM disk. Back up `/etc/minemine/minemine.env` separately with restricted access; it is not inside the world archive. Provider backups and this application-level copy serve different recovery needs.
+
 The Caddy template enables zstd and gzip response encoding. An official Caddy 2.11.7 binary validated the template, and a temporary local HTTPS proxy served the 15.2 MB WASM as 5.5 MB zstd or 5.7 MB gzip while preserving isolation headers; Chromium launched the solo world through it. Test the **deployed** Caddy package, TLS certificate and browser network path again on the VM. Keep API responses `no-store`; Node's static files use ETags for revalidation.
 
 The included `deploy/Dockerfile` packages the Node launcher/auth service and restricted WebSocket bridge. It does not package a native game server or a verified playable world. Build from project root:

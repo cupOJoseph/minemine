@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
-import { patchBuildScript, patchBuildAll, patchDependencyScripts, patchWasmArchives } from '../scripts/prepare-wasm.mjs';
+import { patchBuildScript, patchBuildAll, patchDependencyScripts, patchWasmArchives, patchOpenSslBuildScript } from '../scripts/prepare-wasm.mjs';
 import { removeStartupArgumentDump } from '../scripts/patch-wasm-args.mjs';
 import { releaseId, validateWasm } from '../scripts/stage-playtest.mjs';
 import { configureSoloLauncher, makeSoloArgs, makeSoloSession } from '../playtest/session.mjs';
@@ -134,6 +134,10 @@ test('adapter contract matches the actual downloaded Luanti classes', { skip: !f
   }
   assert.doesNotMatch(updatedFetch, /openssl-1\.1\.1n|curl-7\.82\.0|libarchive-3\.6\.1/);
   assert.throws(() => patchWasmArchives('changed upstream', locks), /changed/);
+  const opensslBuild = patchOpenSslBuildScript(fs.readFileSync(new URL('../vendor/wasm/build_openssl.sh', import.meta.url), 'utf8'));
+  assert.doesNotMatch(opensslBuild, /wrap\.py/);
+  assert.match(opensslBuild, /openssl-3\.5-wasm\.patch/);
+  assert.throws(() => patchOpenSslBuildScript('changed upstream'), /changed/);
 });
 test('pinned browser source patch removes raw command-line logging', () => {
   const original = 'before\n    std::cout << "Main received args:" << std::endl;\n    for (int i = 0; i < main_argc; i++) {\n        std::cout << "    " << main_argv[i] << std::endl;\n    }\nafter\n';

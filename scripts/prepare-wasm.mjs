@@ -44,6 +44,18 @@ export function patchWasmArchives(source, archives) {
   return patched;
 }
 
+export function patchOpenSslBuildScript(source) {
+  const wrap = '"$SOURCES_DIR/webshims/src/emsocket/wrap.py" .\n\n';
+  const oldPatch = '"$BASE_DIR"/openssl.patch';
+  if (source.split(wrap).length !== 2 || source.split(oldPatch).length !== 2) {
+    throw new Error('Pinned OpenSSL build script changed; review before patching.');
+  }
+  // curl supplies the emsocket transport. OpenSSL 3.5's PEM macros token-paste
+  // "write" into function names, so globally substituting that POSIX symbol
+  // with emsocket_write corrupts the library's own C identifiers.
+  return source.replace(wrap, '').replace(oldPatch, '"$BASE_DIR"/openssl-3.5-wasm.patch');
+}
+
 export function prepareWasm(root = project, env = process.env) {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'upstream.sources.json'), 'utf8'));
   const source = path.join(root, 'vendor/wasm');
@@ -55,14 +67,12 @@ export function prepareWasm(root = project, env = process.env) {
   const threads = Number(env.WASM_PTHREAD_POOL_SIZE || 8);
   const patched = patchBuildScript(fs.readFileSync(path.join(source, 'build_luanti.sh'), 'utf8'), { memoryMiB, threads });
   const dependencies = patchDependencyScripts(fs.readFileSync(path.join(source, 'build_libarchive.sh'), 'utf8'), fs.readFileSync(path.join(source, 'build_libzip.sh'), 'utf8'));
-  const opensslScript = fs.readFileSync(path.join(source, 'build_openssl.sh'), 'utf8');
   const opensslPatchName = 'openssl-3.5-wasm.patch';
-  if (opensslScript.split('"$BASE_DIR"/openssl.patch').length !== 2) throw new Error('Pinned OpenSSL build script changed; review before patching.');
   const scripts = {
     'build_luanti.sh': patched,
     'build_all.sh': patchBuildAll(fs.readFileSync(path.join(source, 'build_all.sh'), 'utf8')),
     'fetch_sources.sh': patchWasmArchives(fs.readFileSync(path.join(source, 'fetch_sources.sh'), 'utf8'), manifest.wasmArchives),
-    'build_openssl.sh': opensslScript.replace('"$BASE_DIR"/openssl.patch', `"$BASE_DIR"/${opensslPatchName}`),
+    'build_openssl.sh': patchOpenSslBuildScript(fs.readFileSync(path.join(source, 'build_openssl.sh'), 'utf8')),
     [opensslPatchName]: fs.readFileSync(path.join(root, 'scripts', opensslPatchName), 'utf8'),
     'miners-patch-args.mjs': fs.readFileSync(path.join(root, 'scripts/patch-wasm-args.mjs'), 'utf8'),
     ...dependencies,

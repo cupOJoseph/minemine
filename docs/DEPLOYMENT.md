@@ -126,6 +126,8 @@ Create `/etc/minemine/minemine.env` with owner `root`, group `minemine`, and mod
 
 Install Caddy and adapt the archived `deploy/vps/Caddyfile.example` to the verified temporary hostname. Its automatic HTTPS needs the temporary hostname to resolve to the VM and ports 80/443 reachable. Validate the Caddyfile before starting Caddy. Keep Node 3000 and native UDP 30000 on loopback; permit only 80/443 and narrowly scoped SSH at the firewall. Check external HTTPS, WSS, COOP/COEP and `crossOriginIsolated`, then conduct the remote two-wallet joins, shared edits, reconnect, expired-ticket and authorization checks. Turn on both launch flags only for this controlled rehearsal; retain the button gate until those checks, backup/restore, and whole-VM resource measurements pass. Record a stopped-world backup and actually restore it. The [VPS gates](VPS_RECOMMENDATION.md#provisioning-and-launch-gates) remain authoritative before announcing a public URL.
 
+The Caddy template enables zstd and gzip response encoding. An official Caddy 2.11.7 binary validated the template, and a temporary local HTTPS proxy served the 15.2 MB WASM as 5.5 MB zstd or 5.7 MB gzip while preserving isolation headers; Chromium launched the solo world through it. Test the **deployed** Caddy package, TLS certificate and browser network path again on the VM. Keep API responses `no-store`; Node's static files use ETags for revalidation.
+
 The included `deploy/Dockerfile` packages the Node launcher/auth service and restricted WebSocket bridge. It does not package a native game server or a verified playable world. Build from project root:
 
 ```sh

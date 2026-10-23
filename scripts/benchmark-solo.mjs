@@ -7,7 +7,8 @@ const percentile = (values, ratio) => values[Math.min(values.length - 1, Math.ce
 
 const browser = await chromium.launch({ headless: true, args: ['--enable-unsafe-swiftshader'] });
 try {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  const context = await browser.newContext({ viewport: { width: 1280, height: 720 },
+    ignoreHTTPSErrors: process.env.BENCHMARK_LOCAL_TLS === 'true' });
   await context.addInitScript(() => performance.setResourceTimingBufferSize(1000));
   const trials = [];
   for (const label of ['cold context', 'same-context reload']) {

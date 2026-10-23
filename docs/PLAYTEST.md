@@ -2,6 +2,8 @@
 
 Current status: the solo playtest works at https://cupojoseph.github.io/minemine/. The real engine compiled successfully in Actions run 39147984307. Release 96f0d5d5fc25 contains a 13,926,500-byte WASM and 21,300,742 bytes of recorded assets. Local asset hashes and the public WASM match the manifest. Startup, movement, mouse look, inventory, digging, building, clean exit and saved-world reload passed in Chromium on 2026-10-18 after correcting a reserved-name startup error. See VALIDATION.md for exact evidence and remaining QA.
 
+The newer local candidate `21f97a29c16b` has a 15,242,948-byte WASM and 22,617,218 recorded asset bytes. `scripts/benchmark-solo.mjs` records loopback browser transfers and startup callback timing; see VALIDATION.md for the named M3/Chromium setup and limits. The proposed Caddy ingress now compresses the WASM with zstd or gzip. A local HTTPS Chromium launch passed through that proxy, reducing measured first-context transfer from about 22.6 MB to 12.6 MB. This does not measure real network startup, game FPS, peak memory or the first controllable frame. The upgraded candidate and new MineMine landing remain unpublished pending PR review.
+
 ## First playtest scope
 
 The first engine test is a small local creative world using the actual Luanti engine and Minetest Game. The starter inventory includes a steel pickaxe, dirt, wood, and torches. Browser storage is used when supported. Shared multiplayer, wallet-gated characters, and token rewards/spending remain separate milestones.

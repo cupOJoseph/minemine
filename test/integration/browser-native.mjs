@@ -108,6 +108,16 @@ async function signalProbe(signal, marker, label) {
   await writeFile(path.join(worldDir, signal), 'ready\n', { mode: 0o600 });
   return waitForProbe(marker, label);
 }
+async function waitForGuestMap(playerName, logOffset) {
+  const pattern = new RegExp(`Server: Player ${playerName},[^\\n]*full map send \\(d=\\d+\\) completed`);
+  const deadline = Date.now() + 60_000;
+  while (Date.now() < deadline) {
+    const log = await readFile(logPath, 'utf8').catch(() => '');
+    if (pattern.test(log.slice(logOffset))) return;
+    await sleep(500);
+  }
+  throw new Error(`Native server did not finish a map send to ${playerName} after arming the dig target.`);
+}
 async function mouseDigFallback(gamePage, marker) {
   // Headless SDL key input occasionally misses a dig even with the remapped
   // key held. A real held mouse button exercises the same browser game path.
@@ -172,6 +182,7 @@ try {
   await secondPage.bringToFront();
   await canvas.evaluate(element => { element.tabIndex = 0; });
   await sleep(5000);
+  const logBeforeDigTarget = (await readFile(logPath, 'utf8')).length;
   await writeFile(path.join(worldDir, 'town-packet-arm.txt'), 'dig\n', { mode: 0o600 });
   let packetReady = '';
   for (let attempt = 0; attempt < 30; attempt++) {
@@ -180,6 +191,10 @@ try {
     await sleep(1000);
   }
   assert.match(packetReady, /^PASS /, `native browser-packet target failed: ${packetReady || 'no result'}`);
+  // A freshly teleported client can render the nearby wall before the server
+  // finishes its first map send. Wait for the pinned server's map-completion
+  // marker before using synthetic headless-browser input on that target.
+  await waitForGuestMap(secondSession.playerName, logBeforeDigTarget);
   await sleep(5000);
   const bounds = await canvas.boundingBox();
   assert.ok(bounds && bounds.width > 100 && bounds.height > 100, 'game canvas was not usable');

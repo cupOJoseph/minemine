@@ -157,8 +157,10 @@ test('player statistics require an allowlisted signed wallet', async t => {
     return verified.headers.getSetCookie()[0].split(';')[0];
   };
   assert.equal((await request('/api/admin/stats')).status, 401);
-  assert.equal((await request('/api/admin/stats', undefined, await login(outsider))).status, 403);
+  const outsiderCookie = await login(outsider);
+  assert.equal((await request('/api/admin/stats', undefined, outsiderCookie)).status, 403);
   assert.equal((await request('/api/admin/players')).status, 401);
+  assert.equal((await request('/api/admin/players', undefined, outsiderCookie)).status, 403);
   const adminCookie = await login(admin);
   const response = await request('/api/admin/stats', undefined, adminCookie);
   assert.equal(response.status, 200);

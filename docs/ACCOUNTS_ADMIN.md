@@ -29,4 +29,4 @@ The first read-only `/api/admin/stats` route checks the existing signed-wallet s
 5. Add ZeroDev signup and smart-signature verification, then test a funded testnet account's MINE transfer and paid town claim. Add any card checkout only after the payment requirement and provider are explicitly settled.
 6. Build the player explorer and admin dashboard UI on top of tested APIs; verify non-admin denial, mobile layout, accessibility and production-data migration/backup behavior.
 
-Only the allowlisted, read-only stats API is implemented. No admin dashboard, beta-code, reservation or ZeroDev API is exposed by the current build.
+The read-only `/admin.html` page renders current and UTC day/week/month counts, the current stable character IDs and a freshness warning from the allowlisted stats API. An admin signs in with the configured wallet on the main page first; the empty allowlist grants nobody. Desktop and mobile layouts passed local visual QA with a mocked API response. No player explorer, beta-code, reservation or ZeroDev API is exposed by the current build.

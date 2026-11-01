@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>MineMine · Admin</title>
+  <link rel="stylesheet" href="/admin.css">
+  <script type="module" src="/admin.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="MineMine home"><span class="brand-mark" aria-hidden="true">▣</span> MineMine</a>
+    <span class="topbar-label">World operations</span>
+    <a class="home-link" href="/">Back to game ↗</a>
+  </header>
+  <main>
+    <div class="intro">
+      <div><p class="eyebrow">PRIVATE OPERATIONS / BETA</p><h1>Player pulse</h1><p class="subtitle">Live presence and unique players who joined the shared world.</p></div>
+      <button id="refresh" type="button">Refresh data ↻</button>
+    </div>
+    <p id="status" class="status" role="status" aria-live="polite">Checking access…</p>
+    <section class="stats" aria-label="Player statistics">
+      <article class="card"><span>Playing now</span><strong id="current-count">—</strong><small id="current-label">Native world presence</small></article>
+      <article class="card"><span>Today</span><strong id="daily-count">—</strong><small id="daily-label">UTC day</small></article>
+      <article class="card"><span>This week</span><strong id="weekly-count">—</strong><small id="weekly-label">UTC, starts Monday</small></article>
+      <article class="card"><span>This month</span><strong id="monthly-count">—</strong><small id="monthly-label">UTC calendar month</small></article>
+    </section>
+    <section class="detail" aria-labelledby="online-heading">
+      <div class="section-heading"><div><p class="eyebrow">LIVE WORLD</p><h2 id="online-heading">Connected characters</h2></div><span id="updated">—</span></div>
+      <ul id="online-players"><li class="empty">Waiting for the native world.</li></ul>
+    </section>
+    <p class="method">Counts use accepted Luanti joins. Reconnects count once per period; visiting the website does not count as playing. Presence is shown only while the native heartbeat and player snapshot are fresh. Times are UTC.</p>
+  </main>
+</body>
+</html>

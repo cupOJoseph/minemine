@@ -18,6 +18,7 @@ on:
       - 'scripts/ci-api-service.sh'
       - 'scripts/ci-deploy-economy.mjs'
       - 'scripts/package-host-runtime.sh'
+      - 'scripts/ci-mapserver-smoke.sh'
       - 'upstream.sources.json'
 permissions:
   contents: read
@@ -45,7 +46,7 @@ jobs:
       - name: Install dependencies from the pinned Luanti Linux guide
         run: |
           sudo apt-get update
-          sudo apt-get install -y g++ make cmake ninja-build libpng-dev libjpeg-dev libgl1-mesa-dev libsqlite3-dev libogg-dev libvorbis-dev libopenal-dev libcurl4-gnutls-dev libfreetype6-dev zlib1g-dev libgmp-dev libjsoncpp-dev libzstd-dev libluajit-5.1-dev gettext libsdl2-dev
+          sudo apt-get install -y g++ make cmake ninja-build sqlite3 libpng-dev libjpeg-dev libgl1-mesa-dev libsqlite3-dev libogg-dev libvorbis-dev libopenal-dev libcurl4-gnutls-dev libfreetype6-dev zlib1g-dev libgmp-dev libjsoncpp-dev libzstd-dev libluajit-5.1-dev gettext libsdl2-dev
       - name: Fetch pinned engine and game
         run: node scripts/fetch-upstream.mjs
       - name: Build native server
@@ -256,6 +257,8 @@ jobs:
           for sample in runtime/server-memory-first.csv runtime/server-memory-restart.csv; do
             awk -F, 'NR > 1 { if ($4 > peak) peak = $4; count++ } END { if (!count) exit 1; printf "%s: %d samples, peak Luanti + Node RSS %.1f MiB\n", FILENAME, count, peak / 1024 }' "$sample"
           done | tee runtime/server-memory-summary.txt
+      - name: Test upstream web mapper on a copied world
+        run: bash scripts/ci-mapserver-smoke.sh
       - name: Retain native startup diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -313,6 +316,8 @@ jobs:
             runtime/native-world/town-packet-removed-place-aim-ready.txt
             runtime/native-world/town-packet-removed-place-result.txt
             runtime/browser-artifacts/
+            runtime/mapserver-console.log
+            runtime/mapserver-index.html
           if-no-files-found: ignore
       - name: Publish tested host runtime archive
         if: success()

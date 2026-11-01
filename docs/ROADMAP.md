@@ -1,6 +1,6 @@
 # Roadmap and task tracker
 
-Updated: 2026-10-23 UTC. `DONE` means the stated acceptance criteria have been checked. `IMPLEMENTED` means code exists but its necessary integration gate has not passed. Blocked tasks are not complete.
+Updated: 2026-11-01 Eastern. `DONE` means the stated acceptance criteria have been checked. `IMPLEMENTED` means code exists but its necessary integration gate has not passed. Blocked tasks are not complete.
 
 ## Milestone 0 — Reproducible project foundation
 
@@ -54,6 +54,10 @@ Start with Minetest Game for low complexity. Evaluate Mineclonia/VoxeLibre only 
 | A07 | TODO | Replace in-memory sessions/grants with durable single-use coordination if scaling beyond one Node process; add distributed rate limiting. | A05 |
 | A08 | PARTIAL | EIP-6963 provider discovery and selection are implemented, with `window.ethereum` fallback. A two-provider Chromium/Anvil test selected the announced wallet and verified the legacy provider received no sign-in or payment requests. Installed extension QA, ERC-1271 smart-wallet validation and chain-bound contract-signature tests remain. | A05 |
 | A09 | LIVE LOOKUP VERIFIED; OWNER FLOW GATE | Optional Ethereum-mainnet ENS lookups resolve send recipients, display forward-verified reverse names, and place the name in short-lived game grants for a Luanti nametag. Mock-RPC and grant tests pass. The opt-in `npm run test:ens-live` check resolved the [ENS Docs `vitalik.eth` example](https://docs.ens.domains/ensip/23/) in both directions over a live mainnet RPC and resolved that name through MineMine's authenticated HTTP recipient API. [Native run 40008746916](https://github.com/cupOJoseph/minemine/actions/runs/40008746916) injected a name fixture into a disposable game grant before browser launch; Luanti confirmed the nametag and `/wallet` display. A real ENS owner's signed login through the live RPC into native Luanti, installed-wallet QA, and live ENS wallet-send QA remain. | A01, mainnet ENS RPC |
+| A10 | RESEARCHED; DECISION GATE | [Account plan](ACCOUNTS_ADMIN.md) compares the existing EOA flow with ZeroDev Wallet's embedded EIP-7702/4337 modes, signature verification and provider credits. Choose the ZeroDev mode and clarify whether a credit-card charge is for players, fiat funding, or the project's provider bill before designing checkout. No card data, paid account, or ZeroDev project has been created. | A01, product/payment choice |
+| A11 | TODO | Add ZeroDev signup with passkey/email/social recovery and a stable MineMine account binding. Verify SIWE contract signatures on the specified chain with ERC-1271 and ERC-6492 for undeployed 4337 accounts, preserving nonce, origin and expiry checks. Prove browser login, native reconnect, logout, MINE transfer and paid town claim for a disposable testnet smart account. Keep the existing EOA path working. | A10, A05, test ZeroDev project |
+| A12 | TODO | Add a durable, atomic registry for unique normalized MineMine usernames for conventional ZeroDev signup, with reserved words, account ownership, rename/expiry policy and audit history. Choosing a display name must not change the stable native player key, inventory, town membership or authorization. Test collisions, concurrent claims, restart/restore and display in web/native UI. | A10, A05 |
+| A13 | TODO | Let a wallet player select any ENS name it currently owns, not only its reverse/primary name. Verify ownership/control on Ethereum mainnet under the applicable ENS version, normalize the name, prevent duplicate MineMine display claims, recheck after transfer/expiry and fall back safely. Prove a real owner's selected name appears in both web and native gameplay. | A09, A12, mainnet ENS RPC |
 
 ## Milestone 4 — ERC-20 in-game economy
 
@@ -89,6 +93,26 @@ The one-time purchase protects x/z columns through all heights. Contract price a
 | L02 | IMPLEMENTED | Pages packaging places the landing at `/` and verified solo engine at `/play/`; local hash-verified staging passed. Publish and verify Play Now on the public URL. | L01, successful WASM artifact |
 | D01 | RESEARCH | [SpacetimeDB plan](SPACETIMEDB.md) defines OIDC wallet identity binding, authoritative reducer boundaries, migration and load-test gates. Implementation follows native multiplayer measurement. | S05 |
 
+## Milestone 5b — Website world map
+
+| ID | Status | Task and acceptance criteria | Depends on |
+| --- | --- | --- | --- |
+| M01 | DONE: RESEARCH | [Web map research](WEB_MAP.md) identifies Minetest mapserver and its optional mod as a live-map candidate, with minetestmapper as a static snapshot fallback. Upstream documents SQLite/PostgreSQL, incremental tiles, player markers, disk/CPU costs and licensing. Compatibility with our pinned Luanti and the $10 host remains untested. | S02 |
+| M02 | TODO | On a copied native SQLite world, pin and license-review mapserver, render terrain, change a node, confirm tile refresh, and verify Luanti can still edit and restart after mapserver's database changes. Measure render CPU, peak RAM, tile disk, game tick time and backup/restore under a whole-VM-sized limit. Compare with a bounded minetestmapper snapshot if live rendering strains the host. | M01, S02, S01 |
+| M03 | TODO | Add a website `/map/` with pan/zoom, world coordinates, spawn and a freshness indicator. Serve only sanitized map tiles/data through the MineMine origin; do not expose the world database or private files. Verify an outside-network browser and keep map traffic within measured egress limits. | M02, S04 |
+| M04 | TODO | Overlay protected town x/z boundaries from an authoritative, read-only projection of `town_claims`; handle negative coordinates, edits, removals and restarts. Make public player markers optional under an explicit server-enforced visibility policy, with no wallet-address leak. | M03, T03, A12 |
+
+## Milestone 5c — Beta operations and admin dashboard
+
+| ID | Status | Task and acceptance criteria | Depends on |
+| --- | --- | --- | --- |
+| O01 | TODO | Persist authoritative native join/leave/presence events and derive current players plus distinct daily, weekly and monthly active account counts in documented UTC periods. Exercise reconnect, stale heartbeat, restart, duplicate events and period boundaries; do not count mere web sessions as playing. | S02, A05 |
+| O02 | TODO | Gate every admin API request with a fresh authenticated session and explicit admin-wallet allowlist, same-origin writes, rate limits and an audit log. Test regular-player denial and admin revocation. No admin secrets enter the public bundle. | A02, O01 |
+| O03 | TODO | Add hashed beta-code creation, expiry, usage limits, atomic redemption, revocation and audit history. Add normalized username reservation with intended-account/expiry and collision handling. Enforce an invite before issuing a playable native grant once beta gating is enabled; keep solo mode accessible. | O02, A12, A04 |
+| O04 | TODO | Build an admin dashboard showing current/UTC daily-weekly-monthly players, health and a paginated player explorer (username/verified ENS/stable ID, last seen, account type, town). Add beta-code and reservation controls; validate private-data access, accessibility, mobile layout and backup/restore. | O01–O03, A13 |
+
+The [account and admin plan](ACCOUNTS_ADMIN.md) records the identity, billing, privacy and authorization boundaries. These features are not in the current public game.
+
 ## Resume order
 
 1. Keep the working solo playtest available at https://cupojoseph.github.io/minemine/. Core gameplay and persisted edits passed; do not rebuild just to resume QA.
@@ -97,6 +121,8 @@ The one-time purchase protects x/z columns through all heights. Contract price a
 4. Publish the landing through the Pages workflow after PR review/merge; verify `/play/` and browser isolation. The Pages `github-pages` environment currently permits only `main`; a feature-branch dispatch on 2026-10-22 failed before steps ran. The existing public root still serves the old solo page.
 5. Use the [tested host archive](DEPLOYMENT.md#6-host-the-tested-stack) to rehearse the complete [under-$10 VPS plan](VPS_RECOMMENDATION.md) on a 1 GiB VM after the owner connects DigitalOcean and exact charges pass the budget gate. Verify outside-network shared edits, reconnects and authorization failures with two wallet characters. Use a temporary HTTPS address for the technical alpha; defer `minemine.gg` until viability and interest justify it. Do not enable the shared-world button from configuration alone.
 6. Local EVM token transfer and wallet-panel town purchases pass, and two local-chain payments reached native town protection in CI. Arrange isolated Sepolia deployment, nonzero-confirmation/reorg checks and real extension-wallet QA, then repeat paid protection on the remote test world. Keep incomplete functionality disabled.
-7. Measure the first shared world before beginning the SpacetimeDB migration.
+7. Build the beta account/admin foundations in dependency order: authoritative player events, admin access, codes and username reservations, then the dashboard and player explorer. Complete ZeroDev/card-scope decision and smart-signature checks before enabling embedded-wallet signup; treat ENS ownership selection separately from existing reverse-name lookup.
+8. Test the existing Luanti mapserver on a copied world and within the $10 host capacity gate. Use a bounded static map snapshot if live tiles materially hurt gameplay or disk headroom; add town overlays only after the map's read-only data boundary is verified.
+9. Measure the first shared world before beginning the SpacetimeDB migration.
 
 Milestone boundaries track completed behavior rather than calendar guesses. The first build and multiplayer compatibility spike should determine the engine schedule.

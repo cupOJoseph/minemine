@@ -19,6 +19,8 @@ export function readConfig(env = process.env) {
   if (trustedLoopbackProxy && (origin.protocol !== 'https:' || !['127.0.0.1', '::1'].includes(env.HOST || '127.0.0.1'))) {
     throw new Error('TRUST_LOOPBACK_PROXY requires HTTPS and a loopback HOST.');
   }
+  const adminWalletAddresses = (env.ADMIN_WALLET_ADDRESSES || '').split(',').map(value => value.trim()).filter(Boolean).map(getAddress);
+  if (new Set(adminWalletAddresses.map(value => value.toLowerCase())).size !== adminWalletAddresses.length) throw new Error('Duplicate admin wallet address.');
   return {
     origin: origin.origin, host: env.HOST || '127.0.0.1', port, chainId,
     secure: origin.protocol === 'https:',
@@ -29,6 +31,7 @@ export function readConfig(env = process.env) {
     tokenAddress: env.TOKEN_ADDRESS ? getAddress(env.TOKEN_ADDRESS) : null,
     rpcUrl: env.RPC_URL || null,
     ensRpcUrl: env.ENS_RPC_URL || null,
+    adminWalletAddresses,
     townContractAddress: env.TOWN_CONTRACT_ADDRESS ? getAddress(env.TOWN_CONTRACT_ADDRESS) : null,
     townConfirmations,
   };

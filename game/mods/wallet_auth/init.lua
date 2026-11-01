@@ -5,6 +5,8 @@ local storage = core.get_mod_storage()
 local dir = core.get_worldpath() .. "/wallet_grants/"
 local balance_dir = core.get_worldpath() .. "/wallet_balances/"
 local heartbeat_path = core.get_worldpath() .. "/minemine-server-heartbeat"
+local presence_path = core.get_worldpath() .. "/minemine-player-presence.json"
+local joins_prefix = core.get_worldpath() .. "/minemine-player-joins-"
 local identities = {}
 local pending = {}
 -- Valid unpadded base64 for a SHA-1 digest with no known password preimage.
@@ -14,6 +16,30 @@ local expired_password_hash = "AAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
 local heartbeat_elapsed = 0
 local heartbeat_error_logged = false
+local presence_error_logged = false
+local function write_presence()
+    local names = {}
+    for name in pairs(identities) do names[#names + 1] = core.write_json(name) end
+    table.sort(names)
+    local snapshot = '{"updated_at":' .. tostring(os.time()) .. ',"players":[' .. table.concat(names, ',') .. ']}'
+    if core.safe_file_write(presence_path, snapshot) then
+        presence_error_logged = false
+    elseif not presence_error_logged then
+        core.log("error", "MineMine cannot write the native player presence snapshot")
+        presence_error_logged = true
+    end
+end
+local function record_join(name)
+    local month = os.date("!%Y-%m")
+    local file = io.open(joins_prefix .. month .. ".log", "a")
+    if not file then
+        core.log("error", "MineMine cannot open the native player join log")
+        return
+    end
+    local wrote = file:write(tostring(os.time()), "\t", name, "\n")
+    local closed = file:close()
+    if not wrote or not closed then core.log("error", "MineMine cannot append the native player join log") end
+end
 local function write_heartbeat()
     if core.safe_file_write(heartbeat_path, tostring(os.time()) .. "\n") then
         heartbeat_error_logged = false
@@ -27,6 +53,7 @@ core.register_globalstep(function(dtime)
     if heartbeat_elapsed < 2 then return end
     heartbeat_elapsed = 0
     write_heartbeat()
+    write_presence()
 end)
 
 local function grant(name, allow_expired)
@@ -148,6 +175,8 @@ core.register_on_joinplayer(function(player)
     end
     identities[name] = value
     storage:set_string("address:" .. name, value.address)
+    record_join(name)
+    write_presence()
     if value.ens_name then player:set_nametag_attributes({ text = value.ens_name }) end
     core.chat_send_player(name, "Wallet connected. Use /wallet for your address, /wallet balance for a recent MINE balance, or /town to manage claims.")
 end)
@@ -155,6 +184,7 @@ core.register_on_leaveplayer(function(player)
     local name = player:get_player_name()
     identities[name] = nil
     pending[name] = nil
+    write_presence()
 end)
 core.register_chatcommand("wallet", {
     params = "[balance]",

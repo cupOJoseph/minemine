@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
-import { readFile, mkdir, rename, writeFile } from 'node:fs/promises';
+import { readFile, readdir, mkdir, rename, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { Contract, JsonRpcProvider, NonceManager, Wallet } from 'ethers';
 import { chromium } from 'playwright';
+import { createPlayerStats } from '../../server/player-stats.mjs';
 
 const origin = process.env.PUBLIC_ORIGIN || 'http://localhost:3000';
 const logPath = process.env.NATIVE_LOG || 'runtime/browser-native.log';
@@ -550,6 +551,14 @@ try {
   assert.equal(logoutDisconnected, true, 'native server retained a player after wallet logout and grant revocation');
   await writeFile(path.join(worldDir, 'town-probe-config.json'),
     JSON.stringify({ phase: 'restart', owner: session.playerName, guest: secondSession.playerName, ensName: 'builder.eth' }), { mode: 0o600 });
+  const joinFiles = (await readdir(worldDir)).filter(file => /^minemine-player-joins-\d{4}-\d{2}\.log$/.test(file));
+  assert.ok(joinFiles.length > 0, 'native world did not create a player join log');
+  const joins = (await Promise.all(joinFiles.map(file => readFile(path.join(worldDir, file), 'utf8')))).join('');
+  assert.ok(joins.includes(`\t${session.playerName}\n`), 'owner join was absent from native activity log');
+  assert.ok(joins.includes(`\t${secondSession.playerName}\n`), 'guest join was absent from native activity log');
+  const stats = await createPlayerStats(worldDir)(true);
+  assert.equal(stats.current.fresh, true, 'native player presence snapshot is stale or malformed');
+  await writeFile(path.join(artifacts, 'player-stats.json'), JSON.stringify(stats, null, 2));
 } catch (error) {
   const failedPage = secondPage && !secondPage.isClosed() ? secondPage : page;
   if (failedPage && !failedPage.isClosed()) {

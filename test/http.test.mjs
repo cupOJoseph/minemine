@@ -137,3 +137,31 @@ test('trusted local Caddy gives visitors separate limits and cannot be spoofed b
   for (let n = 0; n < 120; n++) assert.equal((await request('/api/config', undefined, undefined, invalid)).status, 200);
   assert.equal((await request('/api/config', undefined, undefined, invalid)).status, 429);
 });
+test('player statistics require an allowlisted signed wallet', async t => {
+  const admin = new Wallet('0x' + '44'.repeat(32));
+  const outsider = new Wallet('0x' + '55'.repeat(32));
+  const { request, worldDir } = await fixture(t, { ADMIN_WALLET_ADDRESSES: admin.address });
+  const join = `${Math.floor(Date.now() / 1000)}\tw_${'a'.repeat(17)}\n`;
+  writeFileSync(path.join(worldDir, `minemine-player-joins-${new Date().toISOString().slice(0, 7)}.log`), join);
+  writeFileSync(path.join(worldDir, 'minemine-server-heartbeat'), 'online\n');
+  writeFileSync(path.join(worldDir, 'minemine-player-presence.json'), JSON.stringify({
+    updated_at: Math.floor(Date.now() / 1000), players: [`w_${'a'.repeat(17)}`],
+  }));
+  const login = async wallet => {
+    const challengeResponse = await request('/api/auth/challenge', { address: wallet.address, chainId: 11155111 });
+    const challenge = await challengeResponse.json();
+    const signature = await wallet.signMessage(challenge.message);
+    const challengeCookie = challengeResponse.headers.getSetCookie()[0].split(';')[0];
+    const verified = await request('/api/auth/verify', { signature }, challengeCookie);
+    assert.equal(verified.status, 200);
+    return verified.headers.getSetCookie()[0].split(';')[0];
+  };
+  assert.equal((await request('/api/admin/stats')).status, 401);
+  assert.equal((await request('/api/admin/stats', undefined, await login(outsider))).status, 403);
+  const response = await request('/api/admin/stats', undefined, await login(admin));
+  assert.equal(response.status, 200);
+  const stats = await response.json();
+  assert.equal(stats.current.count, 1);
+  assert.deepEqual(stats.active, { daily: 1, weekly: 1, monthly: 1 });
+  assert.equal(stats.periods.timezone, 'UTC');
+});

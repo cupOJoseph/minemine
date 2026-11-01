@@ -12,6 +12,7 @@ import { createEnsResolver } from './ens.mjs';
 import { createTownCredits } from './towns.mjs';
 import { writeBalanceSnapshot } from './balance-snapshot.mjs';
 import { attachGameProxy } from './game-proxy.mjs';
+import { createPlayerStats } from './player-stats.mjs';
 
 const publicRoot = path.resolve(fileURLToPath(new URL('../public/', import.meta.url)));
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.ogg': 'audio/ogg' };
@@ -66,6 +67,8 @@ export function createApp(config) {
     provider = new JsonRpcProvider(request);
   }
   const towns = createTownCredits(config, provider);
+  const playerStats = createPlayerStats(config.worldDir);
+  const adminWallets = new Set((config.adminWalletAddresses || []).map(address => address.toLowerCase()));
   const balances = new Map();
   async function balance(address, fresh = false) {
     if (!config.tokenAddress || !provider) return { configured: false };
@@ -141,6 +144,11 @@ export function createApp(config) {
           return json(res, 200, { ok: true });
         }
         if (!session) throw new AuthError('Sign in with your wallet first.');
+        if (url.pathname.startsWith('/api/admin/')) {
+          if (!adminWallets.has(session.address.toLowerCase())) throw new AuthError('Admin access required.', 403);
+          if (req.method === 'GET' && url.pathname === '/api/admin/stats') return json(res, 200, await playerStats(nativeReady()));
+          throw new AuthError('Unknown admin route.', 404);
+        }
         if (req.method === 'GET' && url.pathname === '/api/session') return json(res, 200, session);
         if (req.method === 'GET' && url.pathname === '/api/identity') return json(res, 200, { ...session, ensName: await ens.name(session.address) });
         if (req.method === 'GET' && url.pathname === '/api/currency/recipient') return json(res, 200, await ens.recipient(url.searchParams.get('input')));

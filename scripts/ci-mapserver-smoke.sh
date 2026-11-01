@@ -24,6 +24,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 const file = 'runtime/mapserver-world/mapserver.json';
 const config = JSON.parse(readFileSync(file, 'utf8'));
 config.port = 18080;
+config.localhostonly = true;
 config.renderingjobs = 1;
 config.renderingfetchlimit = 128;
 config.renderingqueue = 32;
@@ -53,6 +54,39 @@ if [ "$ready" -ne 1 ]; then
   exit 1
 fi
 test -s runtime/mapserver-index.html
+tile=''
+for attempt in {1..45}; do
+  tile=$(find runtime/mapserver-world/mapserver.tiles -type f -name '*.png' -print -quit 2>/dev/null || true)
+  if [ -n "$tile" ]; then break; fi
+  if ! kill -0 "$mapper_pid" 2>/dev/null; then break; fi
+  sleep 1
+done
+if [ -z "$tile" ]; then
+  cat runtime/mapserver-console.log
+  echo 'Mapserver served HTML but did not render any terrain tiles.'
+  exit 1
+fi
+tile_route=${tile#runtime/mapserver-world/mapserver.tiles/}
+curl --fail --silent --show-error "http://127.0.0.1:18080/api/tile/${tile_route%.png}" -o runtime/mapserver-tile.png
+test "$(head -c 8 runtime/mapserver-tile.png | base64)" = 'iVBORw0KGgo='
 printf 'Mapserver served copied Luanti world; HTML bytes: %s\n' "$(wc -c < runtime/mapserver-index.html)"
+printf 'Rendered tile: %s; tile store: %s bytes\n' "$tile_route" "$(du -sb runtime/mapserver-world/mapserver.tiles | cut -f1)"
 printf 'Map blocks on copy: %s\n' "$(sqlite3 runtime/mapserver-world/map.sqlite 'select count(*) from blocks')"
 printf 'SQLite triggers after mapserver startup: %s\n' "$(sqlite3 runtime/mapserver-world/map.sqlite "select count(*) from sqlite_master where type='trigger'")"
+kill "$mapper_pid" 2>/dev/null || true
+wait "$mapper_pid" 2>/dev/null || true
+trap - EXIT
+set +e
+(cd vendor/native && timeout --signal=INT 8s bin/luantiserver --info --world "$GITHUB_WORKSPACE/runtime/mapserver-world" --config "$GITHUB_WORKSPACE/game/minetest.conf" --logfile "$GITHUB_WORKSPACE/runtime/mapserver-world-restart.log") > runtime/mapserver-world-restart-console.log 2>&1
+result=$?
+set -e
+if [ "$result" -ne 124 ]; then
+  cat runtime/mapserver-world-restart-console.log
+  echo "Native server could not restart the mapserver-touched world (status $result)."
+  exit 1
+fi
+grep -Fq 'listening on 127.0.0.1:30000' runtime/mapserver-world-restart-console.log
+if grep -Fq 'ERROR[Main]' runtime/mapserver-world-restart-console.log; then
+  cat runtime/mapserver-world-restart-console.log
+  exit 1
+fi

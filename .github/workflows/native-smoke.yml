@@ -318,6 +318,9 @@ jobs:
             runtime/browser-artifacts/
             runtime/mapserver-console.log
             runtime/mapserver-index.html
+            runtime/mapserver-tile.png
+            runtime/mapserver-world-restart.log
+            runtime/mapserver-world-restart-console.log
           if-no-files-found: ignore
       - name: Publish tested host runtime archive
         if: success()

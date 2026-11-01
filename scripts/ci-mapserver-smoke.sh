@@ -54,16 +54,22 @@ if [ "$ready" -ne 1 ]; then
   exit 1
 fi
 test -s runtime/mapserver-index.html
+curl --fail --silent --show-error http://127.0.0.1:18080/api/tile/0/999999/999999/0 -o runtime/mapserver-blank.png
 tile=''
 for attempt in {1..45}; do
-  tile=$(find runtime/mapserver-world/mapserver.tiles -type f -name '*.png' -print -quit 2>/dev/null || true)
+  while IFS= read -r -d '' candidate; do
+    if ! cmp -s "$candidate" runtime/mapserver-blank.png; then
+      tile=$candidate
+      break
+    fi
+  done < <(find runtime/mapserver-world/mapserver.tiles -type f -name '*.png' -print0 2>/dev/null || true)
   if [ -n "$tile" ]; then break; fi
   if ! kill -0 "$mapper_pid" 2>/dev/null; then break; fi
   sleep 1
 done
 if [ -z "$tile" ]; then
   cat runtime/mapserver-console.log
-  echo 'Mapserver served HTML but did not render any terrain tiles.'
+  echo 'Mapserver served HTML but did not render a tile different from its blank response.'
   exit 1
 fi
 tile_route=${tile#runtime/mapserver-world/mapserver.tiles/}

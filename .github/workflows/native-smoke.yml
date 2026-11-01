@@ -318,6 +318,7 @@ jobs:
             runtime/browser-artifacts/
             runtime/mapserver-console.log
             runtime/mapserver-index.html
+            runtime/mapserver-blank.png
             runtime/mapserver-tile.png
             runtime/mapserver-world-restart.log
             runtime/mapserver-world-restart-console.log

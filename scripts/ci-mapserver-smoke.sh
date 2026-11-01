@@ -55,13 +55,20 @@ if [ "$ready" -ne 1 ]; then
 fi
 test -s runtime/mapserver-index.html
 curl --fail --silent --show-error http://127.0.0.1:18080/api/tile/0/999999/999999/0 -o runtime/mapserver-blank.png
+tile_url() {
+  local relative=${1#runtime/mapserver-world/mapserver.tiles/}
+  local layer zoom x y_file
+  IFS=/ read -r layer zoom x y_file <<< "$relative"
+  printf 'http://127.0.0.1:18080/api/tile/%s/%s/%s/%s' "$layer" "$x" "${y_file%.png}" "$zoom"
+}
 tile=''
 for attempt in {1..45}; do
   while IFS= read -r -d '' candidate; do
-    if ! cmp -s "$candidate" runtime/mapserver-blank.png; then
-      tile=$candidate
-      break
-    fi
+    if cmp -s "$candidate" runtime/mapserver-blank.png; then continue; fi
+    if ! curl --fail --silent "$(tile_url "$candidate")" -o runtime/mapserver-tile.png; then continue; fi
+    if cmp -s runtime/mapserver-tile.png runtime/mapserver-blank.png; then continue; fi
+    tile=$candidate
+    break
   done < <(find runtime/mapserver-world/mapserver.tiles -type f -name '*.png' -print0 2>/dev/null || true)
   if [ -n "$tile" ]; then break; fi
   if ! kill -0 "$mapper_pid" 2>/dev/null; then break; fi
@@ -73,8 +80,12 @@ if [ -z "$tile" ]; then
   exit 1
 fi
 tile_route=${tile#runtime/mapserver-world/mapserver.tiles/}
-curl --fail --silent --show-error "http://127.0.0.1:18080/api/tile/${tile_route%.png}" -o runtime/mapserver-tile.png
+curl --fail --silent --show-error "$(tile_url "$tile")" -o runtime/mapserver-tile.png
 test "$(head -c 8 runtime/mapserver-tile.png | base64)" = 'iVBORw0KGgo='
+if cmp -s runtime/mapserver-tile.png runtime/mapserver-blank.png; then
+  echo 'Mapserver tile changed back to its blank response before validation.'
+  exit 1
+fi
 printf 'Mapserver served copied Luanti world; HTML bytes: %s\n' "$(wc -c < runtime/mapserver-index.html)"
 printf 'Rendered tile: %s; tile store: %s bytes\n' "$tile_route" "$(du -sb runtime/mapserver-world/mapserver.tiles | cut -f1)"
 printf 'Map blocks on copy: %s\n' "$(sqlite3 runtime/mapserver-world/map.sqlite 'select count(*) from blocks')"

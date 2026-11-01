@@ -64,3 +64,39 @@ export function createPlayerStats(worldDir, now = Date.now) {
     };
   };
 }
+
+// The activity log contains stable character IDs only. This recent roster is
+// deliberately bounded until a durable account/profile index exists.
+export function createPlayerExplorer(worldDir, now = Date.now) {
+  return async function playerExplorer(query = '', page = 1) {
+    if (typeof query !== 'string' || query.length > 19 || !/^[a-z0-9_]*$/.test(query)) throw new Error('Invalid player search.');
+    if (!Number.isSafeInteger(page) || page < 1 || page > 10000) throw new Error('Invalid player page.');
+    const current = new Date(now());
+    const players = new Map();
+    for (let offset = 0; offset < 12; offset++) {
+      const key = monthKey(new Date(Date.UTC(current.getUTCFullYear(), current.getUTCMonth() - offset, 1)));
+      const raw = await smallFile(path.join(worldDir, `minemine-player-joins-${key}.log`), 4 * 1024 * 1024);
+      if (raw === null) continue;
+      for (const line of raw.split('\n')) {
+        const match = /^(\d{10})\t(w_[a-f0-9]{17})$/.exec(line);
+        if (!match || !match[2].includes(query)) continue;
+        const time = Number(match[1]) * 1000;
+        if (time > now() + 60_000 || monthKey(new Date(time)) !== key) continue;
+        const existing = players.get(match[2]);
+        if (existing) {
+          existing.firstSeen = Math.min(existing.firstSeen, time);
+          existing.lastSeen = Math.max(existing.lastSeen, time);
+          existing.joins++;
+        } else players.set(match[2], { playerName: match[2], firstSeen: time, lastSeen: time, joins: 1 });
+      }
+    }
+    const ordered = [...players.values()].sort((a, b) => b.lastSeen - a.lastSeen || a.playerName.localeCompare(b.playerName));
+    const pageSize = 25;
+    return {
+      query, page, pageSize, total: ordered.length, windowMonths: 12,
+      players: ordered.slice((page - 1) * pageSize, page * pageSize).map(player => ({
+        ...player, firstSeen: new Date(player.firstSeen).toISOString(), lastSeen: new Date(player.lastSeen).toISOString(),
+      })),
+    };
+  };
+}

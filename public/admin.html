@@ -30,6 +30,16 @@
       <div class="section-heading"><div><p class="eyebrow">LIVE WORLD</p><h2 id="online-heading">Connected characters</h2></div><span id="updated">—</span></div>
       <ul id="online-players"><li class="empty">Waiting for the native world.</li></ul>
     </section>
+    <section class="detail" aria-labelledby="explorer-heading">
+      <div class="section-heading"><div><p class="eyebrow">RECENT CHARACTERS</p><h2 id="explorer-heading">Player explorer</h2></div><span>Accepted native joins · rolling 12 months</span></div>
+      <form id="player-search" class="explorer-tools" role="search">
+        <label for="player-query">Search stable character ID</label>
+        <div><input id="player-query" name="q" maxlength="19" pattern="[a-z0-9_]*" autocomplete="off" placeholder="w_…" aria-describedby="explorer-note"><button type="submit">Search</button></div>
+      </form>
+      <p id="explorer-note" class="explorer-note">Public usernames, ENS aliases and town membership will appear after the account registry is built.</p>
+      <div class="table-scroll"><table><thead><tr><th scope="col">Character ID</th><th scope="col">First join in window</th><th scope="col">Last join</th><th scope="col">Joins</th></tr></thead><tbody id="player-rows"><tr><td colspan="4">Waiting for admin access.</td></tr></tbody></table></div>
+      <div class="pager"><span id="player-page-label">—</span><div><button id="player-prev" type="button" disabled>Previous</button><button id="player-next" type="button" disabled>Next</button></div></div>
+    </section>
     <p class="method">Counts use accepted Luanti joins. Reconnects count once per period; visiting the website does not count as playing. Presence is shown only while the native heartbeat and player snapshot are fresh. Times are UTC.</p>
   </main>
 </body>

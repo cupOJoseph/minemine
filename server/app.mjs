@@ -12,7 +12,7 @@ import { createEnsResolver } from './ens.mjs';
 import { createTownCredits } from './towns.mjs';
 import { writeBalanceSnapshot } from './balance-snapshot.mjs';
 import { attachGameProxy } from './game-proxy.mjs';
-import { createPlayerStats } from './player-stats.mjs';
+import { createPlayerStats, createPlayerExplorer } from './player-stats.mjs';
 
 const publicRoot = path.resolve(fileURLToPath(new URL('../public/', import.meta.url)));
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.ogg': 'audio/ogg' };
@@ -68,6 +68,7 @@ export function createApp(config) {
   }
   const towns = createTownCredits(config, provider);
   const playerStats = createPlayerStats(config.worldDir);
+  const playerExplorer = createPlayerExplorer(config.worldDir);
   const adminWallets = new Set((config.adminWalletAddresses || []).map(address => address.toLowerCase()));
   const balances = new Map();
   async function balance(address, fresh = false) {
@@ -147,6 +148,12 @@ export function createApp(config) {
         if (url.pathname.startsWith('/api/admin/')) {
           if (!adminWallets.has(session.address.toLowerCase())) throw new AuthError('Admin access required.', 403);
           if (req.method === 'GET' && url.pathname === '/api/admin/stats') return json(res, 200, await playerStats(nativeReady()));
+          if (req.method === 'GET' && url.pathname === '/api/admin/players') {
+            const query = url.searchParams.get('q') || '';
+            const page = Number(url.searchParams.get('page') || '1');
+            try { return json(res, 200, await playerExplorer(query, page)); }
+            catch (error) { if (error.message.startsWith('Invalid player')) throw new AuthError(error.message, 400); throw error; }
+          }
           throw new AuthError('Unknown admin route.', 404);
         }
         if (req.method === 'GET' && url.pathname === '/api/session') return json(res, 200, session);

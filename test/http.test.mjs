@@ -158,10 +158,17 @@ test('player statistics require an allowlisted signed wallet', async t => {
   };
   assert.equal((await request('/api/admin/stats')).status, 401);
   assert.equal((await request('/api/admin/stats', undefined, await login(outsider))).status, 403);
-  const response = await request('/api/admin/stats', undefined, await login(admin));
+  assert.equal((await request('/api/admin/players')).status, 401);
+  const adminCookie = await login(admin);
+  const response = await request('/api/admin/stats', undefined, adminCookie);
   assert.equal(response.status, 200);
   const stats = await response.json();
   assert.equal(stats.current.count, 1);
   assert.deepEqual(stats.active, { daily: 1, weekly: 1, monthly: 1 });
   assert.equal(stats.periods.timezone, 'UTC');
+  const roster = await request('/api/admin/players?page=1', undefined, adminCookie);
+  assert.equal(roster.status, 200);
+  assert.equal((await roster.json()).players[0].playerName, `w_${'a'.repeat(17)}`);
+  assert.equal((await request('/api/admin/players?q=A', undefined, adminCookie)).status, 400);
+  assert.equal((await request('/api/admin/players?page=0', undefined, adminCookie)).status, 400);
 });

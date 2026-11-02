@@ -154,6 +154,10 @@ local function run(config)
     check(form_action(core.get_player_by_name(guest), { claim = true, claim_radius = "1" }),
         "unauthorized form action was not handled")
     check(admin_town(owner).claims == 1, "non-owner form changed the paid claim")
+    -- The probe submits callbacks directly, so close the server-sent forms
+    -- before Chromium tests real dig/place input with these connected players.
+    core.close_formspec(owner, "town_claims:manager")
+    core.close_formspec(guest, "town_claims:manager")
     -- These public Luanti APIs enter the normal node_dig/item_place_node
     -- handlers with the connected wallet players as the actors.
     local edit_pos = { x = math.floor(pos.x), y = math.floor(pos.y) + 3, z = math.floor(pos.z) }

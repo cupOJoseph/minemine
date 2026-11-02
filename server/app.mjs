@@ -131,9 +131,18 @@ export function createApp(config) {
     }
     return { ...session, ensName: primary, selectedEnsName: null };
   }
+  const betaAdmissionCache = new Map();
+  const isBetaAdmitted = address => {
+    const entry = betaAdmissionCache.get(address);
+    if (entry && entry.expiresAt > Date.now()) return entry.admitted;
+    const admitted = betaCodes.isAdmitted(address);
+    if (betaAdmissionCache.size >= 10_000) betaAdmissionCache.clear();
+    betaAdmissionCache.set(address, { admitted, expiresAt: Date.now() + 1000 });
+    return admitted;
+  };
   const betaAdmitted = session => {
     if (!session) return false;
-    return !config.betaInvitesEnabled || adminWallets.has(session.address.toLowerCase()) || betaCodes.isAdmitted(session.address.toLowerCase());
+    return !config.betaInvitesEnabled || adminWallets.has(session.address.toLowerCase()) || isBetaAdmitted(session.address.toLowerCase());
   };
   const balances = new Map();
   async function balance(address, fresh = false) {
@@ -320,13 +329,16 @@ export function createApp(config) {
             try {
               if (url.pathname.endsWith('/revoke')) {
                 const revoked = betaCodes.revokeAdmission(address, session.address.toLowerCase());
+                betaAdmissionCache.delete(address);
                 if (config.betaInvitesEnabled) {
                   grants.revokeAddress(address);
                   gameProxy.revokeWhere(token => auth.get(token)?.address?.toLowerCase() === address);
                 }
                 return json(res, 200, { revoked });
               }
-              return json(res, 200, { restored: betaCodes.restoreAdmission(address, session.address.toLowerCase()) });
+              const restored = betaCodes.restoreAdmission(address, session.address.toLowerCase());
+              betaAdmissionCache.delete(address);
+              return json(res, 200, { restored });
             } catch (error) {
               if (error instanceof BetaCodeError) throw new AuthError(error.message, error.code === 'not_found' ? 404 : 400);
               throw error;
@@ -357,11 +369,12 @@ export function createApp(config) {
           throw new AuthError('Unknown admin route.', 404);
         }
         if (req.method === 'GET' && url.pathname === '/api/session') return json(res, 200, session);
-        if (req.method === 'GET' && url.pathname === '/api/beta/status') return json(res, 200, { enabled: Boolean(config.betaInvitesEnabled), admitted: adminWallets.has(session.address.toLowerCase()) || betaCodes.isAdmitted(session.address.toLowerCase()) });
+        if (req.method === 'GET' && url.pathname === '/api/beta/status') return json(res, 200, { enabled: Boolean(config.betaInvitesEnabled), admitted: adminWallets.has(session.address.toLowerCase()) || isBetaAdmitted(session.address.toLowerCase()) });
         if (req.method === 'POST' && url.pathname === '/api/beta/redeem') {
           const data = await body(req);
           try {
             const result = betaCodes.redeem(data.code, session.address.toLowerCase());
+            betaAdmissionCache.delete(session.address.toLowerCase());
             return json(res, 200, result);
           } catch (error) {
             if (error instanceof BetaCodeError) throw new AuthError(error.message, 400);

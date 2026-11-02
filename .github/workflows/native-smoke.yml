@@ -287,7 +287,7 @@ jobs:
         run: |
           cp runtime/static-world-map.png public/map/snapshot.png
           cp runtime/static-world-map.json public/map/snapshot.json
-          npm run test:map-ui
+          EXPECTED_MAP_SPAWN=1 npm run test:map-ui
       - name: Publish a real map from a verified stopped-world backup
         run: |
           mkdir -p runtime/map-backup
@@ -302,7 +302,7 @@ jobs:
           grep -q 'Map is already current for latest backup' runtime/map-refresh-skip.log
           cp runtime/host-bundle-check/public/map/snapshot.json public/map/snapshot.json
           cp runtime/host-bundle-check/public/map/snapshot-*.png public/map/
-          EXPECTED_MAP_WORLD='MineMine shared world' npm run test:map-ui
+          EXPECTED_MAP_WORLD='MineMine shared world' EXPECTED_MAP_SPAWN=1 npm run test:map-ui
       - name: Retain native startup diagnostics
         if: always()
         uses: actions/upload-artifact@v4

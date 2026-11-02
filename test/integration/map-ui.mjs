@@ -61,6 +61,12 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   await page.screenshot({ path: 'runtime/static-map-mobile.png', fullPage: true });
   const metadata = JSON.parse(readFileSync('public/map/snapshot.json', 'utf8'));
+  if (process.env.EXPECTED_MAP_SPAWN === '1') {
+    assert.ok(metadata.spawn, 'native snapshot must include the world-projected default spawn');
+    assert.equal(await page.locator('#spawn-location').textContent(), `X ${metadata.spawn.x}, Z ${metadata.spawn.z}`);
+    await page.locator('#locate-spawn').click();
+    assert.equal(await page.locator('#center-coordinates').textContent(), `X ${metadata.spawn.x}, Z ${metadata.spawn.z}`);
+  }
   const versionedImage = `snapshot-${metadata.sha256.slice(0, 16)}.png`;
   const negativeClaim = { town: 'West Hollow', x1: -30, x2: -28, z1: -30, z2: -28 };
   const claims = metadata.townClaims.some(claim => claim.town === 'West Hollow')

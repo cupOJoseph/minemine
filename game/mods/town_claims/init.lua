@@ -46,12 +46,59 @@ local function export_map_claims()
     end
 end
 
+-- Private world projection for the authenticated admin player explorer.
+-- Keep the public map export above free of player and membership data.
+local function export_admin_roster()
+    local entries = {}
+    for owner, town in pairs(state.towns) do
+        if type(owner) == "string" and owner:match("^w_%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x$") and
+                type(town) == "table" and type(town.name) == "string" and
+                #town.name >= 3 and #town.name <= 24 and town.name:match("^[%w _%-]+$") and
+                type(town.members) == "table" and type(town.claims) == "table" then
+            local members = {}
+            for member, joined in pairs(town.members) do
+                if joined == true and type(member) == "string" and
+                        member:match("^w_%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x$") and member ~= owner then
+                    members[#members + 1] = member
+                end
+            end
+            table.sort(members)
+            local columns = 0
+            for _, claim in ipairs(town.claims) do
+                if type(claim) == "table" and type(claim.x1) == "number" and type(claim.x2) == "number" and
+                        type(claim.z1) == "number" and type(claim.z2) == "number" and
+                        claim.x1 <= claim.x2 and claim.z1 <= claim.z2 then
+                    columns = columns + (claim.x2 - claim.x1 + 1) * (claim.z2 - claim.z1 + 1)
+                end
+            end
+            entries[#entries + 1] = { owner = owner, name = town.name, members = members,
+                claims = #town.claims, protectedColumns = columns }
+        end
+    end
+    table.sort(entries, function(a, b) return a.owner < b.owner end)
+    local encoded = {}
+    for index, entry in ipairs(entries) do
+        local members = {}
+        for member_index, member in ipairs(entry.members) do members[member_index] = assert(core.write_json(member)) end
+        encoded[index] = '{"owner":' .. assert(core.write_json(entry.owner)) ..
+            ',"name":' .. assert(core.write_json(entry.name)) ..
+            ',"members":[' .. table.concat(members, ",") .. ']' ..
+            ',"claims":' .. entry.claims .. ',"protectedColumns":' .. entry.protectedColumns .. '}'
+    end
+    local payload = '{"version":1,"towns":[' .. table.concat(encoded, ",") .. ']}\n'
+    if not core.safe_file_write(core.get_worldpath() .. "/town-admin-roster.json", payload) then
+        core.log("error", "town_claims: could not update private admin roster")
+    end
+end
+
 local function persist()
     storage:set_string("towns:v1", core.serialize(state))
     export_map_claims()
+    export_admin_roster()
 end
 
 export_map_claims()
+export_admin_roster()
 
 local function wallet_name(name)
     return type(name) == "string" and name:match("^w_%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x$") ~= nil

@@ -29,6 +29,10 @@ try {
         }], total: 1, page: 1, pageSize: 25 }; }
         else if (pathname === '/api/admin/players/' + 'w_' + 'a'.repeat(17)) result = {
           playerName: 'w_' + 'a'.repeat(17), address: '0x' + '12'.repeat(20), ensName: 'builder.eth',
+          townMembership: { status: 'present', snapshotAt: '2026-11-01T11:00:00Z', town: {
+            name: 'Probe Town', role: 'owner', owner: 'w_' + 'a'.repeat(17), memberCount: 1,
+            claimCount: 1, protectedColumns: 9,
+          } },
           firstSignedInAt: '2026-11-01T09:00:00Z', lastSignedInAt: '2026-11-01T11:00:00Z',
           betaGateEnabled: true, betaAdmission: { admittedAt: '2026-11-01T10:00:00Z', revokedAt: admissionRevokedAt },
         };
@@ -76,6 +80,7 @@ try {
     await page.getByRole('button', { name: 'Inspect w_' + 'a'.repeat(17) }).click();
     await page.getByText('builder.eth', { exact: true }).waitFor();
     assert.equal(await page.locator('#profile-wallet').textContent(), '0x' + '12'.repeat(20));
+    assert.match(await page.locator('#profile-town').textContent(), /Owner of Probe Town.*9 protected columns/);
     await page.getByRole('button', { name: 'Suspend beta access' }).click();
     await page.getByRole('button', { name: 'Restore beta access' }).waitFor();
     assert.match(await page.locator('#profile-beta').textContent(), /Suspended/);

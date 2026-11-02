@@ -15,6 +15,7 @@ import { createTownCredits } from './towns.mjs';
 import { writeBalanceSnapshot } from './balance-snapshot.mjs';
 import { attachGameProxy } from './game-proxy.mjs';
 import { createPlayerStats, createPlayerExplorer } from './player-stats.mjs';
+import { townMembership } from './town-roster.mjs';
 import { createNameRegistry, NameRegistryError } from './name-registry.mjs';
 import { createNameCheckout } from './name-checkout.mjs';
 import { createBetaCodes, BetaCodeError } from './beta-codes.mjs';
@@ -277,7 +278,9 @@ export function createApp(config) {
             if (!profile) throw new AuthError('Player profile not found.', 404);
             const identity = await playerIdentity({ address: profile.address, playerName: name });
             const admission = betaCodes.admission(profile.address.toLowerCase());
-            return json(res, 200, { ...profile, ensName: identity.ensName, betaGateEnabled: Boolean(config.betaInvitesEnabled), betaAdmission: admission && {
+            return json(res, 200, { ...profile, ensName: identity.ensName,
+              townMembership: townMembership(config.worldDir, name),
+              betaGateEnabled: Boolean(config.betaInvitesEnabled), betaAdmission: admission && {
               admittedAt: new Date(admission.admitted_at).toISOString(),
               revokedAt: admission.revoked_at === null ? null : new Date(admission.revoked_at).toISOString(),
             } });

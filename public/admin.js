@@ -63,7 +63,7 @@ async function inspectPlayer(name) {
   playerDetail.hidden = false;
   playerDetailStatus.textContent = 'Checking current ENS ownership…';
   profileBetaAction.hidden = true;
-  for (const id of ['profile-character', 'profile-wallet', 'profile-ens', 'profile-first', 'profile-last']) label(id, '—');
+  for (const id of ['profile-character', 'profile-wallet', 'profile-ens', 'profile-town', 'profile-first', 'profile-last']) label(id, '—');
   try {
     const response = await fetch(`/api/admin/players/${encodeURIComponent(name)}`, {
       credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.timeout(12_000),
@@ -74,6 +74,13 @@ async function inspectPlayer(name) {
     label('profile-character', profile.playerName);
     label('profile-wallet', profile.address);
     label('profile-ens', profile.ensName || 'No currently verified ENS name');
+    const membership = profile.townMembership;
+    if (membership?.status === 'present' && membership.town) {
+      const town = membership.town;
+      label('profile-town', `${town.role === 'owner' ? 'Owner' : 'Member'} of ${town.name} · owner ${town.owner} · ${town.memberCount} members · ${town.claimCount} claims · ${town.protectedColumns} protected columns · snapshot ${dateLabel(membership.snapshotAt)}`);
+    } else if (membership?.status === 'none') {
+      label('profile-town', `No town membership · snapshot ${dateLabel(membership.snapshotAt)}`);
+    } else label('profile-town', 'Native town roster unavailable');
     label('profile-first', dateLabel(profile.firstSignedInAt));
     label('profile-last', dateLabel(profile.lastSignedInAt));
     const admission = profile.betaAdmission;

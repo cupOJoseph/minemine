@@ -60,6 +60,19 @@ local function map_claims(owner, guest)
     return snapshot.claims
 end
 
+local function admin_town(owner)
+    local file = assert(io.open(world .. "/town-admin-roster.json", "r"))
+    local raw = file:read("*a")
+    file:close()
+    local snapshot = core.parse_json(raw)
+    check(type(snapshot) == "table" and snapshot.version == 1 and type(snapshot.towns) == "table",
+        "native private town roster is invalid")
+    for _, entry in ipairs(snapshot.towns) do
+        if entry.owner == owner then return entry end
+    end
+    error("owner missing from private town roster")
+end
+
 local function find_claim(claims, town_name)
     for _, claim in ipairs(claims) do
         if claim.town == town_name then return claim end
@@ -102,10 +115,16 @@ local function run(config)
 
     local ok, message = command(owner, "create Probe Town")
     check(ok, "town creation failed: " .. tostring(message))
+    local roster = admin_town(owner)
+    check(roster.name == "Probe Town" and #roster.members == 0 and roster.claims == 0,
+        "private roster missed town creation")
     ok, message = command(owner, "claim 2")
     check(not ok and message:find("Insufficient confirmed land credits", 1, true), "oversized claim was not refused")
     ok, message = command(owner, "claim 1")
     check(ok, "nine-column claim failed: " .. tostring(message))
+    roster = admin_town(owner)
+    check(roster.claims == 1 and roster.protectedColumns == 9,
+        "private roster missed paid land claim")
 
     local pos = player:get_pos()
     check(not core.is_protected(pos, owner), "owner cannot build in own claim")
@@ -114,9 +133,13 @@ local function run(config)
     check(ok, "invitation failed: " .. tostring(message))
     ok, message = command(guest, "accept " .. owner)
     check(ok, "invitation acceptance failed: " .. tostring(message))
+    roster = admin_town(owner)
+    check(#roster.members == 1 and roster.members[1] == guest,
+        "private roster missed accepted member")
     check(not core.is_protected(pos, guest), "member cannot build in protected claim")
     ok, message = command(owner, "kick " .. guest)
     check(ok, "member removal failed: " .. tostring(message))
+    check(#admin_town(owner).members == 0, "private roster retained removed member")
     check(core.is_protected(pos, guest), "removed member can still build in protected claim")
     -- These public Luanti APIs enter the normal node_dig/item_place_node
     -- handlers with the connected wallet players as the actors.

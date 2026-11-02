@@ -1,6 +1,6 @@
 # Beta administration and player account plan
 
-Research checked 2026-11-02. The current service accepts signed EOA and supported smart wallets and derives a stable, 19-character Luanti protocol name from its address. It has admin stats, a recent native player explorer, local username holds and an optional wallet-bound beta invite gate. Player signup usernames, ZeroDev and card payment remain unimplemented. Keep the internal character key stable while adding public display names; changing the native key would risk inventories, protection and town ownership.
+Research checked 2026-11-02. The current service accepts signed EOA and supported smart wallets and derives a stable, 19-character Luanti protocol name from its address. It has admin stats, a recent native player explorer, local username holds and an optional wallet-bound beta invite gate. Player signup usernames, ZeroDev and card payment remain unimplemented. The local managed-name activation now sets a one-year term and hides expired names; renewal checkout and the player-facing expiry UI remain. Keep the internal character key stable while adding public display names; changing the native key would risk inventories, protection and town ownership.
 
 ## Signup choices and account identity
 

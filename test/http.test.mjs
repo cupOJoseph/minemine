@@ -207,6 +207,8 @@ test('admin player explorer links accepted joins to signed wallets and rechecks 
   const adminCookie = await login(admin);
   const roster = await (await request('/api/admin/players', undefined, adminCookie)).json();
   assert.equal(roster.players[0].walletAddress, player.address.toLowerCase());
+  assert.equal((await (await request(`/api/admin/players?q=${player.address}`, undefined, adminCookie)).json()).players[0].playerName, name);
+  assert.equal((await request('/api/admin/players?q=0x1234', undefined, adminCookie)).status, 400);
   const profile = await (await request(`/api/admin/players/${name}`, undefined, adminCookie)).json();
   assert.equal(profile.address, player.address.toLowerCase());
   assert.equal(profile.ensName, 'builder.eth');

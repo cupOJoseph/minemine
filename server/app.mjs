@@ -6,7 +6,7 @@ import path from 'node:path';
 import { isIP } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { Contract, FetchRequest, JsonRpcProvider, formatUnits, getAddress } from 'ethers';
-import { AuthError, createAuth } from './auth.mjs';
+import { AuthError, createAuth, playerName } from './auth.mjs';
 import { createGrants } from './grants.mjs';
 import { createEnsResolver } from './ens.mjs';
 import { createEnsOwnership } from './ens-ownership.mjs';
@@ -187,7 +187,13 @@ export function createApp(config) {
           if (!adminWallets.has(session.address.toLowerCase())) throw new AuthError('Admin access required.', 403);
           if (req.method === 'GET' && url.pathname === '/api/admin/stats') return json(res, 200, await playerStats(nativeReady()));
           if (req.method === 'GET' && url.pathname === '/api/admin/players') {
-            const query = url.searchParams.get('q') || '';
+            const input = url.searchParams.get('q') || '';
+            let query = input;
+            if (input.startsWith('0x')) {
+              if (!/^0x[0-9a-fA-F]{40}$/.test(input)) throw new AuthError('Enter a full wallet address.', 400);
+              try { query = playerName(input); }
+              catch { throw new AuthError('Enter a valid wallet address.', 400); }
+            }
             const page = Number(url.searchParams.get('page') || '1');
             try {
               const roster = await playerExplorer(query, page);

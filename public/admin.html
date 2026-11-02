@@ -33,8 +33,8 @@
     <section class="detail" aria-labelledby="explorer-heading">
       <div class="section-heading"><div><p class="eyebrow">RECENT CHARACTERS</p><h2 id="explorer-heading">Player explorer</h2></div><span>Accepted native joins · rolling 12 months</span></div>
       <form id="player-search" class="explorer-tools" role="search">
-        <label for="player-query">Search stable character ID</label>
-        <div><input id="player-query" name="q" maxlength="19" pattern="[a-z0-9_]*" autocomplete="off" placeholder="w_…" aria-describedby="explorer-note"><button type="submit">Search</button></div>
+        <label for="player-query">Search character ID or full wallet address</label>
+        <div><input id="player-query" name="q" maxlength="42" autocomplete="off" spellcheck="false" placeholder="w_… or 0x…" aria-describedby="explorer-note"><button type="submit">Search</button></div>
       </form>
       <p id="explorer-note" class="explorer-note">Wallet addresses come from signed MineMine logins. Inspect a character to recheck its selected ENS name. Town membership and paid account details will follow account integration.</p>
       <div class="table-scroll"><table><thead><tr><th scope="col">Character ID</th><th scope="col">Wallet</th><th scope="col">First join in window</th><th scope="col">Last join</th><th scope="col">Joins</th><th scope="col">Profile</th></tr></thead><tbody id="player-rows"><tr><td colspan="6">Waiting for admin access.</td></tr></tbody></table></div>

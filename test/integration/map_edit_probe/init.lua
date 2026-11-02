@@ -11,17 +11,19 @@ assert(math.abs(target.x) < 30000 and math.abs(target.z) < 30000)
 
 local pos1 = { x = target.x, y = 200, z = target.z }
 local pos2 = { x = target.x + 7, y = 200, z = target.z + 7 }
-core.emerge_area(pos1, pos2, function(_, action, remaining)
-    assert(action ~= core.EMERGE_CANCELLED and action ~= core.EMERGE_ERRORED)
-    if remaining ~= 0 then return end
-    for x = pos1.x, pos2.x do
-        for z = pos1.z, pos2.z do
-            local pos = { x = x, y = 200, z = z }
-            core.set_node(pos, { name = "default:goldblock" })
-            assert(core.get_node(pos).name == "default:goldblock")
+core.after(0.1, function()
+    core.emerge_area(pos1, pos2, function(_, action, remaining)
+        assert(action ~= core.EMERGE_CANCELLED and action ~= core.EMERGE_ERRORED)
+        if remaining ~= 0 then return end
+        for x = pos1.x, pos2.x do
+            for z = pos1.z, pos2.z do
+                local pos = { x = x, y = 200, z = z }
+                core.set_node(pos, { name = "default:goldblock" })
+                assert(core.get_node(pos).name == "default:goldblock")
+            end
         end
-    end
-    local result = assert(io.open(world .. "/map-edit-result.txt", "w"))
-    result:write("gold platform placed\n")
-    result:close()
+        local result = assert(io.open(world .. "/map-edit-result.txt", "w"))
+        result:write("gold platform placed\n")
+        result:close()
+    end)
 end)

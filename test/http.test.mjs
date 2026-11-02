@@ -8,6 +8,7 @@ import { Wallet } from 'ethers';
 import { createApp } from '../server/app.mjs';
 import { AuthError, playerName } from '../server/auth.mjs';
 import { readConfig } from '../server/config.mjs';
+import { createNameRegistry } from '../server/name-registry.mjs';
 
 async function fixture(t, env = {}, clock, overrides = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), 'miners-http-'));
@@ -369,4 +370,43 @@ test('selected ENS identity is wallet-bound, rechecked, and removed after owners
   assert.equal((await (await request('/api/identity', undefined, bobCookie)).json()).ensName, 'builder.eth');
   assert.deepEqual(await (await request('/api/identity/ens/clear', {}, bobCookie)).json(), { cleared: true });
   assert.equal((await (await request('/api/identity', undefined, bobCookie)).json()).ensName, null);
+});
+
+test('paid managed name displays only while ENS resolves to its signed account wallet', async t => {
+  const wallet = new Wallet('0x' + 'd1'.repeat(32));
+  const other = new Wallet('0x' + 'd2'.repeat(32));
+  let target = wallet.address;
+  let offline = false;
+  const ensResolver = {
+    async name() { return null; },
+    async recipient(name) {
+      assert.equal(name, 'builder.minemine.eth');
+      if (offline) throw new AuthError('ENS lookup unavailable.', 503);
+      return { ensName: name, address: target };
+    },
+    close() {},
+  };
+  const { request, worldDir } = await fixture(t, {}, null, { ensResolver });
+  const challenge = await request('/api/auth/challenge', { address: wallet.address, chainId: 11155111 });
+  const signature = await wallet.signMessage((await challenge.json()).message);
+  const verified = await request('/api/auth/verify', { signature }, challenge.headers.getSetCookie()[0].split(';')[0]);
+  const cookie = verified.headers.getSetCookie()[0].split(';')[0];
+  const names = createNameRegistry(worldDir);
+  t.after(() => names.close());
+  const accountId = wallet.address.toLowerCase();
+  names.beginCheckout('builder', accountId, 'order-1');
+  names.markPaid('builder', accountId, 'order-1', 'payment-1');
+  assert.equal((await (await request('/api/identity', undefined, cookie)).json()).ensName, null, 'payment alone is not issuance');
+  await names.activateManagedName('builder', accountId, 'order-1', 'payment-1', async name => (await ensResolver.recipient(name)).address);
+  const active = await (await request('/api/identity', undefined, cookie)).json();
+  assert.equal(active.ensName, 'builder.minemine.eth');
+  assert.equal(active.managedEnsName, 'builder.minemine.eth');
+  assert.equal(active.playerName, playerName(wallet.address), 'display names do not change native identity');
+  target = other.address;
+  assert.equal((await (await request('/api/identity', undefined, cookie)).json()).ensName, null, 'a changed record is hidden');
+  offline = true;
+  assert.equal((await (await request('/api/identity', undefined, cookie)).json()).ensName, null, 'an ENS outage is hidden');
+  offline = false;
+  target = wallet.address;
+  assert.equal((await (await request('/api/identity', undefined, cookie)).json()).ensName, 'builder.minemine.eth');
 });

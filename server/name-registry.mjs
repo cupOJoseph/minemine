@@ -50,7 +50,7 @@ export function createNameRegistry(worldDir, now = Date.now) {
     PRAGMA synchronous = FULL;
     CREATE TABLE IF NOT EXISTS names (
       handle TEXT PRIMARY KEY,
-      state TEXT NOT NULL CHECK (state IN ('admin_reserved', 'checkout_held', 'paid_pending_ens', 'wallet_claimed')),
+      state TEXT NOT NULL CHECK (state IN ('admin_reserved', 'checkout_held', 'paid_pending_ens', 'paid_active', 'wallet_claimed')),
       account_id TEXT,
       intended_account_id TEXT,
       order_id TEXT UNIQUE,
@@ -78,6 +78,28 @@ export function createNameRegistry(worldDir, now = Date.now) {
       first_signed_in_at INTEGER NOT NULL,
       last_signed_in_at INTEGER NOT NULL
     );`);
+  // Earlier worlds used a CHECK constraint without paid_active. Rebuild that
+  // one table atomically so existing holds, payments, and audit history survive.
+  const namesSchema = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'names'").get().sql;
+  if (!namesSchema.includes("'paid_active'")) {
+    db.exec(`BEGIN IMMEDIATE;
+      CREATE TABLE names_migrated (
+        handle TEXT PRIMARY KEY,
+        state TEXT NOT NULL CHECK (state IN ('admin_reserved', 'checkout_held', 'paid_pending_ens', 'paid_active', 'wallet_claimed')),
+        account_id TEXT,
+        intended_account_id TEXT,
+        order_id TEXT UNIQUE,
+        payment_id TEXT UNIQUE,
+        ens_name TEXT,
+        expires_at INTEGER,
+        updated_at INTEGER NOT NULL
+      );
+      INSERT INTO names_migrated SELECT * FROM names;
+      DROP TABLE names;
+      ALTER TABLE names_migrated RENAME TO names;
+      CREATE UNIQUE INDEX names_account_unique ON names(account_id) WHERE account_id IS NOT NULL;
+      COMMIT;`);
+  }
   const find = db.prepare('SELECT * FROM names WHERE handle = ?');
   const byOrder = db.prepare('SELECT * FROM names WHERE order_id = ?');
   const bySelectedEns = db.prepare('SELECT account_id FROM ens_selections WHERE ens_name = ?');
@@ -130,6 +152,10 @@ export function createNameRegistry(worldDir, now = Date.now) {
   return {
     file,
     lookup(input) { return current(normalizeHandle(input)); },
+    managedNameForAccount(accountId) {
+      identifier(accountId, 'account');
+      return db.prepare("SELECT ens_name FROM names WHERE account_id = ? AND state = 'paid_active'").get(accountId)?.ens_name || null;
+    },
     adminReservations() {
       return db.prepare("SELECT handle, intended_account_id, expires_at FROM names WHERE state = 'admin_reserved' AND expires_at > ? ORDER BY updated_at DESC LIMIT 100").all(now());
     },
@@ -259,10 +285,38 @@ export function createNameRegistry(worldDir, now = Date.now) {
       return transaction(() => {
         const row = find.get(handle);
         if (!row || row.account_id !== accountId || row.order_id !== orderId) conflict();
-        if (row.state === 'paid_pending_ens' && row.payment_id === paymentId) return row;
+        if (['paid_pending_ens', 'paid_active'].includes(row.state) && row.payment_id === paymentId) return row;
         if (row.state !== 'checkout_held') conflict();
         db.prepare("UPDATE names SET state = 'paid_pending_ens', payment_id = ?, updated_at = ? WHERE handle = ?").run(paymentId, now(), handle);
         addAudit.run(handle, 'paid_pending_ens', accountId, now());
+        return current(handle);
+      });
+    },
+    // The caller supplies an authoritative mainnet ENS resolver. Its result is
+    // checked again before every display, so later record changes fail closed.
+    async activateManagedName(input, accountId, orderId, paymentId, resolveAddress) {
+      const handle = normalizeHandle(input);
+      identifier(orderId, 'order');
+      identifier(paymentId, 'payment');
+      let target;
+      try { target = getAddress(accountId).toLowerCase(); }
+      catch { throw new NameRegistryError('Invalid managed-name wallet.', 'invalid_input'); }
+      if (target !== accountId || typeof resolveAddress !== 'function') {
+        throw new NameRegistryError('Invalid managed-name activation.', 'invalid_input');
+      }
+      const ensName = `${handle}.minemine.eth`;
+      let resolved;
+      try { resolved = getAddress(await resolveAddress(ensName)).toLowerCase(); }
+      catch { throw new NameRegistryError('Managed ENS name could not be verified.', 'ens_unverified'); }
+      if (resolved !== target) throw new NameRegistryError('Managed ENS name points to another wallet.', 'ens_unverified');
+      return transaction(() => {
+        const row = find.get(handle);
+        if (!row || row.account_id !== accountId || row.order_id !== orderId || row.payment_id !== paymentId ||
+            !['paid_pending_ens', 'paid_active'].includes(row.state)) conflict();
+        if (row.state === 'paid_active') return row;
+        db.prepare("UPDATE names SET state = 'paid_active', ens_name = ?, updated_at = ? WHERE handle = ?")
+          .run(ensName, now(), handle);
+        addAudit.run(handle, 'paid_active', accountId, now());
         return current(handle);
       });
     },

@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { Wallet } from 'ethers';
 import { createNameRegistry, normalizeHandle } from '../server/name-registry.mjs';
 import { playerName } from '../server/auth.mjs';
@@ -152,4 +153,46 @@ test('signed wallet profile binds one stable character across logins and registr
     try { assert.equal(reopened.walletProfile(name).firstSignedInAt, '2026-11-01T12:00:00.000Z'); }
     finally { reopened.close(); }
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('legacy paid records migrate and activate only after a matching ENS address readback', async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'minemine-paid-name-'));
+  const wallet = new Wallet('0x' + 'c4'.repeat(32));
+  const accountId = wallet.address.toLowerCase();
+  const registryDir = path.join(dir, 'name_registry');
+  mkdirSync(registryDir);
+  const old = new DatabaseSync(path.join(registryDir, 'registry.sqlite'));
+  old.exec(`CREATE TABLE names (
+    handle TEXT PRIMARY KEY,
+    state TEXT NOT NULL CHECK (state IN ('admin_reserved', 'checkout_held', 'paid_pending_ens', 'wallet_claimed')),
+    account_id TEXT, intended_account_id TEXT, order_id TEXT UNIQUE, payment_id TEXT UNIQUE,
+    ens_name TEXT, expires_at INTEGER, updated_at INTEGER NOT NULL
+  );
+  CREATE UNIQUE INDEX names_account_unique ON names(account_id) WHERE account_id IS NOT NULL;
+  CREATE TABLE name_audit (id INTEGER PRIMARY KEY, handle TEXT NOT NULL, action TEXT NOT NULL, actor TEXT NOT NULL, at INTEGER NOT NULL);`);
+  old.prepare("INSERT INTO names VALUES ('builder', 'paid_pending_ens', ?, NULL, 'order-1', 'payment-1', NULL, NULL, 1000)").run(accountId);
+  old.prepare("INSERT INTO name_audit VALUES (1, 'builder', 'paid_pending_ens', ?, 1000)").run(accountId);
+  old.close();
+  const names = createNameRegistry(dir);
+  try {
+    assert.equal(names.lookup('builder').state, 'paid_pending_ens');
+    assert.equal(names.managedNameForAccount(accountId), null);
+    await assert.rejects(names.activateManagedName('builder', accountId, 'order-1', 'payment-1', async () => null), { code: 'ens_unverified' });
+    await assert.rejects(names.activateManagedName('builder', accountId, 'order-1', 'payment-1', async () => Wallet.createRandom().address), { code: 'ens_unverified' });
+    await assert.rejects(names.activateManagedName('builder', accountId, 'order-1', 'other-payment', async () => wallet.address), { code: 'conflict' });
+    const resolve = async name => {
+      assert.equal(name, 'builder.minemine.eth');
+      return wallet.address;
+    };
+    const active = await names.activateManagedName('BUILDER', accountId, 'order-1', 'payment-1', resolve);
+    assert.equal(active.state, 'paid_active');
+    assert.equal(active.ens_name, 'builder.minemine.eth');
+    assert.equal(names.managedNameForAccount(accountId), 'builder.minemine.eth');
+    assert.equal(names.markPaid('builder', accountId, 'order-1', 'payment-1').state, 'paid_active', 'webhook replay cannot demote the name');
+    assert.equal((await names.activateManagedName('builder', accountId, 'order-1', 'payment-1', resolve)).state, 'paid_active');
+    assert.deepEqual(names.recentAudit().map(event => event.action), ['paid_active', 'paid_pending_ens']);
+  } finally { names.close(); }
+  const reopened = createNameRegistry(dir);
+  try { assert.equal(reopened.managedNameForAccount(accountId), 'builder.minemine.eth'); }
+  finally { reopened.close(); rmSync(dir, { recursive: true, force: true }); }
 });

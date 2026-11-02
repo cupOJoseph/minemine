@@ -41,7 +41,7 @@ async function body(req) {
 export function createApp(config) {
   const auth = createAuth(config);
   const grants = createGrants(config.worldDir);
-  const ens = createEnsResolver(config.ensRpcUrl);
+  const ens = config.ensResolver || createEnsResolver(config.ensRpcUrl);
   const ensOwnership = config.ensOwnership || createEnsOwnership(config.ensRpcUrl);
   grants.clear();
   const limits = new Map();
@@ -82,6 +82,15 @@ export function createApp(config) {
   };
   async function playerIdentity(session) {
     const accountId = session.address.toLowerCase();
+    const managed = names.managedNameForAccount(accountId);
+    if (managed) {
+      try {
+        const resolved = await ens.recipient(managed);
+        if (getAddress(resolved.address) === getAddress(session.address)) {
+          return { ...session, ensName: managed, managedEnsName: managed, selectedEnsName: null };
+        }
+      } catch { /* A missing record or ENS outage never permits display. */ }
+    }
     const selected = names.selectedEns(accountId);
     if (selected) {
       try {

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { execFile as execFileCallback } from 'node:child_process';
 import { createReadStream } from 'node:fs';
-import { copyFile, lstat, mkdtemp, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, lstat, mkdtemp, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -90,6 +90,7 @@ try {
     const temporaryImage = path.join(mapDir, `${imageName}.${process.pid}.tmp`);
     try {
       await copyFile(rendered, temporaryImage);
+      await chmod(temporaryImage, 0o644);
       await rename(temporaryImage, finalImage);
     } finally { await rm(temporaryImage, { force: true }); }
   }
@@ -102,6 +103,7 @@ try {
   const temporary = path.join(mapDir, `snapshot.json.${process.pid}.tmp`);
   try {
     await writeFile(temporary, JSON.stringify(metadata, null, 2) + '\n', { mode: 0o644, flag: 'wx' });
+    await chmod(temporary, 0o644);
     await rename(temporary, path.join(mapDir, 'snapshot.json'));
   } finally { await rm(temporary, { force: true }); }
   console.log(`Published ${imageName} from verified backup captured ${capturedAt}; ${claims.length} public town claims.`);

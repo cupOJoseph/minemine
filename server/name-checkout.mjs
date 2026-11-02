@@ -28,7 +28,7 @@ function validateSession(session, expectedId = null) {
 
 // Internal service only. The ZeroDev signup path must bind its authenticated
 // smart-wallet address before it can call create; no player route exists yet.
-export function createNameCheckout({ stripe, names, origin, webhookSecret, now = Date.now }) {
+export function createNameCheckout({ stripe, names, origin, webhookSecret, preflight, now = Date.now }) {
   if (!stripe?.checkout?.sessions || !stripe?.webhooks || !webhookSecret?.startsWith('whsec_')) {
     throw new Error('Stripe test checkout is not configured.');
   }
@@ -39,6 +39,8 @@ export function createNameCheckout({ stripe, names, origin, webhookSecret, now =
       if (typeof orderId !== 'string' || !/^[a-zA-Z0-9_-]{16,80}$/.test(orderId)) {
         throw new NameRegistryError('Invalid checkout order ID.', 'invalid_input');
       }
+      if (typeof preflight !== 'function') throw new NameRegistryError('Managed ENS sale is not configured.', 'ens_sale_unavailable');
+      await preflight(handle);
       names.beginCheckout(handle, accountId, orderId);
       // Retry with the same order ID after an uncertain API result. Never free a
       // hold solely because a network call failed: a Checkout Session may exist.

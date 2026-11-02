@@ -17,6 +17,7 @@ import { attachGameProxy } from './game-proxy.mjs';
 import { createPlayerStats, createPlayerExplorer } from './player-stats.mjs';
 import { createNameRegistry, NameRegistryError } from './name-registry.mjs';
 import { createNameCheckout } from './name-checkout.mjs';
+import { createManagedNamePreflight } from './managed-name-preflight.mjs';
 import { createBetaCodes, BetaCodeError } from './beta-codes.mjs';
 
 const publicRoot = path.resolve(fileURLToPath(new URL('../public/', import.meta.url)));
@@ -89,8 +90,12 @@ export function createApp(config) {
   const playerExplorer = createPlayerExplorer(config.worldDir);
   const names = createNameRegistry(config.worldDir, config.now || Date.now);
   const stripe = config.stripeClient || (config.stripeTestSecretKey ? new Stripe(config.stripeTestSecretKey) : null);
+  const namePreflight = config.namePreflight || (config.ensExpectedOwner && config.ensNameWriterAddress && config.ensRpcUrl ?
+    createManagedNamePreflight({ rpcUrl: config.ensRpcUrl, expectedOwner: config.ensExpectedOwner,
+      writerAddress: config.ensNameWriterAddress, now: config.now || Date.now }) : null);
   const nameCheckout = stripe && config.stripeWebhookSecret ? createNameCheckout({
-    stripe, names, origin: config.origin, webhookSecret: config.stripeWebhookSecret, now: config.now || Date.now,
+    stripe, names, origin: config.origin, webhookSecret: config.stripeWebhookSecret,
+    preflight: namePreflight, now: config.now || Date.now,
   }) : null;
   const betaCodes = createBetaCodes(config.worldDir, config.now || Date.now);
   const adminWallets = new Set((config.adminWalletAddresses || []).map(address => address.toLowerCase()));

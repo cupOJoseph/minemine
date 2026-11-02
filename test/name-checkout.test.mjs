@@ -28,6 +28,8 @@ function fixture(t) {
   let session;
   let createCalls = 0;
   let failNextCreate = false;
+  let preflightError = null;
+  const checkedHandles = [];
   const stripe = {
     webhooks: sdk.webhooks,
     checkout: { sessions: {
@@ -56,10 +58,12 @@ function fixture(t) {
     } },
   };
   const checkout = createNameCheckout({ stripe, names, origin: 'https://play.example', webhookSecret: secret,
+    preflight: async handle => { checkedHandles.push(handle); if (preflightError) throw preflightError; },
     now: () => Date.parse('2026-11-02T17:00:00Z') });
-  return { checkout, names, accountId, setSession: value => { session = value; },
+  return { checkout, stripe, names, accountId, setSession: value => { session = value; },
     getSession: () => session, getCreateCalls: () => createCalls,
-    failNextCreate: () => { failNextCreate = true; } };
+    failNextCreate: () => { failNextCreate = true; }, checkedHandles,
+    failPreflight: error => { preflightError = error; } };
 }
 
 test('server-priced test checkout fulfills once from a signed, retrieved paid session', async t => {
@@ -86,6 +90,17 @@ test('server-priced test checkout fulfills once from a signed, retrieved paid se
   await checkout.handleWebhook(event.payload, event.signature);
   assert.deepEqual(names.recentAudit().map(row => row.action), ['paid_pending_ens', 'checkout_held']);
   assert.equal(names.managedNameForAccount(accountId), null, 'payment is not ENS issuance');
+});
+
+test('ENS preflight blocks the checkout before creating a local hold or Stripe session', async t => {
+  const { checkout, stripe, names, accountId, getCreateCalls, checkedHandles, failPreflight } = fixture(t);
+  const unconfigured = createNameCheckout({ stripe, names, origin: 'https://play.example', webhookSecret: secret });
+  await assert.rejects(unconfigured.create({ handle: 'builder', accountId, orderId }), { code: 'ens_sale_unavailable' });
+  failPreflight(new Error('Parent resolver is not configured.'));
+  await assert.rejects(checkout.create({ handle: 'BUILDER', accountId, orderId }), /Parent resolver/);
+  assert.deepEqual(checkedHandles, ['builder']);
+  assert.equal(names.lookup('builder'), null);
+  assert.equal(getCreateCalls(), 0);
 });
 
 test('only a verified expired and unpaid test session releases a checkout hold', async t => {

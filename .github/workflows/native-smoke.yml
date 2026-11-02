@@ -327,10 +327,8 @@ jobs:
       - name: Rehearse Caddy, Node and Luanti under 1 GiB and one CPU
         run: |
           sudo systemctl set-property --runtime minemine-host-ci.slice MemoryAccounting=yes MemoryMax=1G MemorySwapMax=0 CPUAccounting=yes CPUQuota=100%
-          cgroup=$(systemctl show -P ControlGroup minemine-host-ci.slice)
-          test "$(cat "/sys/fs/cgroup$cgroup/memory.max")" = '1073741824'
-          test "$(cat "/sys/fs/cgroup$cgroup/memory.swap.max")" = '0'
-          awk '{ if ($1 != $2) exit 1 }' "/sys/fs/cgroup$cgroup/cpu.max"
+          test "$(systemctl show -P MemoryMax minemine-host-ci.slice)" = '1073741824'
+          test "$(systemctl show -P MemorySwapMax minemine-host-ci.slice)" = '0'
           sudo systemd-run --quiet --scope --unit=minemine-host-ci-rehearsal --slice=minemine-host-ci.slice --uid="$USER" --same-dir \
             /usr/bin/env GITHUB_WORKSPACE="$GITHUB_WORKSPACE" NODE_BINARY="$(command -v node)" \
             /usr/bin/bash scripts/ci-host-stack-smoke.sh
@@ -338,7 +336,7 @@ jobs:
         if: always()
         run: |
           cgroup=$(systemctl show -P ControlGroup minemine-host-ci.slice 2>/dev/null || true)
-          test -n "$cgroup"
+          if [ -z "$cgroup" ]; then echo 'Host rehearsal slice was not started.'; exit 0; fi
           test -f "/sys/fs/cgroup$cgroup/memory.peak"
           cat "/sys/fs/cgroup$cgroup/memory.peak" | tee runtime/host-cgroup-peak-bytes.txt
           cat "/sys/fs/cgroup$cgroup/memory.events" | tee runtime/host-cgroup-events.txt

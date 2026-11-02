@@ -9,6 +9,7 @@ import { Contract, FetchRequest, JsonRpcProvider, formatUnits, getAddress } from
 import { AuthError, createAuth } from './auth.mjs';
 import { createGrants } from './grants.mjs';
 import { createEnsResolver } from './ens.mjs';
+import { createEnsOwnership } from './ens-ownership.mjs';
 import { createTownCredits } from './towns.mjs';
 import { writeBalanceSnapshot } from './balance-snapshot.mjs';
 import { attachGameProxy } from './game-proxy.mjs';
@@ -41,6 +42,7 @@ export function createApp(config) {
   const auth = createAuth(config);
   const grants = createGrants(config.worldDir);
   const ens = createEnsResolver(config.ensRpcUrl);
+  const ensOwnership = config.ensOwnership || createEnsOwnership(config.ensRpcUrl);
   grants.clear();
   const limits = new Map();
   const secureSuffix = config.secure ? '; Secure' : '';
@@ -78,6 +80,26 @@ export function createApp(config) {
     const age = (config.now || Date.now)() - session.authenticatedAt;
     return Number.isFinite(age) && age >= 0 && age < 5 * 60_000;
   };
+  async function playerIdentity(session) {
+    const accountId = session.address.toLowerCase();
+    const selected = names.selectedEns(accountId);
+    if (selected) {
+      try {
+        await ensOwnership.verify(selected, session.address);
+        return { ...session, ensName: selected, selectedEnsName: selected };
+      } catch (error) {
+        if (error instanceof AuthError && error.status === 403) names.clearSelectedEns(accountId, selected);
+        // An unavailable RPC never permits an unverified selected name to display.
+      }
+    }
+    let primary = null;
+    try { primary = await ens.name(session.address); } catch { /* Address remains authoritative. */ }
+    if (primary) {
+      try { await ensOwnership.verify(primary, session.address); }
+      catch { primary = null; }
+    }
+    return { ...session, ensName: primary, selectedEnsName: null };
+  }
   const betaAdmitted = session => {
     if (!session) return false;
     if (!config.betaInvitesEnabled || adminWallets.has(session.address.toLowerCase()) || session.betaAdmitted) return true;
@@ -135,7 +157,7 @@ export function createApp(config) {
         const jar = cookies(req);
         const sessionToken = jar[sessionCookie];
         const session = auth.get(sessionToken);
-        if (req.method === 'GET' && url.pathname === '/api/config') return json(res, 200, { chainId: config.chainId, tokenAddress: config.tokenAddress, townContractAddress: config.townContractAddress, currencySymbol: 'MINE', gameReady: available(), soloPlaytestAvailable: soloAvailable(), enginePresent: existsSync(path.join(publicRoot, 'engine/index.html')), ensAvailable: Boolean(config.ensRpcUrl), betaInvitesEnabled: Boolean(config.betaInvitesEnabled), milestone: 'solo-playtest', walletSupport: 'EOA' });
+        if (req.method === 'GET' && url.pathname === '/api/config') return json(res, 200, { chainId: config.chainId, tokenAddress: config.tokenAddress, townContractAddress: config.townContractAddress, currencySymbol: 'MINE', gameReady: available(), soloPlaytestAvailable: soloAvailable(), enginePresent: existsSync(path.join(publicRoot, 'engine/index.html')), ensAvailable: Boolean(config.ensRpcUrl || config.ensOwnership), betaInvitesEnabled: Boolean(config.betaInvitesEnabled), milestone: 'solo-playtest', walletSupport: 'EOA' });
         if (req.method === 'GET' && url.pathname === '/api/health') return json(res, 200, { ok: true, nativeReady: nativeReady(), gameReady: available(), currencyConfigured: Boolean(config.tokenAddress && config.rpcUrl) });
         if (req.method === 'POST' && url.pathname === '/api/auth/challenge') {
           const data = await body(req);
@@ -232,7 +254,17 @@ export function createApp(config) {
             throw error;
           }
         }
-        if (req.method === 'GET' && url.pathname === '/api/identity') return json(res, 200, { ...session, ensName: await ens.name(session.address) });
+        if (req.method === 'GET' && url.pathname === '/api/identity') return json(res, 200, await playerIdentity(session));
+        if (req.method === 'POST' && url.pathname === '/api/identity/ens') {
+          const data = await body(req);
+          const verified = await ensOwnership.verify(data.name, session.address);
+          names.selectEns(session.address.toLowerCase(), verified.name);
+          return json(res, 200, { ...session, ensName: verified.name, selectedEnsName: verified.name, ensVersion: verified.version });
+        }
+        if (req.method === 'POST' && url.pathname === '/api/identity/ens/clear') {
+          await body(req);
+          return json(res, 200, { cleared: names.clearSelectedEns(session.address.toLowerCase()) });
+        }
         if (req.method === 'GET' && url.pathname === '/api/currency/recipient') return json(res, 200, await ens.recipient(url.searchParams.get('input')));
         if (req.method === 'GET' && url.pathname === '/api/currency/balance') return json(res, 200, await balance(session.address));
         if (req.method === 'POST' && url.pathname === '/api/currency/sync') {
@@ -247,9 +279,8 @@ export function createApp(config) {
         if (req.method === 'POST' && url.pathname === '/api/game/ticket') {
           if (!betaAdmitted(session)) throw new AuthError('Redeem a beta invite before joining the shared world.', 403);
           if (!available()) throw new AuthError('The Luanti engine and server adapter are not ready yet. See the roadmap.', 503);
-          let ensName = null;
-          try { ensName = await ens.name(session.address); } catch { /* Identity remains the signed address when ENS is unavailable. */ }
-          return json(res, 200, { ...grants.issue(session, sessionToken, ensName), address: config.gameAddress, port: config.gamePort });
+          const identity = await playerIdentity(session);
+          return json(res, 200, { ...grants.issue(session, sessionToken, identity.ensName), address: config.gameAddress, port: config.gamePort });
         }
         throw new AuthError('Unknown API route.', 404);
       }

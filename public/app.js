@@ -28,6 +28,9 @@ function renderSession() {
   $('play').disabled = busy || !session || !config?.gameReady || (config?.betaInvitesEnabled && !betaStatus?.admitted);
   $('beta-invite').hidden = !session || !config?.betaInvitesEnabled;
   $('beta-form').hidden = Boolean(betaStatus?.admitted);
+  $('ens-choice').hidden = !session || !config?.ensAvailable;
+  $('ens-clear').hidden = !session?.selectedEnsName;
+  $('ens-save').disabled = busy || !session;
   if (session && config?.betaInvitesEnabled && betaStatus) $('beta-status').textContent = betaStatus.admitted ? 'Invite accepted. Shared-world entry is unlocked when the server is ready.' : 'Redeem an invite to enter the shared world. Solo play remains open.';
   $('refresh-balance').disabled = busy || !session || !config?.tokenAddress;
   $('send-form').hidden = !session || !config?.tokenAddress;
@@ -42,7 +45,10 @@ function renderSession() {
 }
 async function refreshIdentity() {
   if (!session) return;
-  try { session = await api('identity'); } catch { /* Address remains authoritative if ENS is unavailable. */ }
+  try {
+    session = await api('identity');
+    $('ens-name').value = session.selectedEnsName || '';
+  } catch { /* Address remains authoritative if ENS is unavailable. */ }
   renderSession();
 }
 async function refreshBetaStatus() {
@@ -88,6 +94,8 @@ async function signOut() {
   $('engine-container').replaceChildren();
   $('engine-container').hidden = true;
   $('balance').textContent = '—';
+  $('ens-name').value = '';
+  $('ens-status').textContent = 'Ownership is checked on Ethereum mainnet before this name appears in game.';
   status('Signed out. Connect your wallet to sign in again.');
   renderSession();
 }
@@ -121,6 +129,32 @@ $('connect').addEventListener('click', async () => {
   finally { busy = false; renderSession(); }
 });
 $('logout').addEventListener('click', () => signOut().catch(error => status(error.message, true)));
+$('ens-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  busy = true; renderSession();
+  try {
+    const identity = await api('identity/ens', { name: $('ens-name').value.trim() });
+    session = identity;
+    $('ens-name').value = identity.selectedEnsName;
+    $('ens-status').textContent = `Verified ownership of ${identity.selectedEnsName} on Ethereum mainnet. Your stable character and towns stay the same.`;
+    $('ens-status').classList.remove('error');
+  } catch (error) {
+    $('ens-status').textContent = error.message;
+    $('ens-status').classList.add('error');
+  } finally { busy = false; renderSession(); }
+});
+$('ens-clear').addEventListener('click', async () => {
+  busy = true; renderSession();
+  try {
+    await api('identity/ens/clear', {});
+    await refreshIdentity();
+    $('ens-status').textContent = 'Selected ENS name cleared.';
+    $('ens-status').classList.remove('error');
+  } catch (error) {
+    $('ens-status').textContent = error.message;
+    $('ens-status').classList.add('error');
+  } finally { busy = false; renderSession(); }
+});
 $('beta-form').addEventListener('submit', async event => {
   event.preventDefault();
   const button = $('beta-form').querySelector('button');

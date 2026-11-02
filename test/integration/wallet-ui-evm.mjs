@@ -11,6 +11,7 @@ import { ContractFactory, JsonRpcProvider, parseUnits } from 'ethers';
 import { chromium } from 'playwright';
 import { compile, compileTownBlocks } from '../../scripts/compile-contracts.mjs';
 import { createApp } from '../../server/app.mjs';
+import { AuthError } from '../../server/auth.mjs';
 import { readConfig } from '../../server/config.mjs';
 
 async function freePort() {
@@ -72,6 +73,10 @@ try {
   const config = readConfig({ PUBLIC_ORIGIN: origin, PORT: String(appPort), CHAIN_ID: '31337', RPC_URL: rpcUrl,
     TOKEN_ADDRESS: await token.getAddress(), TOWN_CONTRACT_ADDRESS: await town.getAddress(),
     TOWN_CONFIRMATIONS: '0', WORLD_DIR: worldDir });
+  config.ensOwnership = { async verify(name, address) {
+    if (name !== 'builder.eth' || address !== walletAddress) throw new AuthError('This wallet does not own that ENS name.', 403);
+    return { name, version: 'v1' };
+  } };
   app = createApp(config);
   app.listen(appPort, '127.0.0.1');
   await once(app, 'listening');
@@ -135,6 +140,17 @@ try {
   const playerName = await page.locator('#player').textContent();
   assert.match(playerName, /^w_[0-9a-f]{17}$/);
   assert.equal(await page.locator('#address').textContent(), walletAddress);
+  await page.locator('#ens-choice').waitFor({ state: 'visible' });
+  await page.locator('#ens-name').fill('builder.eth');
+  await page.locator('#ens-save').click();
+  await until(async () => (await page.locator('#player').textContent()) === 'builder.eth', 'selected ENS name');
+  assert.equal(await page.locator('#address').textContent(), walletAddress, 'ENS selection does not change account identity');
+  await page.locator('#ens-name').fill('notmine.eth');
+  await page.locator('#ens-save').click();
+  await until(async () => (await page.locator('#ens-status').textContent()).includes('does not own'), 'unowned ENS denial');
+  assert.equal(await page.locator('#player').textContent(), 'builder.eth');
+  await page.locator('#ens-clear').click();
+  await until(async () => (await page.locator('#player').textContent()) === playerName, 'ENS selection clear');
 
   await page.locator('#recipient').fill(recipientAddress);
   await page.locator('#amount').fill('5');

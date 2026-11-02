@@ -6,11 +6,12 @@ import path from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { Wallet } from 'ethers';
 import { createApp } from '../server/app.mjs';
+import { AuthError } from '../server/auth.mjs';
 import { readConfig } from '../server/config.mjs';
 
-async function fixture(t, env = {}, clock) {
+async function fixture(t, env = {}, clock, overrides = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), 'miners-http-'));
-  const config = { ...readConfig(env), worldDir: dir, ...(clock ? { now: clock } : {}) };
+  const config = { ...readConfig(env), worldDir: dir, ...(clock ? { now: clock } : {}), ...overrides };
   const server = createApp(config);
   t.after(() => { server.close(); rmSync(dir, { recursive: true, force: true }); });
   const origin = config.origin;
@@ -259,4 +260,43 @@ test('beta invitations are hashed, wallet bound, and gate shared-world tickets',
   assert.equal((await request('/api/game/ticket', {}, playerCookie)).status, 503, 'revoking a code does not erase an existing admission');
   now += 5 * 60_000;
   assert.equal((await request('/api/admin/beta/codes/create', {}, adminCookie)).status, 403);
+});
+
+test('selected ENS identity is wallet-bound, rechecked, and removed after ownership transfers', async t => {
+  const alice = new Wallet('0x' + '21'.repeat(32));
+  const bob = new Wallet('0x' + '22'.repeat(32));
+  let owner = alice.address;
+  let offline = false;
+  const ensOwnership = { async verify(name, address) {
+    if (name !== 'builder.eth') throw new AuthError('Enter a valid ENS name.', 400);
+    if (offline) throw new AuthError('ENS ownership lookup is temporarily unavailable.', 503);
+    if (address !== owner) throw new AuthError('This wallet does not own that ENS name.', 403);
+    return { name, version: 'v1' };
+  } };
+  const { request } = await fixture(t, {}, null, { ensOwnership });
+  const login = async wallet => {
+    const challenge = await request('/api/auth/challenge', { address: wallet.address, chainId: 11155111 });
+    const signature = await wallet.signMessage((await challenge.json()).message);
+    const response = await request('/api/auth/verify', { signature }, challenge.headers.getSetCookie()[0].split(';')[0]);
+    return response.headers.getSetCookie()[0].split(';')[0];
+  };
+  const aliceCookie = await login(alice);
+  const bobCookie = await login(bob);
+  assert.equal((await request('/api/identity/ens', { name: 'builder.eth' })).status, 401);
+  assert.equal((await request('/api/identity/ens', { name: 'builder.eth' }, bobCookie)).status, 403);
+  assert.equal((await request('/api/identity/ens', { name: 'bad name' }, aliceCookie)).status, 400);
+  const selected = await request('/api/identity/ens', { name: 'builder.eth' }, aliceCookie);
+  assert.equal(selected.status, 200);
+  assert.equal((await selected.json()).selectedEnsName, 'builder.eth');
+  assert.equal((await (await request('/api/identity', undefined, aliceCookie)).json()).ensName, 'builder.eth');
+  offline = true;
+  assert.equal((await (await request('/api/identity', undefined, aliceCookie)).json()).ensName, null, 'unverified names are hidden during RPC outages');
+  offline = false;
+  assert.equal((await (await request('/api/identity', undefined, aliceCookie)).json()).ensName, 'builder.eth', 'outage does not erase ownership');
+  owner = bob.address;
+  assert.equal((await (await request('/api/identity', undefined, aliceCookie)).json()).selectedEnsName, null);
+  assert.equal((await request('/api/identity/ens', { name: 'builder.eth' }, bobCookie)).status, 200);
+  assert.equal((await (await request('/api/identity', undefined, bobCookie)).json()).ensName, 'builder.eth');
+  assert.deepEqual(await (await request('/api/identity/ens/clear', {}, bobCookie)).json(), { cleared: true });
+  assert.equal((await (await request('/api/identity', undefined, bobCookie)).json()).ensName, null);
 });

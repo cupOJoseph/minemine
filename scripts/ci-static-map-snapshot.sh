@@ -27,8 +27,12 @@ test "$(sqlite3 "$world_dir/map.sqlite" 'PRAGMA integrity_check;')" = ok
   --colors "$source_dir/colors.txt" \
   --geometry=-512:-512+1024+1024 \
   --min-y=-64 --max-y=512 \
+  --bgcolor '#101b18' --origincolor '#d4f18a' \
   --draworigin --noemptyimage \
   -i "$world_dir" -o "$image_file" > runtime/static-map-render.log 2>&1
+sqlite3 -separator ' ' "$world_dir/map.sqlite" \
+  'select min(x)*16, max(x)*16+15, min(z)*16, max(z)*16+15 from blocks where y between -4 and 32' \
+  > runtime/static-map-extent.txt
 
 node --input-type=module <<'EOF'
 import { createHash } from 'node:crypto';
@@ -37,11 +41,20 @@ const image = readFileSync('runtime/static-world-map.png');
 if (image.subarray(0, 8).toString('base64') !== 'iVBORw0KGgo=') throw new Error('Static map is not a PNG.');
 const width = image.readUInt32BE(16), height = image.readUInt32BE(20);
 if (width !== 1024 || height !== 1024 || image.length < 1024) throw new Error('Static map has unexpected dimensions or is empty.');
+const extent = readFileSync('runtime/static-map-extent.txt', 'utf8').trim().split(' ').map(Number);
+if (extent.length !== 4 || extent.some(value => !Number.isFinite(value))) throw new Error('Static map extent is missing.');
+const [minX, maxX, minZ, maxZ] = extent;
+const focus = {
+  x: Math.max(-512, Math.min(511, Math.round((minX + maxX) / 2))),
+  z: Math.max(-512, Math.min(511, Math.round((minZ + maxZ) / 2))),
+  span: Math.min(1024, Math.max(128, maxX - minX + 81, maxZ - minZ + 81)),
+};
 const metadata = {
   kind: 'snapshot',
   world: 'MineMine native CI test world',
   generatedAt: new Date().toISOString(),
   geometry: { minX: -512, minZ: -512, width, height },
+  focus,
   mapperCommit: '88c7381a20ada1992169522d590ebad36195507e',
   sha256: createHash('sha256').update(image).digest('hex'),
   bytes: image.length,

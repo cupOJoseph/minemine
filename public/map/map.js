@@ -1,11 +1,11 @@
-import { worldAtPixel, zoomAround } from './coordinates.mjs';
+import { pixelAtWorld, worldAtPixel, zoomAround } from './coordinates.mjs';
 
 const $ = id => document.getElementById(id);
 const viewport = $('map-viewport');
 const canvas = $('map-canvas');
 const context = canvas.getContext('2d');
 const image = new Image();
-let geometry, view, dragging = null;
+let geometry, focusPoint, view, dragging = null;
 let width = 1, height = 1;
 const minScale = 0.25, maxScale = 16;
 
@@ -36,6 +36,13 @@ function fit() {
   if (!geometry) return;
   const scale = Math.min(width / geometry.width, height / geometry.height) * .92;
   view = { scale, x: (width - geometry.width * scale) / 2, y: (height - geometry.height * scale) / 2 };
+  draw();
+}
+function focus() {
+  if (!focusPoint) return fit();
+  const pixel = pixelAtWorld(geometry, focusPoint.x, focusPoint.z);
+  const scale = Math.min(maxScale, Math.max(minScale, Math.min(width, height) * .92 / focusPoint.span));
+  view = { scale, x: width / 2 - pixel.x * scale, y: height / 2 - pixel.y * scale };
   draw();
 }
 function zoom(factor, x = width / 2, y = height / 2) {
@@ -89,8 +96,13 @@ viewport.addEventListener('keydown', event => {
 });
 new ResizeObserver(() => {
   const bounds = viewport.getBoundingClientRect();
+  const center = view ? { x: (width / 2 - view.x) / view.scale, y: (height / 2 - view.y) / view.scale } : null;
   width = bounds.width; height = bounds.height;
-  if (view) draw(); else fit();
+  if (view) {
+    view.x = width / 2 - center.x * view.scale;
+    view.y = height / 2 - center.y * view.scale;
+    draw();
+  } else fit();
 }).observe(viewport);
 
 try {
@@ -100,6 +112,7 @@ try {
   const bounds = metadata.geometry;
   if (metadata.kind !== 'snapshot' || !Number.isInteger(bounds?.minX) || !Number.isInteger(bounds?.minZ) || bounds.width !== 1024 || bounds.height !== 1024 || !Number.isFinite(Date.parse(metadata.generatedAt))) throw new Error('Map metadata is invalid.');
   geometry = bounds;
+  if (Number.isInteger(metadata.focus?.x) && Number.isInteger(metadata.focus?.z) && Number.isInteger(metadata.focus?.span) && metadata.focus.span >= 32 && metadata.focus.span <= 1024) focusPoint = metadata.focus;
   $('map-source').textContent = metadata.world;
   $('generated-at').dateTime = metadata.generatedAt;
   $('generated-at').textContent = new Date(metadata.generatedAt).toLocaleString();
@@ -109,7 +122,7 @@ try {
   await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error('Map image could not be loaded.')); image.src = './snapshot.png'; });
   if (image.naturalWidth !== bounds.width || image.naturalHeight !== bounds.height) throw new Error('Map image size does not match its metadata.');
   $('map-message').hidden = true;
-  fit();
+  focus();
 } catch (error) {
   $('map-message').textContent = error.message;
   $('snapshot-status').textContent = error.message;

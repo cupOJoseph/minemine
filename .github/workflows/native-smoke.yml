@@ -12,6 +12,7 @@ on:
       - 'test/integration/wallet-ui-evm.mjs'
       - 'test/integration/admin-beta-ui.mjs'
       - 'test/integration/beta-player-ui.mjs'
+      - 'test/integration/map-ui.mjs'
       - 'test/integration/town_probe/**'
       - 'package.json'
       - 'scripts/setup-world.mjs'
@@ -268,6 +269,11 @@ jobs:
         run: bash scripts/ci-mapserver-smoke.sh
       - name: Render a bounded static map from a stopped-world copy
         run: bash scripts/ci-static-map-snapshot.sh
+      - name: Exercise the generated world map in Chromium
+        run: |
+          cp runtime/static-world-map.png public/map/snapshot.png
+          cp runtime/static-world-map.json public/map/snapshot.json
+          npm run test:map-ui
       - name: Retain native startup diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -337,6 +343,8 @@ jobs:
             runtime/static-world-map.png
             runtime/static-world-map.json
             runtime/static-map-render.log
+            runtime/static-map-desktop.png
+            runtime/static-map-mobile.png
           if-no-files-found: ignore
       - name: Publish tested host runtime archive
         if: success()

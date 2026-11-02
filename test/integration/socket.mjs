@@ -9,7 +9,7 @@ import { createApp } from '../../server/app.mjs';
 import { readConfig } from '../../server/config.mjs';
 import { send } from '../helpers/http.mjs';
 
-test('real TCP listener serves launcher and accepts a wallet signature over HTTP', async t => {
+test('real TCP listener serves MineMine landing and accepts a wallet signature over HTTP', async t => {
   const worldDir = mkdtempSync(path.join(tmpdir(), 'miners-socket-'));
   const config = { ...readConfig({}), worldDir };
   const server = createApp(config);
@@ -23,6 +23,8 @@ test('real TCP listener serves launcher and accepts a wallet signature over HTTP
   const page = await send(url, { headers });
   assert.equal(page.status, 200);
   assert.match(page.text, /MineMine/);
+  assert.match(page.text, /A little world/);
+  assert.match(page.text, /Play now/);
   const wallet = new Wallet('0x' + '11'.repeat(32));
   const challengeResponse = await send(url + '/api/auth/challenge', { method: 'POST', headers, body: JSON.stringify({ address: wallet.address, chainId: config.chainId }) });
   assert.equal(challengeResponse.status, 200);

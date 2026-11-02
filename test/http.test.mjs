@@ -86,7 +86,7 @@ test('static files supply isolation headers; private paths and invalid bodies ar
   assert.equal(page.status, 200);
   assert.equal(page.headers.get('Cross-Origin-Opener-Policy'), 'same-origin');
   assert.equal(page.headers.get('Cross-Origin-Embedder-Policy'), 'require-corp');
-  assert.match(await page.text(), /MineMine/);
+  assert.match(await page.text(), /MineMine — Make your mark on a world of blocks/);
   assert.ok(!page.headers.get('Content-Security-Policy').includes("style-src 'self' 'unsafe-inline'"));
   const screenshot = await request('/screenshots/crafting-playtest.jpg');
   assert.equal(screenshot.status, 200);

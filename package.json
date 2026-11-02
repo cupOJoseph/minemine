@@ -38,7 +38,17 @@
   "devDependencies": {
     "@foundry-rs/anvil": "1.7.1",
     "@openzeppelin/contracts": "4.9.6",
+    "@tanstack/react-query": "5.105.2",
+    "@wagmi/core": "3.6.7",
+    "@zerodev/ecdsa-validator": "5.4.9",
+    "@zerodev/sdk": "5.5.4",
+    "@zerodev/wallet-core": "0.0.7",
+    "@zerodev/wallet-react": "0.0.10",
+    "esbuild": "0.28.2",
     "playwright": "1.64.1",
-    "solc": "0.8.26"
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "solc": "0.8.26",
+    "wagmi": "3.7.9"
   }
 }

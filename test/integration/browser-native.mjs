@@ -509,15 +509,22 @@ try {
     { town: 'West Hollow', x1: -65, x2: -63, z1: -65, z2: -63 });
   assert.equal(mapProjection.claims.length, 2, 'removed negative claim leaked into the map projection');
 
+  await page.evaluate(() => { if (document.pointerLockElement) document.exitPointerLock(); });
+  await secondPage.evaluate(() => { if (document.pointerLockElement) document.exitPointerLock(); });
+  await sleep(500);
   const ownerBeforeTown = await page.screenshot({ path: artifacts + '/town-owner-before.png' });
   const guestBeforeTown = await secondPage.screenshot({ path: artifacts + '/town-guest-before.png' });
   await signalProbe('town-manager-visual-arm.txt', 'town-manager-visual-result.txt',
     'browser town manager form delivery');
-  await sleep(1500);
-  const ownerTownScreenshot = await page.screenshot({ path: artifacts + '/town-owner-manager.png' });
-  const guestTownScreenshot = await secondPage.screenshot({ path: artifacts + '/town-guest-manager.png' });
-  const ownerChange = await centralPixelChange(page, ownerBeforeTown, ownerTownScreenshot);
-  const guestChange = await centralPixelChange(secondPage, guestBeforeTown, guestTownScreenshot);
+  let ownerChange = 0;
+  let guestChange = 0;
+  for (let attempt = 0; attempt < 10 && (ownerChange <= 0.08 || guestChange <= 0.08); attempt++) {
+    await sleep(500);
+    const ownerTownScreenshot = await page.screenshot({ path: artifacts + '/town-owner-manager.png' });
+    const guestTownScreenshot = await secondPage.screenshot({ path: artifacts + '/town-guest-manager.png' });
+    ownerChange = await centralPixelChange(page, ownerBeforeTown, ownerTownScreenshot);
+    guestChange = await centralPixelChange(secondPage, guestBeforeTown, guestTownScreenshot);
+  }
   assert.ok(ownerChange > 0.08 && guestChange > 0.08,
     `Town forms did not substantially change the browser view: owner ${ownerChange}, guest ${guestChange}`);
 

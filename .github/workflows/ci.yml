@@ -16,4 +16,5 @@ jobs:
       - run: bash test/backup-world.sh
       - run: npm run test:http
       - run: npm run test:evm
+      - run: npm run test:smart-auth
       - run: npm run contracts:compile

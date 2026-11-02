@@ -19,6 +19,7 @@
     "adapter:install": "node scripts/install-remote-adapter.mjs",
     "upstream:fetch": "node scripts/fetch-upstream.mjs",
     "test:evm": "node --test test/integration/token-evm.mjs",
+    "test:smart-auth": "node --test test/integration/smart-auth.mjs",
     "test:wallet-ui": "node test/integration/wallet-ui-evm.mjs",
     "test:admin-ui": "node test/integration/admin-beta-ui.mjs",
     "test:beta-player-ui": "node test/integration/beta-player-ui.mjs",
@@ -27,6 +28,7 @@
   },
   "dependencies": {
     "ethers": "6.17.0",
+    "viem": "2.57.14",
     "ws": "8.22.0"
   },
   "devDependencies": {

@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { getAddress, verifyMessage } from 'ethers';
+import { createSmartSignatureVerifier } from './smart-signatures.mjs';
 
 export const digest = (value) => createHash('sha256').update(value).digest('hex');
 // The pinned browser client accepts at most 19 characters (PLAYERNAME_SIZE - 1).
@@ -10,10 +11,12 @@ export class AuthError extends Error {
 }
 
 // Exact, server-generated SIWE messages: clients cannot supply a different domain,
-// URI, chain, nonce, issue time, or expiry. EOA accounts only in this milestone.
-export function createAuth({ origin, chainId, now = Date.now, capacity = 10_000 }) {
+// URI, chain, nonce, issue time, or expiry.
+export function createAuth({ origin, chainId, rpcUrl, smartVerifier, now = Date.now, capacity = 10_000 }) {
+  const verifySmart = smartVerifier || createSmartSignatureVerifier({ chainId, rpcUrl });
   const challenges = new Map();
   const sessions = new Map();
+  let smartChecks = 0;
   const challengeTTL = 5 * 60_000;
   const sessionTTL = 12 * 60 * 60_000;
   const clean = () => {
@@ -37,16 +40,28 @@ export function createAuth({ origin, chainId, now = Date.now, capacity = 10_000 
       challenges.set(digest(token), { address, message, expiresAt });
       return { token, message, expiresAt };
     },
-    verify(token, signature) {
+    async verify(token, signature) {
       clean();
       const key = digest(token || '');
       const challenge = challenges.get(key);
       // Consume before signature verification; failed signatures need a new challenge.
       challenges.delete(key);
       if (!challenge) throw new AuthError('Sign-in expired or already used. Please try again.');
+      if (typeof signature !== 'string' || signature.length < 4 || signature.length > 8000 ||
+          signature.length % 2 !== 0 || !/^0x[0-9a-fA-F]+$/.test(signature)) throw new AuthError('Invalid wallet signature.');
       let recovered;
-      try { recovered = verifyMessage(challenge.message, signature); } catch { throw new AuthError('Invalid wallet signature.'); }
-      if (recovered !== challenge.address) throw new AuthError('Signature does not match the requested wallet.');
+      try { recovered = verifyMessage(challenge.message, signature); } catch { /* Smart signatures are not recoverable as EOAs. */ }
+      if (recovered !== challenge.address) {
+        if (!verifySmart) throw new AuthError('Signature does not match the requested wallet.');
+        if (smartChecks >= 32) throw new AuthError('Smart-wallet verification is busy. Try again shortly.', 503);
+        let valid;
+        smartChecks++;
+        try { valid = await verifySmart({ address: challenge.address, message: challenge.message, signature }); }
+        catch { throw new AuthError('Smart-wallet verification is temporarily unavailable.', 503); }
+        finally { smartChecks--; }
+        if (!valid) throw new AuthError('Signature does not match the requested wallet.');
+      }
+      if (challenge.expiresAt <= now()) throw new AuthError('Sign-in expired or already used. Please try again.');
       if (sessions.size >= capacity) throw new AuthError('Session capacity reached.', 503);
       const sessionToken = random();
       const session = { address: challenge.address, playerName: playerName(challenge.address), authenticatedAt: now(), expiresAt: now() + sessionTTL };

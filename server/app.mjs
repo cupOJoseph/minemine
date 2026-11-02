@@ -145,7 +145,7 @@ export function createApp(config) {
         }
         if (req.method === 'POST' && url.pathname === '/api/auth/verify') {
           const data = await body(req);
-          const verified = auth.verify(jar[challengeCookie], data.signature);
+          const verified = await auth.verify(jar[challengeCookie], data.signature);
           if (session) { grants.revoke(session, sessionToken); auth.revoke(sessionToken); gameProxy.revoke(sessionToken); }
           res.setHeader('Set-Cookie', [cookie(sessionCookie, verified.token, 43200), cookie(challengeCookie, '', 0)]);
           return json(res, 200, verified.session);

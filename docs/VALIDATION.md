@@ -1,5 +1,11 @@
 # Validation record
 
+## Public MineMine landing and solo game — 2026-11-02 UTC
+
+[PR #2](https://github.com/cupOJoseph/minemine/pull/2) published the landing and [PR #3](https://github.com/cupOJoseph/minemine/pull/3) added a one-time recovery reload for Pages service-worker isolation. [Pages run 41496694370](https://github.com/cupOJoseph/minemine/actions/runs/41496694370) succeeded. Live `/`, `/map/` and `/play/` returned 200; the map image hash matched its metadata and displayed two paid test-world claims with the native default spawn at X −192, Z −192. The live `/play/build.json` reports release `21f97a29c16b` and launcher revision `151de0b568bf9548eb176e389e034b9b4c5424bc`.
+
+The first clean Chromium context immediately after the second deployment still failed to gain a service-worker controller within 30 seconds. A direct registration trace and a subsequent three-context Play Now test passed: every context reached `crossOriginIsolated`, the Start button enabled, and one launched actual Luanti terrain. This is evidence for the current deployed Pages path, not a guarantee against intermittent first-visit or browser-specific startup failure. The public game is solo and uses browser storage; no shared server, payment, or wallet signup is deployed.
+
 ## Smart-account SIWE backend — 2026-11-02 UTC
 
 [Foundation run 41389696211](https://github.com/cupOJoseph/minemine/actions/runs/41389696211) passed a local-Anvil HTTP integration for the new chain-bound smart-signature verifier. An EOA still signed in; a deployed ERC-1271 wallet and a counterfactual ERC-6492 wallet each signed the exact server-generated SIWE challenge and received sessions for their own address. The verifier checked the RPC chain before contract verification. A wrong signer returned 401, a reused challenge returned 401, and a contract signature against an RPC on the wrong chain returned 503. The counterfactual wallet had no code before or after verification, so the check did not deploy it. A local rerun additionally returned 401 for a forged ERC-6492 wrapper and left the wallet undeployed. Existing HTTP/game-proxy and MINE/town local-EVM suites passed after auth became asynchronous.

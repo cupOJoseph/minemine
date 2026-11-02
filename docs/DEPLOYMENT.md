@@ -1,6 +1,6 @@
 # Build and deployment runbook
 
-The source is published at cupOJoseph/minemine and foundation CI passes. Linux WASM run 39147984307 succeeded, and the existing Pages deployment publishes the solo bundle at https://cupojoseph.github.io/minemine/. Movement, mining, placement, inventory, crafting and saved-world reload have since passed browser QA. The MineMine landing page is staged in this feature branch but not yet published. The Pages environment permits deployments only from `main`; feature-branch dispatch run 39723016671 failed before any steps ran. There is no running shared game server.
+The source is published at cupOJoseph/minemine and foundation CI passes. [Pages run 41496694370](https://github.com/cupOJoseph/minemine/actions/runs/41496694370) publishes the [MineMine landing](https://cupojoseph.github.io/minemine/), [solo game](https://cupojoseph.github.io/minemine/play/) and [dated test-world map](https://cupojoseph.github.io/minemine/map/). The pinned browser release is 21f97a29c16b; fresh-session Chromium QA passed startup and terrain rendering. The Pages environment permits deployments only from `main`; feature-branch dispatch run 39723016671 failed before steps ran. There is no running shared game server.
 
 ## 1. GitHub and local environment
 
@@ -83,7 +83,7 @@ Complete B05/S03/A05/S04 in ROADMAP.md, then set `GAME_ENABLED=true` and `ENGINE
 
 ## 6. Host the tested stack
 
-For solo browser play, native server hosting is unnecessary: both client and local world run in WASM. The manual Pages workflow consumes a successful pinned engine artifact, verifies its hashes, and packages this branch's MineMine landing page at `/` and the solo game at `/play/`. Run `PAGES_SITE_DIR=/tmp/minemine-pages-check-20261022 node scripts/prepare-pages-playtest.mjs` locally with an unused output path to check the package without replacing earlier staging. On Pages, wallet lab APIs stay offline; only the solo game is served. `node scripts/prepare-vercel-playtest.mjs` remains an alternative isolated solo bundle path, but no Vercel project was created.
+For solo browser play, native server hosting is unnecessary: both client and local world run in WASM. The manual Pages workflow consumes a successful pinned engine artifact, verifies its hashes, and packages this branch's MineMine landing page at `/` and the solo game at `/play/`. Run `PAGES_SITE_DIR=/tmp/minemine-pages-check-20261022 node scripts/prepare-pages-playtest.mjs` locally with an unused output path to check the package without replacing earlier staging. The current public Pages site is informational and omits the wallet lab because Pages cannot run the wallet API; this feature branch includes that lab for a future Node-hosted release. `node scripts/prepare-vercel-playtest.mjs` remains an alternative isolated solo bundle path, but no Vercel project was created.
 
 The user's approved solo-browser hosts are their personal Vercel account or GitHub Pages. They have also selected DigitalOcean for the future shared world with a strict $10/month ceiling and will connect that account when deployment is ready. Pages cannot run the native UDP game server or Node wallet service. The service-worker isolation path passed a Chromium solo-playtest check, but verify it again after moving the engine under `/play/`.
 

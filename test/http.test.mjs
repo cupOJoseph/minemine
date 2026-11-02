@@ -8,9 +8,9 @@ import { Wallet } from 'ethers';
 import { createApp } from '../server/app.mjs';
 import { readConfig } from '../server/config.mjs';
 
-async function fixture(t, env = {}) {
+async function fixture(t, env = {}, clock) {
   const dir = mkdtempSync(path.join(tmpdir(), 'miners-http-'));
-  const config = { ...readConfig(env), worldDir: dir };
+  const config = { ...readConfig(env), worldDir: dir, ...(clock ? { now: clock } : {}) };
   const server = createApp(config);
   t.after(() => { server.close(); rmSync(dir, { recursive: true, force: true }); });
   const origin = config.origin;
@@ -173,4 +173,35 @@ test('player statistics require an allowlisted signed wallet', async t => {
   assert.equal((await roster.json()).players[0].playerName, `w_${'a'.repeat(17)}`);
   assert.equal((await request('/api/admin/players?q=A', undefined, adminCookie)).status, 400);
   assert.equal((await request('/api/admin/players?page=0', undefined, adminCookie)).status, 400);
+});
+
+test('admin name reservations require an allowlisted fresh signature and prevent duplicate handles', async t => {
+  let now = 1_800_000_000_000;
+  const admin = new Wallet('0x' + '66'.repeat(32));
+  const outsider = new Wallet('0x' + '77'.repeat(32));
+  const { request } = await fixture(t, { ADMIN_WALLET_ADDRESSES: admin.address }, () => now);
+  const login = async wallet => {
+    const challenge = await request('/api/auth/challenge', { address: wallet.address, chainId: 11155111 });
+    const challengeCookie = challenge.headers.getSetCookie()[0].split(';')[0];
+    const signature = await wallet.signMessage((await challenge.json()).message);
+    const verified = await request('/api/auth/verify', { signature }, challengeCookie);
+    assert.equal(verified.status, 200);
+    return verified.headers.getSetCookie()[0].split(';')[0];
+  };
+  assert.equal((await request('/api/admin/names')).status, 401);
+  const outsiderCookie = await login(outsider);
+  assert.equal((await request('/api/admin/names/reserve', { handle: 'alice' }, outsiderCookie)).status, 403);
+  const adminCookie = await login(admin);
+  assert.equal((await request('/api/admin/names/reserve', { handle: 'admin' }, adminCookie)).status, 400);
+  const reserved = await request('/api/admin/names/reserve', { handle: 'Alice' }, adminCookie);
+  assert.equal(reserved.status, 201);
+  assert.equal((await reserved.json()).handle, 'alice');
+  assert.equal((await request('/api/admin/names/reserve', { handle: 'ALICE' }, adminCookie)).status, 409);
+  assert.equal((await (await request('/api/admin/names', undefined, adminCookie)).json()).reservations[0].handle, 'alice');
+  now += 5 * 60_000;
+  assert.equal((await request('/api/admin/names/release', { handle: 'alice' }, adminCookie)).status, 403);
+  assert.equal((await (await request('/api/admin/names', undefined, adminCookie)).json()).reservations.length, 1);
+  const freshCookie = await login(admin);
+  assert.equal((await request('/api/admin/names/release', { handle: 'alice' }, freshCookie)).status, 200);
+  assert.equal((await (await request('/api/admin/names', undefined, freshCookie)).json()).reservations.length, 0);
 });

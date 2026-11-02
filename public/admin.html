@@ -40,6 +40,16 @@
       <div class="table-scroll"><table><thead><tr><th scope="col">Character ID</th><th scope="col">First join in window</th><th scope="col">Last join</th><th scope="col">Joins</th></tr></thead><tbody id="player-rows"><tr><td colspan="4">Waiting for admin access.</td></tr></tbody></table></div>
       <div class="pager"><span id="player-page-label">—</span><div><button id="player-prev" type="button" disabled>Previous</button><button id="player-next" type="button" disabled>Next</button></div></div>
     </section>
+    <section id="name-operations" class="detail" aria-labelledby="names-heading" hidden>
+      <div class="section-heading"><div><p class="eyebrow">BETA OPERATIONS</p><h2 id="names-heading">Reserved usernames</h2></div><span>Seven-day administrative holds</span></div>
+      <form id="name-reservation" class="explorer-tools">
+        <label for="name-handle">Reserve a MineMine username</label>
+        <div><input id="name-handle" name="handle" minlength="3" maxlength="16" pattern="[A-Za-z][A-Za-z0-9]{2,15}" autocomplete="off" spellcheck="false" placeholder="username" required><button type="submit">Reserve</button></div>
+      </form>
+      <p class="explorer-note">The hold blocks other claims and expires after seven days. Sign in again on the home page if your admin signature is more than five minutes old. This does not issue an ENS name or charge a card.</p>
+      <p id="name-status" class="name-status" role="status" aria-live="polite"></p>
+      <ul id="name-reservations" class="name-list"></ul>
+    </section>
     <p class="method">Counts use accepted Luanti joins. Reconnects count once per period; visiting the website does not count as playing. Presence is shown only while the native heartbeat and player snapshot are fresh. Times are UTC.</p>
   </main>
 </body>

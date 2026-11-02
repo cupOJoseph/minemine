@@ -13,6 +13,7 @@ import { createTownCredits } from './towns.mjs';
 import { writeBalanceSnapshot } from './balance-snapshot.mjs';
 import { attachGameProxy } from './game-proxy.mjs';
 import { createPlayerStats, createPlayerExplorer } from './player-stats.mjs';
+import { createNameRegistry, NameRegistryError } from './name-registry.mjs';
 
 const publicRoot = path.resolve(fileURLToPath(new URL('../public/', import.meta.url)));
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.ogg': 'audio/ogg' };
@@ -69,7 +70,12 @@ export function createApp(config) {
   const towns = createTownCredits(config, provider);
   const playerStats = createPlayerStats(config.worldDir);
   const playerExplorer = createPlayerExplorer(config.worldDir);
+  const names = createNameRegistry(config.worldDir, config.now || Date.now);
   const adminWallets = new Set((config.adminWalletAddresses || []).map(address => address.toLowerCase()));
+  const adminWriteFresh = session => {
+    const age = (config.now || Date.now)() - session.authenticatedAt;
+    return Number.isFinite(age) && age >= 0 && age < 5 * 60_000;
+  };
   const balances = new Map();
   async function balance(address, fresh = false) {
     if (!config.tokenAddress || !provider) return { configured: false };
@@ -154,6 +160,24 @@ export function createApp(config) {
             try { return json(res, 200, await playerExplorer(query, page)); }
             catch (error) { if (error.message.startsWith('Invalid player')) throw new AuthError(error.message, 400); throw error; }
           }
+          if (req.method === 'GET' && url.pathname === '/api/admin/names') {
+            return json(res, 200, { reservations: names.adminReservations().map(row => ({ handle: row.handle, expiresAt: new Date(row.expires_at).toISOString() })) });
+          }
+          if (req.method === 'POST' && ['/api/admin/names/reserve', '/api/admin/names/release'].includes(url.pathname)) {
+            if (!adminWriteFresh(session)) throw new AuthError('Sign in with your admin wallet again before changing reservations.', 403);
+            const data = await body(req);
+            try {
+              if (url.pathname.endsWith('/reserve')) {
+                const record = names.reserveAdmin(data.handle, session.address, null, (config.now || Date.now)() + 7 * 24 * 60 * 60_000);
+                return json(res, 201, { handle: record.handle, expiresAt: new Date(record.expires_at).toISOString() });
+              }
+              names.releaseAdmin(data.handle, session.address);
+              return json(res, 200, { released: true });
+            } catch (error) {
+              if (error instanceof NameRegistryError) throw new AuthError(error.message, error.code === 'invalid_handle' || error.code === 'invalid_input' ? 400 : 409);
+              throw error;
+            }
+          }
           throw new AuthError('Unknown admin route.', 404);
         }
         if (req.method === 'GET' && url.pathname === '/api/session') return json(res, 200, session);
@@ -214,6 +238,6 @@ export function createApp(config) {
   server.headersTimeout = 10_000;
   const gameProxy = attachGameProxy(server, config, request => cookies(request)[sessionCookie], token => Boolean(auth.get(token)));
   server.stopGameProxy = () => gameProxy.close();
-  server.on('close', () => { gameProxy.close(); provider?.destroy(); ens.close(); });
+  server.on('close', () => { gameProxy.close(); provider?.destroy(); ens.close(); names.close(); });
   return server;
 }

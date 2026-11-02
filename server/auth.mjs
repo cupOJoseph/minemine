@@ -49,7 +49,7 @@ export function createAuth({ origin, chainId, now = Date.now, capacity = 10_000 
       if (recovered !== challenge.address) throw new AuthError('Signature does not match the requested wallet.');
       if (sessions.size >= capacity) throw new AuthError('Session capacity reached.', 503);
       const sessionToken = random();
-      const session = { address: challenge.address, playerName: playerName(challenge.address), expiresAt: now() + sessionTTL };
+      const session = { address: challenge.address, playerName: playerName(challenge.address), authenticatedAt: now(), expiresAt: now() + sessionTTL };
       sessions.set(digest(sessionToken), session);
       return { token: sessionToken, session };
     },

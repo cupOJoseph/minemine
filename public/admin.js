@@ -6,6 +6,11 @@ const playerQuery = document.getElementById('player-query');
 const playerPageLabel = document.getElementById('player-page-label');
 const playerPrev = document.getElementById('player-prev');
 const playerNext = document.getElementById('player-next');
+const nameOperations = document.getElementById('name-operations');
+const nameForm = document.getElementById('name-reservation');
+const nameHandle = document.getElementById('name-handle');
+const nameStatus = document.getElementById('name-status');
+const nameReservations = document.getElementById('name-reservations');
 let playerPage = 1;
 let playerRequest = 0;
 const number = (id, value) => { document.getElementById(id).textContent = String(value); };
@@ -26,6 +31,46 @@ function clear() {
   playerPageLabel.textContent = '—';
   playerPrev.disabled = true;
   playerNext.disabled = true;
+  nameOperations.hidden = true;
+  nameReservations.replaceChildren();
+}
+
+async function nameRequest(route, handle) {
+  const response = await fetch(route, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ handle }), signal: AbortSignal.timeout(8000) });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || 'Could not change the reservation.');
+  return result;
+}
+
+async function refreshReservations() {
+  const response = await fetch('/api/admin/names', { credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.timeout(8000) });
+  if (!response.ok) throw new Error('Could not load username reservations.');
+  const { reservations } = await response.json();
+  nameReservations.replaceChildren();
+  if (!reservations.length) {
+    const item = document.createElement('li');
+    item.textContent = 'No active administrative holds.';
+    nameReservations.appendChild(item);
+  }
+  for (const reservation of reservations) {
+    const item = document.createElement('li');
+    const label = document.createElement('span');
+    label.textContent = `${reservation.handle}.minemine.eth · until ${dateLabel(reservation.expiresAt)}`;
+    const release = document.createElement('button');
+    release.type = 'button';
+    release.textContent = 'Release';
+    release.setAttribute('aria-label', `Release ${reservation.handle}`);
+    release.addEventListener('click', async () => {
+      release.disabled = true;
+      try {
+        await nameRequest('/api/admin/names/release', reservation.handle);
+        nameStatus.textContent = `Released ${reservation.handle}.`;
+        await refreshReservations();
+      } catch (error) { nameStatus.textContent = error.message; release.disabled = false; }
+    });
+    item.append(label, release);
+    nameReservations.appendChild(item);
+  }
 }
 
 async function refreshPlayers() {
@@ -87,7 +132,11 @@ async function refresh(withPlayers = true) {
       online.appendChild(item);
     }
     status.textContent = stats.current.fresh ? 'Statistics are up to date.' : 'Historical joins are available; current presence is stale or the server is offline.';
-    if (withPlayers) await refreshPlayers();
+    nameOperations.hidden = false;
+    if (withPlayers) {
+      await refreshPlayers();
+      await refreshReservations().catch(error => { nameStatus.textContent = error.message; });
+    }
   } catch (error) {
     status.classList.add('error');
     status.textContent = error.message;
@@ -98,6 +147,19 @@ async function refresh(withPlayers = true) {
 
 refreshButton.addEventListener('click', () => refresh());
 document.getElementById('player-search').addEventListener('submit', event => { event.preventDefault(); playerPage = 1; refreshPlayers().catch(error => { status.classList.add('error'); status.textContent = error.message; }); });
+nameForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = nameForm.querySelector('button');
+  button.disabled = true;
+  nameStatus.textContent = 'Reserving username…';
+  try {
+    const result = await nameRequest('/api/admin/names/reserve', nameHandle.value);
+    nameStatus.textContent = `Reserved ${result.handle}.minemine.eth until ${dateLabel(result.expiresAt)}.`;
+    nameForm.reset();
+    await refreshReservations();
+  } catch (error) { nameStatus.textContent = error.message; }
+  finally { button.disabled = false; }
+});
 playerPrev.addEventListener('click', () => { if (playerPage > 1) playerPage--; refreshPlayers().catch(error => { status.classList.add('error'); status.textContent = error.message; }); });
 playerNext.addEventListener('click', () => { playerPage++; refreshPlayers().catch(error => { status.classList.add('error'); status.textContent = error.message; }); });
 setInterval(() => { if (document.visibilityState === 'visible') refresh(false); }, 15_000);

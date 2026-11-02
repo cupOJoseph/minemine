@@ -109,6 +109,9 @@ export function createNameRegistry(worldDir, now = Date.now) {
   return {
     file,
     lookup(input) { return current(normalizeHandle(input)); },
+    adminReservations() {
+      return db.prepare("SELECT handle, intended_account_id, expires_at FROM names WHERE state = 'admin_reserved' AND expires_at > ? ORDER BY updated_at DESC LIMIT 100").all(now());
+    },
     reserveAdmin(input, actor, intendedAccountId, expiresAt) {
       const handle = normalizeHandle(input);
       identifier(actor, 'admin actor');
@@ -120,6 +123,17 @@ export function createNameRegistry(worldDir, now = Date.now) {
         addName.run(handle, 'admin_reserved', null, intendedAccountId, null, null, expiresAt, now());
         addAudit.run(handle, 'admin_reserved', actor, now());
         return current(handle);
+      });
+    },
+    releaseAdmin(input, actor) {
+      const handle = normalizeHandle(input);
+      identifier(actor, 'admin actor');
+      return transaction(() => {
+        const row = current(handle);
+        if (!row || row.state !== 'admin_reserved') conflict();
+        db.prepare("DELETE FROM names WHERE handle = ? AND state = 'admin_reserved'").run(handle);
+        addAudit.run(handle, 'admin_released', actor, now());
+        return true;
       });
     },
     beginCheckout(input, accountId, orderId) {

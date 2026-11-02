@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { Wallet } from 'ethers';
+import Stripe from 'stripe';
 import { createApp } from '../server/app.mjs';
 import { AuthError, playerName } from '../server/auth.mjs';
 import { readConfig } from '../server/config.mjs';
@@ -409,4 +410,37 @@ test('paid managed name displays only while ENS resolves to its signed account w
   offline = false;
   target = wallet.address;
   assert.equal((await (await request('/api/identity', undefined, cookie)).json()).ensName, 'builder.minemine.eth');
+});
+
+test('Stripe test webhook needs a raw valid signature and a matching paid session', async t => {
+  const sdk = new Stripe('sk_test_minemine_http');
+  const secret = 'whsec_minemine_http';
+  const wallet = new Wallet('0x' + 'e4'.repeat(32));
+  const accountId = wallet.address.toLowerCase();
+  const orderId = 'order_1234567890123456';
+  const sessionId = 'cs_test_minemine_http';
+  const stripeClient = { webhooks: sdk.webhooks, checkout: { sessions: {
+    async retrieve(id) {
+      assert.equal(id, sessionId);
+      return { id, object: 'checkout.session', livemode: false, mode: 'payment', currency: 'usd',
+        amount_total: 200, status: 'complete', payment_status: 'paid', client_reference_id: orderId,
+        metadata: { order_id: orderId, account_id: accountId, handle: 'builder' },
+        line_items: { has_more: false, data: [{ amount_total: 200, currency: 'usd', quantity: 1 }] } };
+    },
+  } } };
+  const { request, worldDir } = await fixture(t, {}, null, { stripeClient, stripeWebhookSecret: secret });
+  const names = createNameRegistry(worldDir);
+  t.after(() => names.close());
+  names.beginCheckout('builder', accountId, orderId);
+  const event = { id: 'evt_test_http', object: 'event', livemode: false, type: 'checkout.session.completed',
+    data: { object: { id: sessionId } } };
+  const payload = JSON.stringify(event);
+  const signature = sdk.webhooks.generateTestHeaderString({ payload, secret });
+  assert.equal((await request('/api/stripe/webhook', event, null, { Origin: undefined, 'Stripe-Signature': 'bad' })).status, 400);
+  assert.equal(names.lookup('builder').state, 'checkout_held');
+  const response = await request('/api/stripe/webhook', event, null, { Origin: undefined, 'Stripe-Signature': signature });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { received: true });
+  assert.equal(names.lookup('builder').state, 'paid_pending_ens');
+  assert.equal((await request('/api/stripe/webhook', event, null, { Origin: undefined, 'Stripe-Signature': signature })).status, 200);
 });

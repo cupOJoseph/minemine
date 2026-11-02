@@ -89,4 +89,7 @@ test('configuration requires TLS for public hosts and restricts initial chains',
   assert.throws(() => readConfig({ TOWN_CONFIRMATIONS: '0' }), /six confirmation/);
   assert.throws(() => readConfig({ TRUST_LOOPBACK_PROXY: 'true' }), /HTTPS and a loopback HOST/);
   assert.throws(() => readConfig({ PUBLIC_ORIGIN: 'https://play.example', HOST: '0.0.0.0', TRUST_LOOPBACK_PROXY: 'true' }), /loopback HOST/);
+  assert.throws(() => readConfig({ STRIPE_TEST_SECRET_KEY: 'sk_live_bad', STRIPE_TEST_WEBHOOK_SECRET: 'whsec_test' }), /test-mode/);
+  assert.throws(() => readConfig({ STRIPE_TEST_SECRET_KEY: 'sk_test_only' }), /configured together/);
+  assert.equal(readConfig({ STRIPE_TEST_SECRET_KEY: 'sk_test_example', STRIPE_TEST_WEBHOOK_SECRET: 'whsec_example' }).stripeTestSecretKey, 'sk_test_example');
 });

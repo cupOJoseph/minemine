@@ -6,6 +6,7 @@ import path from 'node:path';
 import { isIP } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { Contract, FetchRequest, JsonRpcProvider, formatUnits, getAddress } from 'ethers';
+import Stripe from 'stripe';
 import { AuthError, createAuth, playerName } from './auth.mjs';
 import { createGrants } from './grants.mjs';
 import { createEnsResolver } from './ens.mjs';
@@ -15,6 +16,7 @@ import { writeBalanceSnapshot } from './balance-snapshot.mjs';
 import { attachGameProxy } from './game-proxy.mjs';
 import { createPlayerStats, createPlayerExplorer } from './player-stats.mjs';
 import { createNameRegistry, NameRegistryError } from './name-registry.mjs';
+import { createNameCheckout } from './name-checkout.mjs';
 import { createBetaCodes, BetaCodeError } from './beta-codes.mjs';
 
 const publicRoot = path.resolve(fileURLToPath(new URL('../public/', import.meta.url)));
@@ -36,6 +38,18 @@ async function body(req) {
     if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new Error();
     return parsed;
   } catch { throw new AuthError('Invalid JSON body.', 400); }
+}
+
+async function rawBody(req, maxBytes = 262_144) {
+  if (!req.headers['content-type']?.startsWith('application/json')) throw new AuthError('Expected JSON.', 415);
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > maxBytes) throw new AuthError('Request too large.', 413);
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
 }
 
 export function createApp(config) {
@@ -74,6 +88,10 @@ export function createApp(config) {
   const playerStats = createPlayerStats(config.worldDir);
   const playerExplorer = createPlayerExplorer(config.worldDir);
   const names = createNameRegistry(config.worldDir, config.now || Date.now);
+  const stripe = config.stripeClient || (config.stripeTestSecretKey ? new Stripe(config.stripeTestSecretKey) : null);
+  const nameCheckout = stripe && config.stripeWebhookSecret ? createNameCheckout({
+    stripe, names, origin: config.origin, webhookSecret: config.stripeWebhookSecret, now: config.now || Date.now,
+  }) : null;
   const betaCodes = createBetaCodes(config.worldDir, config.now || Date.now);
   const adminWallets = new Set((config.adminWalletAddresses || []).map(address => address.toLowerCase()));
   const adminWriteFresh = session => {
@@ -151,7 +169,7 @@ export function createApp(config) {
       if (req.headers.host !== new URL(config.origin).host) throw new AuthError('Unexpected host.', 400);
       const url = new URL(req.url, config.origin);
       if (url.origin !== config.origin) throw new AuthError('Unexpected origin.', 400);
-      if (req.method === 'POST' && req.headers.origin !== config.origin) throw new AuthError('Unexpected request origin.', 403);
+      if (req.method === 'POST' && url.pathname !== '/api/stripe/webhook' && req.headers.origin !== config.origin) throw new AuthError('Unexpected request origin.', 403);
       if (url.pathname.startsWith('/api/')) {
         // Caddy overwrites this dedicated header. Trust it only when the API is
         // bound to loopback, HTTPS is configured, and the peer is loopback.
@@ -167,6 +185,15 @@ export function createApp(config) {
           limits.set(ip, limit = { count: 0, until: now + 60_000 });
         }
         if (++limit.count > 120) throw new AuthError('Too many requests. Wait one minute.', 429);
+        if (req.method === 'POST' && url.pathname === '/api/stripe/webhook') {
+          if (!nameCheckout) throw new AuthError('Test checkout webhooks are not configured.', 503);
+          const payload = await rawBody(req);
+          try { return json(res, 200, await nameCheckout.handleWebhook(payload, req.headers['stripe-signature'])); }
+          catch (error) {
+            if (error.type === 'StripeSignatureVerificationError') throw new AuthError('Invalid Stripe signature.', 400);
+            throw error;
+          }
+        }
         const jar = cookies(req);
         const sessionToken = jar[sessionCookie];
         const session = auth.get(sessionToken);

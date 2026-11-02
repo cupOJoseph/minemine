@@ -21,6 +21,10 @@ export function readConfig(env = process.env) {
   }
   const adminWalletAddresses = (env.ADMIN_WALLET_ADDRESSES || '').split(',').map(value => value.trim()).filter(Boolean).map(getAddress);
   if (new Set(adminWalletAddresses.map(value => value.toLowerCase())).size !== adminWalletAddresses.length) throw new Error('Duplicate admin wallet address.');
+  if (Boolean(env.STRIPE_TEST_SECRET_KEY) !== Boolean(env.STRIPE_TEST_WEBHOOK_SECRET)) throw new Error('Stripe test key and webhook secret must be configured together.');
+  if (env.STRIPE_TEST_SECRET_KEY && (!env.STRIPE_TEST_SECRET_KEY.startsWith('sk_test_') || !env.STRIPE_TEST_WEBHOOK_SECRET.startsWith('whsec_'))) {
+    throw new Error('Only Stripe test-mode checkout credentials are accepted.');
+  }
   return {
     origin: origin.origin, host: env.HOST || '127.0.0.1', port, chainId,
     secure: origin.protocol === 'https:',
@@ -32,6 +36,8 @@ export function readConfig(env = process.env) {
     tokenAddress: env.TOKEN_ADDRESS ? getAddress(env.TOKEN_ADDRESS) : null,
     rpcUrl: env.RPC_URL || null,
     ensRpcUrl: env.ENS_RPC_URL || null,
+    stripeTestSecretKey: env.STRIPE_TEST_SECRET_KEY || null,
+    stripeWebhookSecret: env.STRIPE_TEST_WEBHOOK_SECRET || null,
     adminWalletAddresses,
     townContractAddress: env.TOWN_CONTRACT_ADDRESS ? getAddress(env.TOWN_CONTRACT_ADDRESS) : null,
     townConfirmations,

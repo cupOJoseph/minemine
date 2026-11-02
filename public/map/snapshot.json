@@ -1,0 +1,39 @@
+{
+  "kind": "snapshot",
+  "world": "MineMine native CI test world",
+  "generatedAt": "2026-11-02T17:22:28.295Z",
+  "geometry": {
+    "minX": -512,
+    "minZ": -512,
+    "width": 1024,
+    "height": 1024
+  },
+  "focus": {
+    "x": -152,
+    "z": -152,
+    "span": 512
+  },
+  "townClaims": [
+    {
+      "town": "Probe Town",
+      "x1": -193,
+      "x2": -191,
+      "z1": -193,
+      "z2": -191
+    },
+    {
+      "town": "West Hollow",
+      "x1": -65,
+      "x2": -63,
+      "z1": -65,
+      "z2": -63
+    }
+  ],
+  "spawn": {
+    "x": -192,
+    "z": -192
+  },
+  "mapperCommit": "88c7381a20ada1992169522d590ebad36195507e",
+  "sha256": "84505ce8a8b5f5d87676ab3e222c3dc3667415b357193fe4dd17d3c04678b05b",
+  "bytes": 59585
+}

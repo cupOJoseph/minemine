@@ -59,6 +59,11 @@ export function createNameRegistry(worldDir, now = Date.now) {
       action TEXT NOT NULL,
       actor TEXT NOT NULL,
       at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS ens_selections (
+      account_id TEXT PRIMARY KEY,
+      ens_name TEXT NOT NULL UNIQUE,
+      selected_at INTEGER NOT NULL
     );`);
   const find = db.prepare('SELECT * FROM names WHERE handle = ?');
   const byOrder = db.prepare('SELECT * FROM names WHERE order_id = ?');
@@ -114,6 +119,43 @@ export function createNameRegistry(worldDir, now = Date.now) {
     },
     recentAudit(limit = 50) {
       return db.prepare('SELECT id, handle, action, actor, at FROM name_audit ORDER BY at DESC, id DESC LIMIT ?').all(limit);
+    },
+    selectedEns(accountId) {
+      return db.prepare('SELECT ens_name FROM ens_selections WHERE account_id = ?').get(identifier(accountId, 'account'))?.ens_name || null;
+    },
+    selectEns(accountId, ensName) {
+      identifier(accountId, 'account');
+      if (typeof ensName !== 'string' || ensName.length > 255 || ensName !== ensName.trim() || !ensName.includes('.')) {
+        throw new NameRegistryError('Invalid ENS name.', 'invalid_input');
+      }
+      try { ensName = ensNormalize(ensName); }
+      catch { throw new NameRegistryError('Invalid ENS name.', 'invalid_input'); }
+      return transaction(() => {
+        const previous = db.prepare('SELECT ens_name FROM ens_selections WHERE account_id = ?').get(accountId)?.ens_name;
+        if (previous === ensName) return ensName;
+        if (previous) {
+          db.prepare('DELETE FROM ens_selections WHERE account_id = ?').run(accountId);
+          addAudit.run(previous, 'ens_replaced', accountId, now());
+        }
+        const priorOwner = db.prepare('SELECT account_id FROM ens_selections WHERE ens_name = ?').get(ensName)?.account_id;
+        if (priorOwner) {
+          db.prepare('DELETE FROM ens_selections WHERE ens_name = ?').run(ensName);
+          addAudit.run(ensName, 'ens_reassigned', accountId, now());
+        }
+        db.prepare('INSERT INTO ens_selections(account_id, ens_name, selected_at) VALUES (?, ?, ?)').run(accountId, ensName, now());
+        addAudit.run(ensName, 'ens_selected', accountId, now());
+        return ensName;
+      });
+    },
+    clearSelectedEns(accountId, expectedName = null) {
+      identifier(accountId, 'account');
+      return transaction(() => {
+        const selected = db.prepare('SELECT ens_name FROM ens_selections WHERE account_id = ?').get(accountId)?.ens_name;
+        if (!selected || (expectedName !== null && selected !== expectedName)) return false;
+        db.prepare('DELETE FROM ens_selections WHERE account_id = ?').run(accountId);
+        addAudit.run(selected, 'ens_cleared', accountId, now());
+        return true;
+      });
     },
     reserveAdmin(input, actor, intendedAccountId, expiresAt) {
       const handle = normalizeHandle(input);

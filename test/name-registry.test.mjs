@@ -78,3 +78,27 @@ test('only an unpaid matching checkout can be explicitly released', () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('verified full ENS selection is durable, unique, and can follow an onchain transfer', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'minemine-ens-selection-'));
+  const first = createNameRegistry(dir);
+  const second = createNameRegistry(dir);
+  try {
+    first.reserveAdmin('alice', 'wallet:admin', null, Date.now() + 60_000);
+    assert.equal(first.selectEns('wallet:alice', 'Bücher.eth'), 'bücher.eth');
+    assert.equal(second.selectedEns('wallet:alice'), 'bücher.eth');
+    assert.equal(first.selectEns('wallet:alice', 'Bücher.eth'), 'bücher.eth');
+    assert.equal(second.selectEns('wallet:bob', 'bücher.eth'), 'bücher.eth');
+    assert.equal(first.selectedEns('wallet:alice'), null, 'a new verified owner displaces a stale selection');
+    assert.equal(second.selectedEns('wallet:bob'), 'bücher.eth');
+    assert.equal(second.clearSelectedEns('wallet:bob', 'other.eth'), false);
+    assert.equal(first.clearSelectedEns('wallet:bob', 'bücher.eth'), true);
+    assert.equal(second.selectedEns('wallet:bob'), null);
+    assert.equal(first.lookup('alice').state, 'admin_reserved', 'a paid or reserved bare handle is independent of a full ENS name');
+    assert.deepEqual(first.recentAudit().filter(event => event.action.startsWith('ens_')).map(event => event.action), ['ens_cleared', 'ens_selected', 'ens_reassigned', 'ens_selected']);
+    assert.throws(() => first.selectEns('wallet:alice', 'bad name.eth'), { code: 'invalid_input' });
+  } finally {
+    first.close(); second.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

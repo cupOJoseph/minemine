@@ -41,7 +41,7 @@ Start with Minetest Game for low complexity. Evaluate Mineclonia/VoxeLibre only 
 | S05 | TODO | Load test 16 concurrent clients; record tick latency, CPU, RAM, egress and reconnect behavior. Add process restarts, monitoring and disk alerts. | S04 |
 | S06 | TODO | Publish a playable URL and server information only after auth, backup, and multiplayer gates pass. Verify access from a network outside the host. | S04, S05, A05 |
 
-S01/S04 pre-deployment gate: the native CI workflow now includes a one-core, 1 GiB, zero-swap rehearsal of Caddy, Node and Luanti on a copied world. It checks CA-verified local HTTPS, browser isolation headers, compressed engine delivery, signed-wallet WSS binding, logout closure, and resource counters. This service-slice test is narrower than a whole DigitalOcean VM and does not replace outside-network or sustained-load validation.
+S01/S04 pre-deployment gate: [run 41527380973](https://github.com/cupOJoseph/minemine/actions/runs/41527380973) passed a one-core, 1 GiB, zero-swap rehearsal of Caddy, Node and Luanti on a copied world. It verified CA-trusted local HTTPS, browser isolation headers, compressed engine delivery, signed-wallet WSS binding and logout. The service slice peaked at 387,678,208 bytes (369.7 MiB), with zero memory-boundary or OOM events; its one-CPU quota had throttling in 47 of 86 periods. This is narrower than a whole DigitalOcean VM and does not replace outside-network or sustained-load validation.
 
 ## Milestone 3 — Ethereum wallet login
 

@@ -205,15 +205,22 @@ test('admin name reservations require an allowlisted fresh signature and prevent
   assert.equal((await reserved.json()).handle, 'alice');
   assert.equal((await request('/api/admin/names/reserve', { handle: 'ALICE' }, adminCookie)).status, 409);
   assert.equal((await (await request('/api/admin/names', undefined, adminCookie)).json()).reservations[0].handle, 'alice');
+  assert.equal((await request('/api/admin/names/reserve', { handle: 'builder', intendedAddress: 'not-an-address' }, adminCookie)).status, 400);
+  const targeted = await request('/api/admin/names/reserve', { handle: 'builder', intendedAddress: outsider.address }, adminCookie);
+  assert.equal(targeted.status, 201);
+  assert.equal((await targeted.json()).intendedAccount, outsider.address.toLowerCase());
+  assert.equal((await (await request('/api/admin/names', undefined, adminCookie)).json()).reservations.find(row => row.handle === 'builder').intendedAccount,
+    outsider.address.toLowerCase());
   now += 5 * 60_000;
   assert.equal((await request('/api/admin/names/release', { handle: 'alice' }, adminCookie)).status, 403);
-  assert.equal((await (await request('/api/admin/names', undefined, adminCookie)).json()).reservations.length, 1);
+  assert.equal((await (await request('/api/admin/names', undefined, adminCookie)).json()).reservations.length, 2);
   const freshCookie = await login(admin);
   assert.equal((await request('/api/admin/names/release', { handle: 'alice' }, freshCookie)).status, 200);
+  assert.equal((await request('/api/admin/names/release', { handle: 'builder' }, freshCookie)).status, 200);
   assert.equal((await (await request('/api/admin/names', undefined, freshCookie)).json()).reservations.length, 0);
   const audit = await (await request('/api/admin/audit', undefined, freshCookie)).json();
-  assert.deepEqual(audit.events.map(event => event.action), ['admin_released', 'admin_reserved']);
-  assert.equal(audit.events[0].target, 'alice');
+  assert.deepEqual(audit.events.map(event => event.action), ['admin_released', 'admin_released', 'admin_reserved', 'admin_reserved']);
+  assert.equal(audit.events[0].target, 'builder');
   assert.equal(audit.events[0].source, 'username');
   assert.equal(audit.events[0].actor, admin.address);
 });

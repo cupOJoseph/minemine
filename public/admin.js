@@ -9,6 +9,7 @@ const playerNext = document.getElementById('player-next');
 const nameOperations = document.getElementById('name-operations');
 const nameForm = document.getElementById('name-reservation');
 const nameHandle = document.getElementById('name-handle');
+const nameIntendedAddress = document.getElementById('name-intended-address');
 const nameStatus = document.getElementById('name-status');
 const nameReservations = document.getElementById('name-reservations');
 const betaOperations = document.getElementById('beta-operations');
@@ -109,8 +110,8 @@ async function refreshBetaCodes() {
   }
 }
 
-async function nameRequest(route, handle) {
-  const response = await fetch(route, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ handle }), signal: AbortSignal.timeout(8000) });
+async function nameRequest(route, handle, intendedAddress) {
+  const response = await fetch(route, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ handle, ...(intendedAddress ? { intendedAddress } : {}) }), signal: AbortSignal.timeout(8000) });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || 'Could not change the reservation.');
   return result;
@@ -129,7 +130,7 @@ async function refreshReservations() {
   for (const reservation of reservations) {
     const item = document.createElement('li');
     const label = document.createElement('span');
-    label.textContent = `${reservation.handle}.minemine.eth · until ${dateLabel(reservation.expiresAt)}`;
+    label.textContent = `${reservation.handle}.minemine.eth · ${reservation.intendedAccount ? `for ${reservation.intendedAccount} · ` : ''}until ${dateLabel(reservation.expiresAt)}`;
     const release = document.createElement('button');
     release.type = 'button';
     release.textContent = 'Release';
@@ -232,8 +233,8 @@ nameForm.addEventListener('submit', async event => {
   button.disabled = true;
   nameStatus.textContent = 'Reserving username…';
   try {
-    const result = await nameRequest('/api/admin/names/reserve', nameHandle.value);
-    nameStatus.textContent = `Reserved ${result.handle}.minemine.eth until ${dateLabel(result.expiresAt)}.`;
+    const result = await nameRequest('/api/admin/names/reserve', nameHandle.value, nameIntendedAddress.value.trim());
+    nameStatus.textContent = `Reserved ${result.handle}.minemine.eth${result.intendedAccount ? ` for ${result.intendedAccount}` : ''} until ${dateLabel(result.expiresAt)}.`;
     nameForm.reset();
     await refreshReservations();
     await refreshAudit();

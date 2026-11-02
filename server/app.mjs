@@ -191,7 +191,10 @@ export function createApp(config) {
             catch (error) { if (error.message.startsWith('Invalid player')) throw new AuthError(error.message, 400); throw error; }
           }
           if (req.method === 'GET' && url.pathname === '/api/admin/names') {
-            return json(res, 200, { reservations: names.adminReservations().map(row => ({ handle: row.handle, expiresAt: new Date(row.expires_at).toISOString() })) });
+            return json(res, 200, { reservations: names.adminReservations().map(row => ({
+              handle: row.handle, intendedAccount: row.intended_account_id,
+              expiresAt: new Date(row.expires_at).toISOString(),
+            })) });
           }
           if (req.method === 'GET' && url.pathname === '/api/admin/beta/codes') {
             return json(res, 200, { codes: betaCodes.list().map(row => ({ id: row.id, createdAt: new Date(row.created_at).toISOString(), expiresAt: new Date(row.expires_at).toISOString(), maxUses: row.max_uses, uses: row.uses, intendedAccount: row.intended_account, revokedAt: row.revoked_at === null ? null : new Date(row.revoked_at).toISOString() })) });
@@ -229,8 +232,15 @@ export function createApp(config) {
             const data = await body(req);
             try {
               if (url.pathname.endsWith('/reserve')) {
-                const record = names.reserveAdmin(data.handle, session.address, null, (config.now || Date.now)() + 7 * 24 * 60 * 60_000);
-                return json(res, 201, { handle: record.handle, expiresAt: new Date(record.expires_at).toISOString() });
+                let intendedAccount = null;
+                if (data.intendedAddress !== undefined && data.intendedAddress !== '') {
+                  try { intendedAccount = getAddress(data.intendedAddress).toLowerCase(); }
+                  catch { throw new AuthError('Enter a valid intended wallet address.', 400); }
+                }
+                const record = names.reserveAdmin(data.handle, session.address, intendedAccount,
+                  (config.now || Date.now)() + 7 * 24 * 60 * 60_000);
+                return json(res, 201, { handle: record.handle, intendedAccount,
+                  expiresAt: new Date(record.expires_at).toISOString() });
               }
               names.releaseAdmin(data.handle, session.address);
               return json(res, 200, { released: true });

@@ -26,8 +26,9 @@ try {
         else if (pathname === '/api/admin/audit') result = { events };
         else if (pathname === '/api/admin/names' && !options.method) result = { reservations };
         else if (pathname === '/api/admin/names/reserve') {
-          const { handle } = JSON.parse(options.body);
-          reservations.push({ handle: handle.toLowerCase(), expiresAt: '2026-11-08T00:00:00Z' });
+          const { handle, intendedAddress } = JSON.parse(options.body);
+          reservations.push({ handle: handle.toLowerCase(), intendedAccount: intendedAddress?.toLowerCase() || null,
+            expiresAt: '2026-11-08T00:00:00Z' });
           events = [{ source: 'username', target: handle.toLowerCase(), action: 'admin_reserved', actor: '0xadmin', at: '2026-11-01T12:00:00Z' }, ...events];
           result = reservations.at(-1);
           status = 201;
@@ -57,8 +58,10 @@ try {
     await page.locator('#name-operations').waitFor({ state: 'visible' });
     await page.locator('#beta-operations').waitFor({ state: 'visible' });
     await page.locator('#name-handle').fill('DemoUser');
+    await page.locator('#name-intended-address').fill('0x' + '12'.repeat(20));
     await page.getByRole('button', { name: 'Reserve', exact: true }).click();
     await page.locator('#name-reservations').getByText('demouser.minemine.eth', { exact: false }).waitFor();
+    assert.match(await page.locator('#name-reservations').textContent(), /for 0x1212/);
     await page.getByRole('button', { name: 'Create invite' }).click();
     await page.locator('#beta-secret').waitFor({ state: 'visible' });
     assert.equal(await page.locator('#beta-secret').textContent(), 'MM-' + 'A'.repeat(32));

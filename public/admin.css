@@ -2,6 +2,7 @@
 
 .explorer-tools{padding:22px 24px 8px}
 .explorer-tools label{display:block;margin-bottom:9px;color:#b0cbb1;font-size:.82rem;font-weight:700}
+.explorer-tools div+label{margin-top:16px}
 .explorer-tools div{display:flex;gap:8px;max-width:480px}
 .explorer-tools input{min-width:0;flex:1;border:1px solid #4d674e;border-radius:3px;background:#0a1510;color:#ecf8e8;padding:11px 12px;font:inherit}
 .explorer-tools input:focus-visible{outline:2px solid #b8ef72;outline-offset:2px}

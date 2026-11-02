@@ -141,6 +141,11 @@ try {
   const metadata = await response.json();
   const bounds = metadata.geometry;
   if (metadata.kind !== 'snapshot' || !Number.isInteger(bounds?.minX) || !Number.isInteger(bounds?.minZ) || bounds.width !== 1024 || bounds.height !== 1024 || !Number.isFinite(Date.parse(metadata.generatedAt))) throw new Error('Map metadata is invalid.');
+  const imageName = metadata.image || 'snapshot.png';
+  if (imageName !== 'snapshot.png' &&
+      (!/^snapshot-[a-f0-9]{16}\.png$/.test(imageName) || !metadata.sha256?.startsWith(imageName.slice(9, 25)))) {
+    throw new Error('Map image reference is invalid.');
+  }
   geometry = bounds;
   claims = validateClaims(metadata.townClaims);
   const townList = $('town-list');
@@ -160,7 +165,7 @@ try {
   $('map-bounds').textContent = `X ${bounds.minX} to ${bounds.minX + bounds.width - 1}; Z ${bounds.minZ} to ${bounds.minZ + bounds.height - 1}`;
   const ageDays = Math.floor((Date.now() - Date.parse(metadata.generatedAt)) / 86400000);
   $('snapshot-status').textContent = ageDays > 7 ? `Snapshot is ${ageDays} days old. Newer world changes are not shown.` : 'Snapshot loaded. Newer world changes are not shown.';
-  await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error('Map image could not be loaded.')); image.src = './snapshot.png'; });
+  await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error('Map image could not be loaded.')); image.src = './' + imageName; });
   if (image.naturalWidth !== bounds.width || image.naturalHeight !== bounds.height) throw new Error('Map image size does not match its metadata.');
   $('map-message').hidden = true;
   focus();

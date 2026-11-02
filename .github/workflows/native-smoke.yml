@@ -21,8 +21,12 @@ on:
       - 'scripts/ci-api-service.sh'
       - 'scripts/ci-deploy-economy.mjs'
       - 'scripts/package-host-runtime.sh'
+      - 'scripts/build-minetestmapper.sh'
+      - 'scripts/publish-map-from-backup.mjs'
       - 'scripts/ci-mapserver-smoke.sh'
       - 'scripts/ci-static-map-snapshot.sh'
+      - 'public/map/**'
+      - 'deploy/vps/**'
       - 'upstream.sources.json'
 permissions:
   contents: read
@@ -118,6 +122,8 @@ jobs:
         run: |
           cp -a runtime/downloaded-build/public/engine public/engine
           npm run adapter:install
+      - name: Build pinned world mapper for host archive
+        run: bash scripts/build-minetestmapper.sh
       - name: Package and test relocated host runtime
         run: |
           bash scripts/package-host-runtime.sh runtime/minemine-host-runtime-ubuntu22-x64.tar.gz
@@ -128,6 +134,11 @@ jobs:
           test -f runtime/host-bundle-check/.env.example
           test -f runtime/host-bundle-check/public/engine/adapter.js
           test -f runtime/host-bundle-check/deploy/vps/backup-world.sh
+          test -x runtime/host-bundle-check/vendor/mapper/minetestmapper
+          test -f runtime/host-bundle-check/vendor/mapper/colors.txt
+          test -f runtime/host-bundle-check/vendor/mapper/COPYING
+          test -f runtime/host-bundle-check/scripts/publish-map-from-backup.mjs
+          test -z "$(ldd runtime/host-bundle-check/vendor/mapper/minetestmapper | grep 'not found' || true)"
           test -f runtime/host-bundle-check/test/integration/ens-live.mjs
           test -f runtime/host-bundle-check/vendor/native/games/minetest/game.conf
           set +e
@@ -274,6 +285,20 @@ jobs:
           cp runtime/static-world-map.png public/map/snapshot.png
           cp runtime/static-world-map.json public/map/snapshot.json
           npm run test:map-ui
+      - name: Publish a real map from a verified stopped-world backup
+        run: |
+          mkdir -p runtime/map-backup
+          cp -a runtime/native-world runtime/map-backup/world
+          archive="runtime/minemine-world-$(date -u +%Y%m%dT%H%M%SZ)-$$.tar.gz"
+          tar -C runtime/map-backup -czf "$archive" world
+          (cd runtime && sha256sum "$(basename "$archive")" > "$(basename "$archive").sha256")
+          node runtime/host-bundle-check/scripts/publish-map-from-backup.mjs \
+            "$archive" runtime/host-bundle-check/public/map \
+            runtime/host-bundle-check/vendor/mapper/minetestmapper \
+            runtime/host-bundle-check/vendor/mapper/colors.txt
+          cp runtime/host-bundle-check/public/map/snapshot.json public/map/snapshot.json
+          cp runtime/host-bundle-check/public/map/snapshot-*.png public/map/
+          EXPECTED_MAP_WORLD='MineMine shared world' npm run test:map-ui
       - name: Retain native startup diagnostics
         if: always()
         uses: actions/upload-artifact@v4

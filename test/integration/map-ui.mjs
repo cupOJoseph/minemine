@@ -26,7 +26,8 @@ try {
   page.on('pageerror', error => pageErrors.push(error.message));
   await page.goto(origin + '/map/', { waitUntil: 'domcontentloaded' });
   await page.locator('#map-message').waitFor({ state: 'hidden' });
-  assert.match(await page.locator('#map-source').textContent(), /MineMine native CI test world/);
+  assert.equal(await page.locator('#map-source').textContent(),
+    process.env.EXPECTED_MAP_WORLD || 'MineMine native CI test world');
   assert.match(await page.locator('#center-coordinates').textContent(), /^X -?\d+, Z -?\d+$/);
   assert.match(await page.locator('#snapshot-status').textContent(), /Snapshot loaded/);
   assert.match(await page.locator('#town-list').textContent(), /Probe Town · 9 columns/);

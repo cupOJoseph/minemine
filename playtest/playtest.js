@@ -91,7 +91,7 @@ start.addEventListener('click', async () => {
       document.body.appendChild(controls);
       const overlay = document.createElement('div');
       overlay.id = 'miners-playtest-overlay';
-      overlay.textContent = 'MINERS SOLO PLAYTEST · ' + (launcher.isPersistent() ? 'Browser storage active' : 'Temporary world — storage unavailable') + ' · Esc: menu';
+      overlay.textContent = 'MINEMINE SOLO PLAYTEST · ' + (launcher.isPersistent() ? 'Browser storage active' : 'Temporary world — storage unavailable') + ' · Esc: menu';
       document.body.appendChild(overlay);
     });
     await session.start();

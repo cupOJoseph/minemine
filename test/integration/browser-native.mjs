@@ -5,6 +5,7 @@ import path from 'node:path';
 import { Contract, JsonRpcProvider, NonceManager, Wallet } from 'ethers';
 import { chromium } from 'playwright';
 import { createPlayerStats } from '../../server/player-stats.mjs';
+import { townMembership } from '../../server/town-roster.mjs';
 
 const origin = process.env.PUBLIC_ORIGIN || 'http://localhost:3000';
 const logPath = process.env.NATIVE_LOG || 'runtime/browser-native.log';
@@ -249,6 +250,15 @@ try {
     await sleep(1000);
   }
   assert.match(townProbe, /^PASS /, `native town probe failed: ${townProbe || 'no result'}`);
+  const nativeTownState = JSON.parse(await readFile(path.join(worldDir, 'town-probe-state.json'), 'utf8'));
+  const ownerTown = townMembership(worldDir, nativeTownState.owner);
+  assert.deepEqual(ownerTown.town, {
+    name: 'Probe Town', role: 'owner', owner: nativeTownState.owner,
+    memberCount: 0, claimCount: 1, protectedColumns: 9,
+  }, 'admin reader must accept the real native roster');
+  assert.equal(townMembership(worldDir, nativeTownState.guest).status, 'none',
+    'removed member must be absent from the native admin roster');
+  console.log('Native private town roster passed the admin reader after paid claim and member removal.');
 
   const canvas = secondPage.locator('#canvas');
   await canvas.waitFor({ state: 'visible', timeout: 60_000 });

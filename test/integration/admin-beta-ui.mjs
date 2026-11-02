@@ -99,7 +99,7 @@ try {
     await page.getByRole('button', { name: 'Revoke beta code aaaaaaaa' }).click();
     await page.locator('#beta-codes').getByText('revoked', { exact: false }).waitFor();
     await page.locator('#audit-rows').getByText('admin released').waitFor();
-    await page.locator('#audit-rows').getByText('revoked').waitFor();
+    await page.locator('#audit-rows').getByRole('cell', { name: 'revoked', exact: true }).waitFor();
     assert.deepEqual(errors, [], `${viewport.label} page errors`);
     await page.close();
   }

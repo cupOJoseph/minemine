@@ -90,6 +90,8 @@ An internal Stripe **test-mode-only** service now creates server-priced $2 hoste
 
 The one-time purchase protects x/z columns through all heights. Contract price and treasury are deployment-time choices, not settled economy design. See [town protocol](TOWNS.md) for commands, trust boundaries, and launch gates.
 
+Town manager: `/town` now opens an in-game form for town creation, paid land claims, member invitations/removal and member acceptance/leaving. Form submissions call the existing server-side command handler; the native two-wallet probe now drives form actions and checks protection and the private roster. Exact-head native CI and visual browser-client confirmation are pending. Direct chat commands remain available.
+
 ## Milestone 5 — MineMine landing and scale plan
 
 | ID | Status | Task and acceptance criteria | Depends on |

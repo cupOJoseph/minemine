@@ -156,6 +156,23 @@ export function createNameRegistry(worldDir, now = Date.now) {
       identifier(accountId, 'account');
       return db.prepare("SELECT ens_name FROM names WHERE account_id = ? AND state = 'paid_active'").get(accountId)?.ens_name || null;
     },
+    accountForPublicName(input) {
+      if (typeof input !== 'string' || input.length > 255 || input !== input.trim()) {
+        throw new NameRegistryError('Invalid public name.', 'invalid_input');
+      }
+      if (!input.includes('.')) {
+        let handle;
+        try { handle = normalizeHandle(input); }
+        catch { return null; }
+        return db.prepare("SELECT account_id FROM names WHERE handle = ? AND state = 'paid_active'").get(handle)?.account_id || null;
+      }
+      let ensName;
+      try { ensName = ensNormalize(input); }
+      catch { throw new NameRegistryError('Invalid ENS name.', 'invalid_input'); }
+      if (ensName.length > 255 || !ensName.split('.').every(Boolean)) throw new NameRegistryError('Invalid ENS name.', 'invalid_input');
+      const managed = db.prepare("SELECT account_id FROM names WHERE ens_name = ? AND state = 'paid_active'").get(ensName)?.account_id;
+      return managed || db.prepare('SELECT account_id FROM ens_selections WHERE ens_name = ?').get(ensName)?.account_id || null;
+    },
     adminReservations() {
       return db.prepare("SELECT handle, intended_account_id, expires_at FROM names WHERE state = 'admin_reserved' AND expires_at > ? ORDER BY updated_at DESC LIMIT 100").all(now());
     },

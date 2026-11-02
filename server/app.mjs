@@ -5,7 +5,7 @@ import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
 import { isIP } from 'node:net';
 import { fileURLToPath } from 'node:url';
-import { Contract, FetchRequest, JsonRpcProvider, formatUnits, getAddress } from 'ethers';
+import { Contract, FetchRequest, JsonRpcProvider, ensNormalize, formatUnits, getAddress } from 'ethers';
 import Stripe from 'stripe';
 import { AuthError, createAuth, playerName } from './auth.mjs';
 import { createGrants } from './grants.mjs';
@@ -229,15 +229,35 @@ export function createApp(config) {
           if (req.method === 'GET' && url.pathname === '/api/admin/players') {
             const input = url.searchParams.get('q') || '';
             let query = input;
+            let publicNameMatched = true;
             if (input.startsWith('0x')) {
               if (!/^0x[0-9a-fA-F]{40}$/.test(input)) throw new AuthError('Enter a full wallet address.', 400);
               try { query = playerName(input); }
               catch { throw new AuthError('Enter a valid wallet address.', 400); }
+            } else {
+              let account;
+              try { account = names.accountForPublicName(input); }
+              catch (error) {
+                if (error instanceof NameRegistryError) throw new AuthError(error.message, 400);
+                throw error;
+              }
+              if (input.includes('.') || account) {
+                publicNameMatched = false;
+                query = '';
+                if (account) {
+                  try {
+                    const identity = await playerIdentity({ address: getAddress(account), playerName: playerName(account) });
+                    const requested = input.includes('.') ? ensNormalize(input) : `${input.toLowerCase()}.minemine.eth`;
+                    if (identity.ensName === requested) { query = playerName(account); publicNameMatched = true; }
+                  } catch { /* Unverified or unavailable public names never match. */ }
+                }
+              }
             }
             const page = Number(url.searchParams.get('page') || '1');
             try {
               const roster = await playerExplorer(query, page);
-              return json(res, 200, { ...roster, players: roster.players.map(player => ({
+              return json(res, 200, { ...roster, total: publicNameMatched ? roster.total : 0,
+                players: (publicNameMatched ? roster.players : []).map(player => ({
                 ...player, walletAddress: names.walletProfile(player.playerName)?.address || null,
               })) });
             }

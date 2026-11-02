@@ -196,3 +196,23 @@ test('legacy paid records migrate and activate only after a matching ENS address
   try { assert.equal(reopened.managedNameForAccount(accountId), 'builder.minemine.eth'); }
   finally { reopened.close(); rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('public-name lookup exposes only active managed names or selected full ENS names', async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'minemine-public-name-'));
+  const wallet = new Wallet('0x' + 'f4'.repeat(32));
+  const accountId = wallet.address.toLowerCase();
+  const names = createNameRegistry(dir);
+  try {
+    names.beginCheckout('builder', accountId, 'order-1');
+    names.markPaid('builder', accountId, 'order-1', 'payment-1');
+    assert.equal(names.accountForPublicName('builder'), null);
+    assert.equal(names.accountForPublicName('builder.minemine.eth'), null);
+    names.selectEns(accountId, 'Other.eth');
+    assert.equal(names.accountForPublicName('OTHER.ETH'), accountId);
+    await names.activateManagedName('builder', accountId, 'order-1', 'payment-1', async () => wallet.address);
+    assert.equal(names.accountForPublicName('BUILDER'), accountId);
+    assert.equal(names.accountForPublicName('Builder.MineMine.ETH'), accountId);
+    assert.equal(names.accountForPublicName('missing'), null);
+    assert.throws(() => names.accountForPublicName('bad name.eth'), { code: 'invalid_input' });
+  } finally { names.close(); rmSync(dir, { recursive: true, force: true }); }
+});

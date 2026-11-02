@@ -220,6 +220,51 @@ test('admin player explorer links accepted joins to signed wallets and rechecks 
   assert.equal((await request('/api/admin/players/not-a-character', undefined, adminCookie)).status, 400);
 });
 
+test('admin explorer searches only currently displayed ENS names and active MineMine handles', async t => {
+  const admin = new Wallet('0x' + '81'.repeat(32));
+  const player = new Wallet('0x' + '82'.repeat(32));
+  let ensOwner = player.address;
+  let managedTarget = player.address;
+  const { request, worldDir } = await fixture(t, { ADMIN_WALLET_ADDRESSES: admin.address }, null, {
+    ensOwnership: { async verify(name, address) {
+      if (name !== 'builder.eth' || address !== ensOwner) throw new AuthError('This wallet does not own that ENS name.', 403);
+      return { name, version: 'v1' };
+    } },
+    ensResolver: { async name() { return null; }, async recipient(name) {
+      assert.equal(name, 'builder.minemine.eth');
+      return { ensName: name, address: managedTarget };
+    }, close() {} },
+  });
+  const login = async wallet => {
+    const challenge = await request('/api/auth/challenge', { address: wallet.address, chainId: 11155111 });
+    const signature = await wallet.signMessage((await challenge.json()).message);
+    const verified = await request('/api/auth/verify', { signature }, challenge.headers.getSetCookie()[0].split(';')[0]);
+    return verified.headers.getSetCookie()[0].split(';')[0];
+  };
+  const playerCookie = await login(player);
+  const adminCookie = await login(admin);
+  const name = playerName(player.address);
+  const key = new Date().toISOString().slice(0, 7);
+  writeFileSync(path.join(worldDir, `minemine-player-joins-${key}.log`), `${Math.floor(Date.now() / 1000)}\t${name}\n`);
+  assert.equal((await request('/api/identity/ens', { name: 'builder.eth' }, playerCookie)).status, 200);
+  const search = async q => (await (await request(`/api/admin/players?q=${encodeURIComponent(q)}`, undefined, adminCookie)).json()).players;
+  assert.equal((await search('BUILDER.ETH'))[0].playerName, name);
+  ensOwner = admin.address;
+  assert.equal((await search('builder.eth')).length, 0, 'transferred ENS is not a current public name');
+  const names = createNameRegistry(worldDir);
+  t.after(() => names.close());
+  const accountId = player.address.toLowerCase();
+  names.beginCheckout('builder', accountId, 'order-1');
+  names.markPaid('builder', accountId, 'order-1', 'payment-1');
+  assert.equal((await search('builder')).length, 0, 'a paid-pending handle is not public');
+  await names.activateManagedName('builder', accountId, 'order-1', 'payment-1', async () => player.address);
+  assert.equal((await search('BUILDER'))[0].playerName, name);
+  assert.equal((await search('Builder.MineMine.ETH'))[0].playerName, name);
+  managedTarget = admin.address;
+  assert.equal((await search('builder')).length, 0, 'a changed ENS record hides the managed name');
+  assert.equal((await request('/api/admin/players?q=bad%20name.eth', undefined, adminCookie)).status, 400);
+});
+
 test('admin name reservations require an allowlisted fresh signature and prevent duplicate handles', async t => {
   let now = 1_800_000_000_000;
   const admin = new Wallet('0x' + '66'.repeat(32));

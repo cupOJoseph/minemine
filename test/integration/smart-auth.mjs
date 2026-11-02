@@ -134,6 +134,12 @@ test('SIWE accepts deployed ERC-1271 and predeployed ERC-6492 signatures only on
   assert.equal(deployedLogin.json().address, await deployed.getAddress());
   assert.equal((await post('/api/auth/verify', { signature: deployedSignature }, deployedChallenge.cookie)).status, 401);
 
+  const deniedPending = await challengeFor(counterfactual);
+  const badWrapped = serializeErc6492Signature({ address: await factory.getAddress(),
+    data: factory.interface.encodeFunctionData('deploy', [owner.address, salt]),
+    signature: await attacker.signMessage(deniedPending.challenge.message) });
+  assert.equal((await post('/api/auth/verify', { signature: badWrapped }, deniedPending.cookie)).status, 401);
+  assert.equal(await provider.getCode(counterfactual), '0x');
   const pending = await challengeFor(counterfactual);
   const rawSignature = await owner.signMessage(pending.challenge.message);
   const wrapped = serializeErc6492Signature({ address: await factory.getAddress(),
@@ -142,6 +148,7 @@ test('SIWE accepts deployed ERC-1271 and predeployed ERC-6492 signatures only on
   assert.equal(pendingLogin.status, 200, pendingLogin.text);
   assert.equal(pendingLogin.json().address, counterfactual);
   assert.equal(await provider.getCode(counterfactual), '0x', 'verification must not deploy the smart wallet');
+  assert.equal((await post('/api/auth/verify', { signature: wrapped }, pending.cookie)).status, 401);
 
   const wrongChain = createAuth({ origin, chainId: 11155111, rpcUrl });
   const wrongChallenge = wrongChain.issue(await deployed.getAddress(), 11155111);

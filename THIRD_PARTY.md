@@ -4,7 +4,8 @@ This source snapshot does not include a downloaded Luanti engine, WASM binary, o
 
 | Component | Role | License / review |
 | --- | --- | --- |
-| ethers 6.16.0 | Wallet-signature verification and RPC reads | MIT; exact transitive versions/integrities in package-lock.json |
+| ethers 6.17.0 | Wallet-signature verification and RPC reads | MIT; exact transitive versions/integrities in package-lock.json |
+| viem 2.57.14 | Deployed ERC-1271 and counterfactual ERC-6492 SIWE signature verification | MIT; pinned with transitive integrities in package-lock.json; RPC chain is checked before contract verification |
 | OpenZeppelin Contracts 4.9.6 | Prototype ERC-20 implementation | MIT; older pinned line chosen from available cache, review before release |
 | solc 0.8.26 | Local Solidity compiler | Compiler package and bundled compiler notices retained in installation; review exact distribution licenses |
 | @foundry-rs/anvil 1.7.1 | Development-only local Ethereum test node | MIT OR Apache-2.0; platform packages/integrities are pinned in package-lock.json; excluded from production dependencies |

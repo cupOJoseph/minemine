@@ -1,5 +1,11 @@
 # Validation record
 
+## Smart-account SIWE backend — 2026-11-02 UTC
+
+[Foundation run 41389696211](https://github.com/cupOJoseph/minemine/actions/runs/41389696211) passed a local-Anvil HTTP integration for the new chain-bound smart-signature verifier. An EOA still signed in; a deployed ERC-1271 wallet and a counterfactual ERC-6492 wallet each signed the exact server-generated SIWE challenge and received sessions for their own address. The verifier checked the RPC chain before contract verification. A wrong signer returned 401, a reused challenge returned 401, and a contract signature against an RPC on the wrong chain returned 503. The counterfactual wallet had no code before or after verification, so the check did not deploy it. A local rerun additionally returned 401 for a forged ERC-6492 wrapper and left the wallet undeployed. Existing HTTP/game-proxy and MINE/town local-EVM suites passed after auth became asynchronous.
+
+This is a disposable mock contract and local EVM proof, not a ZeroDev account. The browser signup UI, passkey/email recovery, ERC-4337 provider billing, real testnet transfer and paid claim, and native smart-account reconnect remain unverified. `npm audit --omit=dev` reported zero production advisories on the pinned dependency tree; the full audit still reports advisories in the pre-existing development compiler dependencies.
+
 ## Local solo browser engines — 2026-10-23 EDT
 
 The upgraded `21f97a29c16b` solo build ran from the local Node service at `http://127.0.0.1:42317/engine/index.html` on a 16 GB Apple M3 MacBook Air. The response supplied COOP/COEP, and both Playwright browsers reported a secure, cross-origin-isolated page with JSPI and WebGL 2. The tests used a 1280×800 viewport and a fresh automated browser context.

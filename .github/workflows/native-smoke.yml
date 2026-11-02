@@ -113,6 +113,8 @@ jobs:
         run: npm run test:admin-ui
       - name: Exercise player beta redemption in Chromium
         run: npm run test:beta-player-ui
+      - name: Exercise managed-name term in Chromium
+        run: npm run test:managed-name-ui
       - uses: actions/download-artifact@v4
         with:
           name: miners-solo-playtest

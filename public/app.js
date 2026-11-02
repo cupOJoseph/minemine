@@ -31,6 +31,18 @@ function renderSession() {
   $('ens-choice').hidden = !session || !config?.ensAvailable;
   $('ens-clear').hidden = !session?.selectedEnsName;
   $('ens-save').disabled = busy || !session;
+  const managedName = session?.managedName;
+  $('managed-name').hidden = !managedName;
+  if (managedName) {
+    $('managed-name-label').textContent = managedName.name;
+    const end = managedName.expiresAt && `${new Date(managedName.expiresAt).toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'short' })} UTC`;
+    $('managed-name-status').textContent = {
+      pending: 'Payment recorded; ENS activation is pending. Your one-year term starts after the address record is verified.',
+      active: `Active until ${end}. Renewal checkout is not available yet. Your wallet account remains usable after this name expires.`,
+      unverified: `Name hidden while its ENS address record cannot be verified. The current term ends ${end}.`,
+      expired: `Term ended ${end}. This name is hidden; your wallet account still works. Renewal checkout is not available yet.`,
+    }[managedName.status] || 'Name status is unavailable.';
+  }
   if (session && config?.betaInvitesEnabled && betaStatus) $('beta-status').textContent = betaStatus.admitted ? 'Invite accepted. Shared-world entry is unlocked when the server is ready.' : 'Redeem an invite to enter the shared world. Solo play remains open.';
   $('refresh-balance').disabled = busy || !session || !config?.tokenAddress;
   $('send-form').hidden = !session || !config?.tokenAddress;

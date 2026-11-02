@@ -25,6 +25,7 @@
     "test:wallet-ui": "node test/integration/wallet-ui-evm.mjs",
     "test:admin-ui": "node test/integration/admin-beta-ui.mjs",
     "test:beta-player-ui": "node test/integration/beta-player-ui.mjs",
+    "test:managed-name-ui": "node test/integration/managed-name-ui.mjs",
     "test:map-ui": "node test/integration/map-ui.mjs",
     "test:ens-live": "node --env-file-if-exists=.env test/integration/ens-live.mjs"
   },

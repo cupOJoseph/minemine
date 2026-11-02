@@ -96,6 +96,7 @@ try {
   }
   const metadata = {
     kind: 'snapshot', world: 'MineMine shared world', generatedAt: capturedAt,
+    sourceBackup: path.basename(archive),
     geometry: { minX: -512, minZ: -512, width, height }, focus,
     townClaims: claims, mapperCommit: '88c7381a20ada1992169522d590ebad36195507e',
     sha256: hash, bytes: image.length, image: imageName,

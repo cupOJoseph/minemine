@@ -293,10 +293,11 @@ jobs:
           archive="runtime/minemine-world-$(date -u +%Y%m%dT%H%M%SZ)-$$.tar.gz"
           tar -C runtime/map-backup -czf "$archive" world
           (cd runtime && sha256sum "$(basename "$archive")" > "$(basename "$archive").sha256")
-          node runtime/host-bundle-check/scripts/publish-map-from-backup.mjs \
-            "$archive" runtime/host-bundle-check/public/map \
-            runtime/host-bundle-check/vendor/mapper/minetestmapper \
-            runtime/host-bundle-check/vendor/mapper/colors.txt
+          node runtime/host-bundle-check/scripts/refresh-map-from-backup.mjs \
+            runtime runtime/host-bundle-check
+          node runtime/host-bundle-check/scripts/refresh-map-from-backup.mjs \
+            runtime runtime/host-bundle-check | tee runtime/map-refresh-skip.log
+          grep -q 'Map is already current for latest backup' runtime/map-refresh-skip.log
           cp runtime/host-bundle-check/public/map/snapshot.json public/map/snapshot.json
           cp runtime/host-bundle-check/public/map/snapshot-*.png public/map/
           EXPECTED_MAP_WORLD='MineMine shared world' npm run test:map-ui

@@ -1,0 +1,14 @@
+[Unit]
+Description=Publish MineMine map from the latest stopped-world backup
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/node /srv/minemine/app/scripts/refresh-map-from-backup.mjs
+TimeoutStartSec=5min
+Nice=10
+IOSchedulingClass=idle
+ProtectSystem=strict
+ReadWritePaths=/srv/minemine/app/public/map /tmp
+PrivateTmp=yes
+NoNewPrivileges=yes

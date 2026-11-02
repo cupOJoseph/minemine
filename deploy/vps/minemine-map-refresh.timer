@@ -1,0 +1,10 @@
+[Unit]
+Description=Check for a newer MineMine stopped-world backup once daily
+
+[Timer]
+OnCalendar=*-*-* 04:30:00 UTC
+Persistent=false
+Unit=minemine-map-refresh.service
+
+[Install]
+WantedBy=timers.target

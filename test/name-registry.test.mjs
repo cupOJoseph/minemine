@@ -216,3 +216,32 @@ test('public-name lookup exposes only active managed names or selected full ENS 
     assert.throws(() => names.accountForPublicName('bad name.eth'), { code: 'invalid_input' });
   } finally { names.close(); rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('managed name lasts one calendar year from verified activation and then stops resolving publicly', async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'minemine-managed-term-'));
+  const wallet = new Wallet('0x' + 'd4'.repeat(32));
+  const accountId = wallet.address.toLowerCase();
+  let clock = Date.UTC(2024, 1, 28, 12, 30);
+  const names = createNameRegistry(dir, () => clock);
+  try {
+    names.beginCheckout('builder', accountId, 'order-1');
+    names.markPaid('builder', accountId, 'order-1', 'payment-1');
+    clock += 86_400_000;
+    const active = await names.activateManagedName('builder', accountId, 'order-1', 'payment-1', async () => wallet.address);
+    const expiresAt = Date.UTC(2025, 1, 28, 12, 30);
+    assert.equal(active.expires_at, expiresAt);
+    names.selectEns(accountId, 'builder.minemine.eth');
+    assert.equal(names.managedNameForAccount(accountId), 'builder.minemine.eth');
+    assert.equal(names.accountForPublicName('builder'), accountId);
+    assert.equal(names.accountForPublicName('builder.minemine.eth'), accountId);
+    clock = expiresAt;
+    assert.equal(names.managedNameForAccount(accountId), null);
+    assert.equal(names.accountForPublicName('builder'), null);
+    assert.equal(names.accountForPublicName('builder.minemine.eth'), null, 'selected alias cannot bypass paid term');
+    assert.equal(names.ensNameAllowed(accountId, 'builder.minemine.eth'), false);
+    assert.equal(names.lookup('builder').state, 'paid_active', 'expired name remains reserved until safe onchain cleanup');
+    assert.throws(() => names.beginCheckout('builder', Wallet.createRandom().address.toLowerCase(), 'order-2'), { code: 'unavailable' });
+    assert.equal((await names.activateManagedName('builder', accountId, 'order-1', 'payment-1', async () => wallet.address)).expires_at, expiresAt,
+      'activation retry cannot extend the term');
+  } finally { names.close(); rmSync(dir, { recursive: true, force: true }); }
+});

@@ -263,6 +263,31 @@ test('admin name reservations require an allowlisted fresh signature and prevent
   assert.equal(audit.events[0].actor, admin.address);
 });
 
+test('a MineMine ENS display name cannot bypass a reserved or selected handle', async t => {
+  const admin = new Wallet('0x' + 'b1'.repeat(32));
+  const alice = new Wallet('0x' + 'b2'.repeat(32));
+  const bob = new Wallet('0x' + 'b3'.repeat(32));
+  const { request } = await fixture(t, { ADMIN_WALLET_ADDRESSES: admin.address }, null, {
+    ensOwnership: { verify: async name => ({ name, version: 'v2' }) },
+  });
+  const login = async wallet => {
+    const challenge = await request('/api/auth/challenge', { address: wallet.address, chainId: 11155111 });
+    const signature = await wallet.signMessage((await challenge.json()).message);
+    const verified = await request('/api/auth/verify', { signature }, challenge.headers.getSetCookie()[0].split(';')[0]);
+    assert.equal(verified.status, 200);
+    return verified.headers.getSetCookie()[0].split(';')[0];
+  };
+  const adminCookie = await login(admin);
+  const aliceCookie = await login(alice);
+  const bobCookie = await login(bob);
+  assert.equal((await request('/api/admin/names/reserve', { handle: 'alice', intendedAddress: alice.address }, adminCookie)).status, 201);
+  assert.equal((await request('/api/identity/ens', { name: 'alice.minemine.eth' }, bobCookie)).status, 409);
+  assert.equal((await request('/api/identity/ens', { name: 'alice.minemine.eth' }, aliceCookie)).status, 200);
+  assert.equal((await request('/api/admin/names/release', { handle: 'alice' }, adminCookie)).status, 200);
+  assert.equal((await request('/api/admin/names/reserve', { handle: 'alice' }, adminCookie)).status, 409);
+  assert.equal((await request('/api/identity/ens', { name: 'alice.eth' }, bobCookie)).status, 200);
+});
+
 test('beta invitations are hashed, wallet bound, and gate shared-world tickets', async t => {
   let now = 1_800_000_000_000;
   const admin = new Wallet('0x' + '88'.repeat(32));

@@ -19,6 +19,12 @@ export function normalizeHandle(input) {
   return handle;
 }
 
+function managedHandle(ensName) {
+  const labels = ensName.split('.');
+  if (labels.length !== 3 || labels[1] !== 'minemine' || labels[2] !== 'eth') return null;
+  return normalizeHandle(labels[0]);
+}
+
 function identifier(value, label) {
   if (typeof value !== 'string' || value.length < 1 || value.length > 128 || /[\x00-\x1f\x7f]/.test(value)) {
     throw new NameRegistryError(`Invalid ${label}.`, 'invalid_input');
@@ -74,6 +80,7 @@ export function createNameRegistry(worldDir, now = Date.now) {
     );`);
   const find = db.prepare('SELECT * FROM names WHERE handle = ?');
   const byOrder = db.prepare('SELECT * FROM names WHERE order_id = ?');
+  const bySelectedEns = db.prepare('SELECT account_id FROM ens_selections WHERE ens_name = ?');
   const addAudit = db.prepare('INSERT INTO name_audit(handle, action, actor, at) VALUES (?, ?, ?, ?)');
   const removeExpiredAdmin = db.prepare("DELETE FROM names WHERE handle = ? AND state = 'admin_reserved' AND expires_at <= ?");
   const addName = db.prepare('INSERT INTO names(handle, state, account_id, intended_account_id, order_id, payment_id, ens_name, expires_at, updated_at) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)');
@@ -101,6 +108,8 @@ export function createNameRegistry(worldDir, now = Date.now) {
     return row.state === 'admin_reserved' && row.intended_account_id === accountId;
   }
   function occupy(handle, accountId, state, orderId = null, ensName = null) {
+    const selectedBy = bySelectedEns.get(`${handle}.minemine.eth`)?.account_id;
+    if (selectedBy && selectedBy !== accountId) unavailable();
     const previous = find.get(handle);
     if (previous?.state === 'admin_reserved' && previous.expires_at <= now()) {
       removeExpiredAdmin.run(handle, now());
@@ -158,6 +167,19 @@ export function createNameRegistry(worldDir, now = Date.now) {
     selectedEns(accountId) {
       return db.prepare('SELECT ens_name FROM ens_selections WHERE account_id = ?').get(identifier(accountId, 'account'))?.ens_name || null;
     },
+    ensNameAllowed(accountId, ensName) {
+      identifier(accountId, 'account');
+      let handle;
+      try { handle = managedHandle(ensNormalize(ensName)); }
+      catch (error) {
+        if (error instanceof NameRegistryError && error.code === 'invalid_handle') return false;
+        return false;
+      }
+      if (!handle) return true;
+      const row = current(handle);
+      return !row || row.account_id === accountId ||
+        (row.state === 'admin_reserved' && row.intended_account_id === accountId);
+    },
     selectEns(accountId, ensName) {
       identifier(accountId, 'account');
       if (typeof ensName !== 'string' || ensName.length > 255 || ensName !== ensName.trim() || !ensName.includes('.')) {
@@ -166,6 +188,7 @@ export function createNameRegistry(worldDir, now = Date.now) {
       try { ensName = ensNormalize(ensName); }
       catch { throw new NameRegistryError('Invalid ENS name.', 'invalid_input'); }
       return transaction(() => {
+        if (!this.ensNameAllowed(accountId, ensName)) unavailable();
         const previous = db.prepare('SELECT ens_name FROM ens_selections WHERE account_id = ?').get(accountId)?.ens_name;
         if (previous === ensName) return ensName;
         if (previous) {
@@ -199,6 +222,7 @@ export function createNameRegistry(worldDir, now = Date.now) {
       if (!Number.isSafeInteger(expiresAt) || expiresAt <= now()) throw new NameRegistryError('Invalid reservation expiry.', 'invalid_input');
       return transaction(() => {
         if (current(handle)) unavailable();
+        if (bySelectedEns.get(`${handle}.minemine.eth`)) unavailable();
         removeExpiredAdmin.run(handle, now());
         addName.run(handle, 'admin_reserved', null, intendedAccountId, null, null, expiresAt, now());
         addAudit.run(handle, 'admin_reserved', actor, now());

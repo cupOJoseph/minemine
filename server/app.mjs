@@ -86,7 +86,8 @@ export function createApp(config) {
     if (selected) {
       try {
         await ensOwnership.verify(selected, session.address);
-        return { ...session, ensName: selected, selectedEnsName: selected };
+        if (names.ensNameAllowed(accountId, selected)) return { ...session, ensName: selected, selectedEnsName: selected };
+        names.clearSelectedEns(accountId, selected);
       } catch (error) {
         if (error instanceof AuthError && error.status === 403) names.clearSelectedEns(accountId, selected);
         // An unavailable RPC never permits an unverified selected name to display.
@@ -95,7 +96,10 @@ export function createApp(config) {
     let primary = null;
     try { primary = await ens.name(session.address); } catch { /* Address remains authoritative. */ }
     if (primary) {
-      try { await ensOwnership.verify(primary, session.address); }
+      try {
+        await ensOwnership.verify(primary, session.address);
+        if (!names.ensNameAllowed(accountId, primary)) primary = null;
+      }
       catch { primary = null; }
     }
     return { ...session, ensName: primary, selectedEnsName: null };
@@ -289,7 +293,11 @@ export function createApp(config) {
         if (req.method === 'POST' && url.pathname === '/api/identity/ens') {
           const data = await body(req);
           const verified = await ensOwnership.verify(data.name, session.address);
-          names.selectEns(session.address.toLowerCase(), verified.name);
+          try { names.selectEns(session.address.toLowerCase(), verified.name); }
+          catch (error) {
+            if (error instanceof NameRegistryError) throw new AuthError(error.message, error.code === 'unavailable' ? 409 : 400);
+            throw error;
+          }
           return json(res, 200, { ...session, ensName: verified.name, selectedEnsName: verified.name, ensVersion: verified.version });
         }
         if (req.method === 'POST' && url.pathname === '/api/identity/ens/clear') {

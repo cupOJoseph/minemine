@@ -105,6 +105,33 @@ test('verified full ENS selection is durable, unique, and can follow an onchain 
   }
 });
 
+test('a verified MineMine subname and a reserved handle cannot belong to different accounts', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'minemine-namespace-'));
+  const first = createNameRegistry(dir);
+  const second = createNameRegistry(dir);
+  try {
+    first.reserveAdmin('alice', 'wallet:admin', 'wallet:alice', Date.now() + 60_000);
+    assert.equal(first.ensNameAllowed('wallet:bob', 'alice.minemine.eth'), false);
+    assert.equal(first.ensNameAllowed('wallet:bob', 'Alice.MineMine.ETH'), false, 'reverse-name case cannot bypass the reservation');
+    assert.throws(() => second.selectEns('wallet:bob', 'alice.minemine.eth'), { code: 'unavailable' });
+    assert.equal(second.selectEns('wallet:alice', 'alice.minemine.eth'), 'alice.minemine.eth');
+    assert.equal(first.ensNameAllowed('wallet:bob', 'bob.minemine.eth'), true);
+    assert.equal(first.ensNameAllowed('wallet:bob', 'admin.minemine.eth'), false);
+    assert.equal(first.ensNameAllowed('wallet:bob', 'alice.eth'), true);
+    first.releaseAdmin('alice', 'wallet:admin');
+    assert.throws(() => second.beginCheckout('Alice', 'smart:buyer', 'order-1'), { code: 'unavailable' });
+    assert.throws(() => second.reserveAdmin('ALICE', 'wallet:admin', null, Date.now() + 60_000), { code: 'unavailable' });
+    assert.throws(() => second.claimVerifiedEns('alice', 'wallet:bob', 'alice.minemine.eth'), { code: 'unavailable' });
+    first.clearSelectedEns('wallet:alice');
+    assert.equal(second.beginCheckout('alice', 'smart:buyer', 'order-1').state, 'checkout_held');
+    assert.throws(() => first.selectEns('wallet:alice', 'alice.minemine.eth'), { code: 'unavailable' });
+    assert.equal(first.selectEns('wallet:alice', 'other.eth'), 'other.eth', 'other ENS namespaces remain independent');
+  } finally {
+    first.close(); second.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('signed wallet profile binds one stable character across logins and registry restart', () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'minemine-wallet-profile-'));
   let clock = Date.parse('2026-11-01T12:00:00Z');

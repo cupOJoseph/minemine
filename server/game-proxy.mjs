@@ -130,10 +130,14 @@ export function attachGameProxy(server, config, tokenFromRequest, activeToken) {
   }, 30_000);
   heartbeat.unref();
 
+  function revoke(token) {
+    for (const ws of connections.get(token) || []) ws.close(1008, 'Session ended');
+    for (const [code, item] of assignments) if (item.token === token) assignments.delete(code);
+  }
   return {
-    revoke(token) {
-      for (const ws of connections.get(token) || []) ws.close(1008, 'Session ended');
-      for (const [code, item] of assignments) if (item.token === token) assignments.delete(code);
+    revoke,
+    revokeWhere(predicate) {
+      for (const token of connections.keys()) if (predicate(token)) revoke(token);
     },
     close() {
       if (closed) return;

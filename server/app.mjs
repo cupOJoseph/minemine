@@ -133,9 +133,7 @@ export function createApp(config) {
   }
   const betaAdmitted = session => {
     if (!session) return false;
-    if (!config.betaInvitesEnabled || adminWallets.has(session.address.toLowerCase()) || session.betaAdmitted) return true;
-    if (betaCodes.isAdmitted(session.address.toLowerCase())) { session.betaAdmitted = true; return true; }
-    return false;
+    return !config.betaInvitesEnabled || adminWallets.has(session.address.toLowerCase()) || betaCodes.isAdmitted(session.address.toLowerCase());
   };
   const balances = new Map();
   async function balance(address, fresh = false) {
@@ -269,7 +267,11 @@ export function createApp(config) {
             const profile = names.walletProfile(name);
             if (!profile) throw new AuthError('Player profile not found.', 404);
             const identity = await playerIdentity({ address: profile.address, playerName: name });
-            return json(res, 200, { ...profile, ensName: identity.ensName });
+            const admission = betaCodes.admission(profile.address.toLowerCase());
+            return json(res, 200, { ...profile, ensName: identity.ensName, betaGateEnabled: Boolean(config.betaInvitesEnabled), betaAdmission: admission && {
+              admittedAt: new Date(admission.admitted_at).toISOString(),
+              revokedAt: admission.revoked_at === null ? null : new Date(admission.revoked_at).toISOString(),
+            } });
           }
           if (req.method === 'GET' && url.pathname === '/api/admin/names') {
             return json(res, 200, { reservations: names.adminReservations().map(row => ({
@@ -283,7 +285,7 @@ export function createApp(config) {
           if (req.method === 'GET' && url.pathname === '/api/admin/audit') {
             const events = [
               ...names.recentAudit().map(row => ({ source: 'username', target: row.handle, action: row.action, actor: row.actor, at: row.at, id: row.id })),
-              ...betaCodes.recentAudit().map(row => ({ source: 'beta code', target: row.code_id, action: row.action, actor: row.actor, at: row.at, id: row.id })),
+              ...betaCodes.recentAudit().map(row => ({ source: row.account_id ? 'beta admission' : 'beta code', target: row.account_id || row.code_id, action: row.action, actor: row.actor, at: row.at, id: row.id })),
             ].sort((a, b) => b.at - a.at || b.id - a.id || a.source.localeCompare(b.source)).slice(0, 50);
             return json(res, 200, { events: events.map(({ id, ...event }) => ({ ...event, at: new Date(event.at).toISOString() })) });
           }
@@ -303,6 +305,28 @@ export function createApp(config) {
                 return json(res, 201, { ...created, expiresAt: new Date(created.expiresAt).toISOString() });
               }
               return json(res, 200, { revoked: betaCodes.revoke(data.id, session.address.toLowerCase()) });
+            } catch (error) {
+              if (error instanceof BetaCodeError) throw new AuthError(error.message, error.code === 'not_found' ? 404 : 400);
+              throw error;
+            }
+          }
+          if (req.method === 'POST' && ['/api/admin/beta/admissions/revoke', '/api/admin/beta/admissions/restore'].includes(url.pathname)) {
+            if (!adminWriteFresh(session)) throw new AuthError('Sign in with your admin wallet again before changing beta access.', 403);
+            const data = await body(req);
+            let address;
+            try { address = getAddress(data.address).toLowerCase(); }
+            catch { throw new AuthError('Enter a valid wallet address.', 400); }
+            if (adminWallets.has(address)) throw new AuthError('Admin wallets bypass the beta gate.', 400);
+            try {
+              if (url.pathname.endsWith('/revoke')) {
+                const revoked = betaCodes.revokeAdmission(address, session.address.toLowerCase());
+                if (config.betaInvitesEnabled) {
+                  grants.revokeAddress(address);
+                  gameProxy.revokeWhere(token => auth.get(token)?.address?.toLowerCase() === address);
+                }
+                return json(res, 200, { revoked });
+              }
+              return json(res, 200, { restored: betaCodes.restoreAdmission(address, session.address.toLowerCase()) });
             } catch (error) {
               if (error instanceof BetaCodeError) throw new AuthError(error.message, error.code === 'not_found' ? 404 : 400);
               throw error;
@@ -338,7 +362,6 @@ export function createApp(config) {
           const data = await body(req);
           try {
             const result = betaCodes.redeem(data.code, session.address.toLowerCase());
-            session.betaAdmitted = true;
             return json(res, 200, result);
           } catch (error) {
             if (error instanceof BetaCodeError) throw new AuthError(error.message, 400);

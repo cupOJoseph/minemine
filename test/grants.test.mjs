@@ -30,6 +30,9 @@ test('join grants are random, expire quickly, do not store raw passwords, and re
   grants.revoke(session, 'session-b');
   assert.equal(readdirSync(path.dirname(file)).length, 0);
   grants.issue(session, 'session-c');
+  grants.revokeAddress(address);
+  assert.equal(readdirSync(path.dirname(file)).length, 0, 'admission suspension removes the current native grant');
+  grants.issue(session, 'session-d');
   grants.clear();
   assert.equal(readdirSync(path.dirname(file)).length, 0);
 });

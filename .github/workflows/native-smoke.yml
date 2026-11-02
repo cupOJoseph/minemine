@@ -335,6 +335,7 @@ jobs:
             runtime/server-cgroup-summary.txt
             runtime/native-world/town-probe-result.txt
             runtime/native-world/town-manager-visual-result.txt
+            runtime/native-world/town-manager-browser-claim-result.txt
             runtime/native-world/town-negative-claim-result.txt
             runtime/native-world/town-probe-reconnect-result.txt
             runtime/native-world/town-expired-grant-check-result.txt

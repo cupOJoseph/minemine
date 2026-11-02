@@ -713,6 +713,22 @@ core.register_globalstep(function()
             check(opened and message:find("Town manager opened", 1, true),
                 "town manager did not open for " .. name)
         end
+        local original = town.func
+        local browser_claim_seen = false
+        town.func = function(name, param)
+            local accepted, message = original(name, param)
+            if name == owner_name and param == "claim 1" and not browser_claim_seen then
+                browser_claim_seen = true
+                local roster = admin_town(owner_name)
+                local valid = not accepted and type(message) == "string" and
+                    message:find("Insufficient confirmed land credits", 1, true) and
+                    roster.claims == 1 and roster.protectedColumns == 9
+                write_result("town-manager-browser-claim-result.txt",
+                    valid and "PASS browser Claim here reached paid quota denial without changing protected land" or
+                    "FAIL browser Claim here bypassed paid quota or changed protected land", valid)
+            end
+            return accepted, message
+        end
         return "PASS server sent owner and guest town manager forms to browser clients"
     end)
     write_result("town-manager-visual-result.txt", ok and result or "FAIL " .. tostring(result), ok)

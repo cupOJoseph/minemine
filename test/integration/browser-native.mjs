@@ -527,6 +527,9 @@ try {
   }
   assert.ok(ownerChange > 0.08 && guestChange > 0.08,
     `Town forms did not substantially change the browser view: owner ${ownerChange}, guest ${guestChange}`);
+  await page.mouse.click(627, 293);
+  await waitForProbe('town-manager-browser-claim-result.txt', 'browser Claim here paid quota denial');
+  await page.screenshot({ path: artifacts + '/town-owner-claim-denied.png' });
 
   await page.close();
   let disconnected = false;

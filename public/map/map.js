@@ -1,11 +1,12 @@
 import { pixelAtWorld, worldAtPixel, zoomAround } from './coordinates.mjs';
+import { validateClaims } from './claims.mjs';
 
 const $ = id => document.getElementById(id);
 const viewport = $('map-viewport');
 const canvas = $('map-canvas');
 const context = canvas.getContext('2d');
 const image = new Image();
-let geometry, focusPoint, view, dragging = null;
+let geometry, focusPoint, view, dragging = null, claims = [];
 let width = 1, height = 1;
 const minScale = 0.25, maxScale = 16;
 
@@ -27,6 +28,23 @@ function draw() {
   if (!view || !image.complete || !image.naturalWidth) return;
   context.imageSmoothingEnabled = view.scale < 1;
   context.drawImage(image, view.x, view.y, geometry.width * view.scale, geometry.height * view.scale);
+  for (const claim of claims) {
+    const topLeft = pixelAtWorld(geometry, claim.x1, claim.z2);
+    const x = view.x + topLeft.x * view.scale;
+    const y = view.y + topLeft.y * view.scale;
+    const claimWidth = (claim.x2 - claim.x1 + 1) * view.scale;
+    const claimHeight = (claim.z2 - claim.z1 + 1) * view.scale;
+    context.fillStyle = 'rgba(212, 241, 138, .24)';
+    context.fillRect(x, y, claimWidth, claimHeight);
+    context.strokeStyle = '#e6ff9f';
+    context.lineWidth = 2;
+    context.strokeRect(x, y, claimWidth, claimHeight);
+    if (claimWidth >= 64) {
+      context.fillStyle = '#f8ffdb';
+      context.font = 'bold 12px Arial, sans-serif';
+      context.fillText(claim.town, x + 4, y - 5);
+    }
+  }
   context.strokeStyle = '#d4f18a';
   context.lineWidth = 1;
   context.strokeRect(view.x - .5, view.y - .5, geometry.width * view.scale + 1, geometry.height * view.scale + 1);
@@ -44,6 +62,16 @@ function focus() {
   const scale = Math.min(maxScale, Math.max(minScale, Math.min(width, height) * .92 / focusPoint.span));
   view = { scale, x: width / 2 - pixel.x * scale, y: height / 2 - pixel.y * scale };
   draw();
+}
+function locateClaim(claim) {
+  const centerX = Math.floor((claim.x1 + claim.x2) / 2);
+  const centerZ = Math.floor((claim.z1 + claim.z2) / 2);
+  const pixel = pixelAtWorld(geometry, centerX, centerZ);
+  const scale = Math.min(maxScale, Math.max(minScale, Math.min(width, height) / 48));
+  view = { scale, x: width / 2 - (pixel.x + .5) * scale, y: height / 2 - (pixel.y + .5) * scale };
+  $('pointer-town').textContent = claim.town;
+  draw();
+  viewport.focus();
 }
 function zoom(factor, x = width / 2, y = height / 2) {
   if (!view) return;
@@ -75,7 +103,9 @@ viewport.addEventListener('pointermove', event => {
     draw();
   }
   const bounds = viewport.getBoundingClientRect();
-  $('pointer-coordinates').textContent = describe(coordinatesAt(event.clientX - bounds.left, event.clientY - bounds.top));
+  const position = coordinatesAt(event.clientX - bounds.left, event.clientY - bounds.top);
+  $('pointer-coordinates').textContent = describe(position);
+  $('pointer-town').textContent = position ? (claims.find(claim => position.x >= claim.x1 && position.x <= claim.x2 && position.z >= claim.z1 && position.z <= claim.z2)?.town || 'No protected town here') : 'Outside mapped area';
 });
 function release(event) {
   if (dragging?.id !== event.pointerId) return;
@@ -112,6 +142,17 @@ try {
   const bounds = metadata.geometry;
   if (metadata.kind !== 'snapshot' || !Number.isInteger(bounds?.minX) || !Number.isInteger(bounds?.minZ) || bounds.width !== 1024 || bounds.height !== 1024 || !Number.isFinite(Date.parse(metadata.generatedAt))) throw new Error('Map metadata is invalid.');
   geometry = bounds;
+  claims = validateClaims(metadata.townClaims || []);
+  const townList = $('town-list');
+  townList.replaceChildren();
+  if (!claims.length) townList.textContent = 'No protected areas in this snapshot.';
+  for (const claim of claims) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = `${claim.town} · ${(claim.x2 - claim.x1 + 1) * (claim.z2 - claim.z1 + 1)} columns`;
+    button.addEventListener('click', () => locateClaim(claim));
+    townList.append(button);
+  }
   if (Number.isInteger(metadata.focus?.x) && Number.isInteger(metadata.focus?.z) && Number.isInteger(metadata.focus?.span) && metadata.focus.span >= 32 && metadata.focus.span <= 1024) focusPoint = metadata.focus;
   $('map-source').textContent = metadata.world;
   $('generated-at').dateTime = metadata.generatedAt;

@@ -344,6 +344,7 @@ jobs:
             runtime/static-world-map.json
             runtime/static-map-render.log
             runtime/static-map-desktop.png
+            runtime/static-map-town.png
             runtime/static-map-mobile.png
           if-no-files-found: ignore
       - name: Publish tested host runtime archive

@@ -9,9 +9,49 @@ state.invitations = type(state.invitations) == "table" and state.invitations or 
 local quota_dir = core.get_worldpath() .. "/town_quotas/"
 local previous_is_protected = core.is_protected
 
+-- Public, read-only projection for a map built from a stopped world copy.
+-- Never include owner names, wallet addresses, members, invitations or quotas.
+local function export_map_claims()
+    local entries = {}
+    for _, town in pairs(state.towns) do
+        if type(town) == "table" and type(town.name) == "string" and
+                #town.name >= 3 and #town.name <= 24 and town.name:match("^[%w _%-]+$") and
+                type(town.claims) == "table" then
+            for _, claim in ipairs(town.claims) do
+                if type(claim) == "table" then
+                    local valid = true
+                    for _, key in ipairs({ "x1", "x2", "z1", "z2" }) do
+                        local value = claim[key]
+                        if type(value) ~= "number" or value % 1 ~= 0 or math.abs(value) > 30927 then valid = false end
+                    end
+                    if valid and claim.x1 <= claim.x2 and claim.z1 <= claim.z2 and
+                            claim.x2 - claim.x1 <= 32 and claim.z2 - claim.z1 <= 32 then
+                        entries[#entries + 1] = { town = town.name, x1 = claim.x1,
+                            x2 = claim.x2, z1 = claim.z1, z2 = claim.z2 }
+                    end
+                end
+            end
+        end
+    end
+    table.sort(entries, function(a, b)
+        if a.town ~= b.town then return a.town < b.town end
+        if a.x1 ~= b.x1 then return a.x1 < b.x1 end
+        return a.z1 < b.z1
+    end)
+    local encoded = {}
+    for index, entry in ipairs(entries) do encoded[index] = assert(core.write_json(entry)) end
+    local payload = '{"version":1,"claims":[' .. table.concat(encoded, ",") .. ']}\n'
+    if not core.safe_file_write(core.get_worldpath() .. "/town-map-claims.json", payload) then
+        core.log("error", "town_claims: could not update public map projection")
+    end
+end
+
 local function persist()
     storage:set_string("towns:v1", core.serialize(state))
+    export_map_claims()
 end
+
+export_map_claims()
 
 local function wallet_name(name)
     return type(name) == "string" and name:match("^w_%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x$") ~= nil

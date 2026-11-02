@@ -37,6 +37,7 @@ sqlite3 -separator ' ' "$world_dir/map.sqlite" \
 node --input-type=module <<'EOF'
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { validateClaims } from './public/map/claims.mjs';
 const image = readFileSync('runtime/static-world-map.png');
 if (image.subarray(0, 8).toString('base64') !== 'iVBORw0KGgo=') throw new Error('Static map is not a PNG.');
 const width = image.readUInt32BE(16), height = image.readUInt32BE(20);
@@ -49,12 +50,17 @@ const focus = {
   z: Math.max(-512, Math.min(511, Math.round((minZ + maxZ) / 2))),
   span: Math.min(1024, Math.max(128, maxX - minX + 81, maxZ - minZ + 81)),
 };
+const sourceClaims = JSON.parse(readFileSync('runtime/static-map-world/town-map-claims.json', 'utf8'));
+if (sourceClaims.version !== 1 || Object.keys(sourceClaims).sort().join(',') !== 'claims,version') throw new Error('Unexpected town map export.');
+const townClaims = validateClaims(sourceClaims.claims);
+if (!townClaims.some(claim => claim.town === 'Probe Town')) throw new Error('Native paid town claim is missing from map export.');
 const metadata = {
   kind: 'snapshot',
   world: 'MineMine native CI test world',
   generatedAt: new Date().toISOString(),
   geometry: { minX: -512, minZ: -512, width, height },
   focus,
+  townClaims,
   mapperCommit: '88c7381a20ada1992169522d590ebad36195507e',
   sha256: createHash('sha256').update(image).digest('hex'),
   bytes: image.length,

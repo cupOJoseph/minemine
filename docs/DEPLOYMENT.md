@@ -156,6 +156,23 @@ PY
 
 Inspect the restored `world.mt`, town quota files and mod storage, then start the restored world with the archived native binary while the regular services are stopped and confirm the server reaches its listening state. Restart the regular native and web units after that drill. Keep the original world untouched during the rehearsal. Store or transfer a verified backup according to the recovery plan, and remove the scratch restore after inspection so it does not consume the small VM disk. Back up `/etc/minemine/minemine.env` separately with restricted access; it is not inside the world archive. Provider backups and this application-level copy serve different recovery needs.
 
+### Publish a bounded website map from a stopped-world backup
+
+The host archive also includes the pinned BSD-licensed `minetestmapper` binary, its color file and notices. After making and verifying a cold backup, render from that archive rather than the running world. The exporter verifies the archive SHA-256 sidecar and SQLite integrity, reads only the native mod's public town-name/rectangle export, and writes a 1024×1024 image for X/Z −512 through 511. It publishes the image under a content-hashed filename before atomically replacing `public/map/snapshot.json`, so a browser cannot receive new metadata pointing to an incomplete image. The metadata's timestamp is the **backup capture time**, not the later render time.
+
+Run this only after checking free disk space for the backup, extracted temporary world and image. From a root shell on the tested Ubuntu host, choose a verified `minemine-world-*.tar.gz` made by `backup-world.sh`:
+
+```sh
+archive=/srv/minemine/backups/minemine-world-YYYYMMDDTHHMMSSZ-PID.tar.gz
+test -z "$(ldd /srv/minemine/app/vendor/mapper/minetestmapper | grep 'not found' || true)"
+node /srv/minemine/app/scripts/publish-map-from-backup.mjs \
+  "$archive" /srv/minemine/app/public/map \
+  /srv/minemine/app/vendor/mapper/minetestmapper \
+  /srv/minemine/app/vendor/mapper/colors.txt
+```
+
+Verify `/map/` over HTTPS, its capture time and a known native town boundary. If a new deployment replaces `/srv/minemine/app`, repeat the export for the new archive; the bundled page otherwise starts with the dated CI test-world image. This is an **on-demand** path, not a scheduled live refresh. Measure render time, peak memory and disk use on the whole 1 GiB VM before scheduling it, and retain a separate recovery backup. The map covers the stated bounded area only; expand its geometry and test costs before claiming coverage beyond it.
+
 The Caddy template enables zstd and gzip response encoding. An official Caddy 2.11.7 binary validated the template, and a temporary local HTTPS proxy served the 15.2 MB WASM as 5.5 MB zstd or 5.7 MB gzip while preserving isolation headers; Chromium launched the solo world through it. Test the **deployed** Caddy package, TLS certificate and browser network path again on the VM. Keep API responses `no-store`; Node's static files use ETags for revalidation.
 
 The included `deploy/Dockerfile` packages the Node launcher/auth service and restricted WebSocket bridge. It does not package a native game server or a verified playable world. Build from project root:

@@ -137,6 +137,7 @@ jobs:
           test -x runtime/host-bundle-check/vendor/mapper/minetestmapper
           test -f runtime/host-bundle-check/vendor/mapper/colors.txt
           test -f runtime/host-bundle-check/vendor/mapper/COPYING
+          test -f runtime/host-bundle-check/vendor/mapper/AUTHORS
           test -f runtime/host-bundle-check/scripts/publish-map-from-backup.mjs
           test -z "$(ldd runtime/host-bundle-check/vendor/mapper/minetestmapper | grep 'not found' || true)"
           test -f runtime/host-bundle-check/test/integration/ens-live.mjs

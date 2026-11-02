@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:net';
 import { once } from 'node:events';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
@@ -60,6 +60,20 @@ try {
   await page.locator('#map-message').waitFor({ state: 'hidden' });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   await page.screenshot({ path: 'runtime/static-map-mobile.png', fullPage: true });
+  const metadata = JSON.parse(readFileSync('public/map/snapshot.json', 'utf8'));
+  const versionedImage = `snapshot-${metadata.sha256.slice(0, 16)}.png`;
+  await page.route('**/map/snapshot.json', route => route.fulfill({
+    contentType: 'application/json', body: JSON.stringify({ ...metadata, image: versionedImage }),
+  }));
+  await page.route(`**/map/${versionedImage}`, route => route.fulfill({
+    contentType: 'image/png', body: readFileSync(`public/map/${metadata.image || 'snapshot.png'}`),
+  }));
+  const versionedRequest = page.waitForRequest(request => request.url().endsWith(`/map/${versionedImage}`));
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await versionedRequest;
+  await page.locator('#map-message').waitFor({ state: 'hidden' });
+  assert.equal(await page.locator('#map-source').textContent(),
+    process.env.EXPECTED_MAP_WORLD || 'MineMine native CI test world');
   assert.deepEqual(pageErrors, []);
   console.log('PASS static world-map desktop/mobile rendering, real town overlay, pan, zoom, coordinates, keyboard controls and no page errors.');
 } finally {

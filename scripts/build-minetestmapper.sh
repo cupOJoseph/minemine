@@ -17,6 +17,7 @@ fi
 test "$(git -C "$source_dir" rev-parse HEAD)" = "$mapper_commit"
 test -f "$source_dir/colors.txt"
 test -f "$source_dir/COPYING"
+test -f "$source_dir/AUTHORS"
 if [ ! -x "$build_dir/minetestmapper" ]; then
   cmake -S "$source_dir" -B "$build_dir" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \

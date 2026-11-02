@@ -26,6 +26,7 @@ test -f package-lock.json
 test -x runtime/minetestmapper-build/minetestmapper
 test -f runtime/minetestmapper-src/colors.txt
 test -f runtime/minetestmapper-src/COPYING
+test -f runtime/minetestmapper-src/AUTHORS
 
 mkdir -p "$stage/vendor/native/bin" "$stage/vendor/native/games" "$stage/vendor/mapper" "$stage/deploy" "$stage/scripts" "$stage/test/integration"
 cp -a vendor/native/bin/luantiserver "$stage/vendor/native/bin/"
@@ -34,7 +35,7 @@ cp -a vendor/native/games/minetest "$stage/vendor/native/games/"
 rm -rf "$stage/vendor/native/games/minetest/.git"
 cp -a vendor/native/LICENSE.txt vendor/native/COPYING.LESSER "$stage/vendor/native/"
 cp -a runtime/minetestmapper-build/minetestmapper "$stage/vendor/mapper/"
-cp -a runtime/minetestmapper-src/colors.txt runtime/minetestmapper-src/COPYING "$stage/vendor/mapper/"
+cp -a runtime/minetestmapper-src/colors.txt runtime/minetestmapper-src/COPYING runtime/minetestmapper-src/AUTHORS "$stage/vendor/mapper/"
 cp -a public server game "$stage/"
 cp -a deploy/vps "$stage/deploy/"
 cp -a scripts/setup-world.mjs "$stage/scripts/"

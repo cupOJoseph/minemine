@@ -171,10 +171,7 @@ export function createNameRegistry(worldDir, now = Date.now) {
       identifier(accountId, 'account');
       let handle;
       try { handle = managedHandle(ensNormalize(ensName)); }
-      catch (error) {
-        if (error instanceof NameRegistryError && error.code === 'invalid_handle') return false;
-        return false;
-      }
+      catch { return false; }
       if (!handle) return true;
       const row = current(handle);
       return !row || row.account_id === accountId ||

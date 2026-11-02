@@ -2,6 +2,7 @@
 set -euo pipefail
 
 repo_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$repo_dir"
 scratch=$(mktemp -d "${TMPDIR:-/tmp}/minemine-backup-check.XXXXXX")
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/bin" "$scratch/world/town_quotas" "$scratch/backups"
@@ -13,6 +14,13 @@ with sqlite3.connect(sys.argv[1]) as database:
     database.execute('CREATE TABLE nodes (name TEXT NOT NULL)')
     database.execute('INSERT INTO nodes VALUES (?)', ('default:stone',))
 PY
+node --input-type=module - "$scratch/world" <<'JS'
+import { createNameRegistry } from './server/name-registry.mjs';
+const registry = createNameRegistry(process.argv[2]);
+registry.beginCheckout('alice', 'smart:alice', 'order-backup');
+registry.markPaid('alice', 'smart:alice', 'order-backup', 'payment-backup');
+registry.close();
+JS
 
 printf 'active\n' > "$scratch/native.state"
 printf 'active\n' > "$scratch/web.state"
@@ -53,6 +61,13 @@ mkdir "$scratch/restore"
 "$real_tar" -C "$scratch/restore" -xzf "$archive"
 cmp "$scratch/world/world.mt" "$scratch/restore/world/world.mt"
 cmp "$scratch/world/town_quotas/w_0123456789abcdef0.json" "$scratch/restore/world/town_quotas/w_0123456789abcdef0.json"
+node --input-type=module - "$scratch/restore/world" <<'JS'
+import { createNameRegistry } from './server/name-registry.mjs';
+import assert from 'node:assert/strict';
+const registry = createNameRegistry(process.argv[2]);
+assert.equal(registry.lookup('alice').payment_id, 'payment-backup');
+registry.close();
+JS
 python3 - "$scratch/restore/world/map.sqlite" <<'PY'
 import sqlite3, sys
 with sqlite3.connect(sys.argv[1]) as database:

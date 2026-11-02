@@ -128,7 +128,7 @@ Install Caddy and adapt the archived `deploy/vps/Caddyfile.example` to the verif
 
 ### Cold world backup and restore drill
 
-[Luanti's backup guide](https://docs.luanti.org/for-server-hosts/backup-solutions/) recommends a cold copy for a consistent SQLite world and warns that copying live SQLite files can produce a corrupt backup. The archived `deploy/vps/backup-world.sh` verifies both MineMine systemd units are installed, stops any running web and native units, archives the entire world with a SHA-256 sidecar, and restarts only units that were active before it ran. A local shell test checks a restored SQLite database and town quota, plus service restart after an archive failure. This is a **local script test**, not a production-host restore drill.
+[Luanti's backup guide](https://docs.luanti.org/for-server-hosts/backup-solutions/) recommends a cold copy for a consistent SQLite world and warns that copying live SQLite files can produce a corrupt backup. The archived `deploy/vps/backup-world.sh` verifies both MineMine systemd units are installed, stops any running web and native units, archives the entire world with a SHA-256 sidecar, and restarts only units that were active before it ran. A local shell test checks restored world SQLite, a paid-pending name registry record and a town quota, plus service restart after an archive failure. This is a **local script test**, not a production-host restore drill.
 
 On the VM, keep `/srv/minemine/backups` root-only and outside the public web root. Check free disk space first; the 25 GiB Droplet disk must hold the live world, temporary archive and restore rehearsal. Run these commands in a root shell after the deployment is healthy:
 
@@ -145,7 +145,7 @@ test -f /srv/minemine/restore-check/world/world.mt
 python3 - <<'PY'
 from pathlib import Path
 import sqlite3
-databases = list(Path('/srv/minemine/restore-check/world').glob('*.sqlite'))
+databases = list(Path('/srv/minemine/restore-check/world').rglob('*.sqlite'))
 assert databases, 'no restored SQLite databases'
 for database in databases:
     with sqlite3.connect(database) as connection:

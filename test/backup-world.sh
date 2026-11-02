@@ -16,10 +16,17 @@ with sqlite3.connect(sys.argv[1]) as database:
 PY
 node --input-type=module - "$scratch/world" <<'JS'
 import { createNameRegistry } from './server/name-registry.mjs';
+import { createBetaCodes } from './server/beta-codes.mjs';
 const registry = createNameRegistry(process.argv[2]);
 registry.beginCheckout('alice', 'smart:alice', 'order-backup');
 registry.markPaid('alice', 'smart:alice', 'order-backup', 'payment-backup');
 registry.close();
+const invites = createBetaCodes(process.argv[2]);
+const admin = `0x${'a'.repeat(40)}`;
+const player = `0x${'b'.repeat(40)}`;
+const created = invites.create({ actor: admin, expiresAt: Date.now() + 86_400_000 });
+invites.redeem(created.code, player);
+invites.close();
 JS
 
 printf 'active\n' > "$scratch/native.state"
@@ -63,10 +70,14 @@ cmp "$scratch/world/world.mt" "$scratch/restore/world/world.mt"
 cmp "$scratch/world/town_quotas/w_0123456789abcdef0.json" "$scratch/restore/world/town_quotas/w_0123456789abcdef0.json"
 node --input-type=module - "$scratch/restore/world" <<'JS'
 import { createNameRegistry } from './server/name-registry.mjs';
+import { createBetaCodes } from './server/beta-codes.mjs';
 import assert from 'node:assert/strict';
 const registry = createNameRegistry(process.argv[2]);
 assert.equal(registry.lookup('alice').payment_id, 'payment-backup');
 registry.close();
+const invites = createBetaCodes(process.argv[2]);
+assert.equal(invites.isAdmitted(`0x${'b'.repeat(40)}`), true);
+invites.close();
 JS
 python3 - "$scratch/restore/world/map.sqlite" <<'PY'
 import sqlite3, sys
@@ -89,4 +100,4 @@ printf 'inactive\n' > "$scratch/web.state"
 bash "$repo_dir/deploy/vps/backup-world.sh" "$scratch/world" "$scratch/backups"
 test "$(cat "$scratch/native.state")" = active
 test "$(cat "$scratch/web.state")" = inactive
-echo 'PASS cold world backup, checksum, restored SQLite/town data, failure restart and inactive-service preservation.'
+echo 'PASS cold world backup, checksum, restored SQLite/name/beta/town data, failure restart and inactive-service preservation.'

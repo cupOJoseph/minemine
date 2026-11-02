@@ -50,6 +50,19 @@
       <p id="name-status" class="name-status" role="status" aria-live="polite"></p>
       <ul id="name-reservations" class="name-list"></ul>
     </section>
+    <section id="beta-operations" class="detail" aria-labelledby="beta-heading" hidden>
+      <div class="section-heading"><div><p class="eyebrow">BETA OPERATIONS</p><h2 id="beta-heading">Invite codes</h2></div><span>Wallet-bound redemption</span></div>
+      <form id="beta-create" class="beta-tools">
+        <label for="beta-max-uses">Uses per code <input id="beta-max-uses" type="number" min="1" max="100" value="1" required></label>
+        <label for="beta-days">Expires after days <input id="beta-days" type="number" min="1" max="30" value="14" required></label>
+        <label for="beta-intended">Wallet address, optional <input id="beta-intended" type="text" autocomplete="off" spellcheck="false" placeholder="0x…"></label>
+        <button type="submit">Create invite</button>
+      </form>
+      <p id="beta-create-status" class="name-status" role="status" aria-live="polite"></p>
+      <p id="beta-secret" class="beta-secret" hidden></p>
+      <ul id="beta-codes" class="name-list"></ul>
+      <p class="explorer-note">The code appears once when created. Copy it before leaving this page. Revoking a code stops new redemptions; it does not remove players who already redeemed it. Invite enforcement stays off until the server enables it.</p>
+    </section>
     <p class="method">Counts use accepted Luanti joins. Reconnects count once per period; visiting the website does not count as playing. Presence is shown only while the native heartbeat and player snapshot are fresh. Times are UTC.</p>
   </main>
 </body>

@@ -205,3 +205,42 @@ test('admin name reservations require an allowlisted fresh signature and prevent
   assert.equal((await request('/api/admin/names/release', { handle: 'alice' }, freshCookie)).status, 200);
   assert.equal((await (await request('/api/admin/names', undefined, freshCookie)).json()).reservations.length, 0);
 });
+
+test('beta invitations are hashed, wallet bound, and gate shared-world tickets', async t => {
+  let now = 1_800_000_000_000;
+  const admin = new Wallet('0x' + '88'.repeat(32));
+  const player = new Wallet('0x' + '99'.repeat(32));
+  const other = new Wallet('0x' + 'aa'.repeat(32));
+  const { request } = await fixture(t, { ADMIN_WALLET_ADDRESSES: admin.address, BETA_INVITES_ENABLED: 'true' }, () => now);
+  const login = async wallet => {
+    const challenge = await request('/api/auth/challenge', { address: wallet.address, chainId: 11155111 });
+    const signature = await wallet.signMessage((await challenge.json()).message);
+    const verified = await request('/api/auth/verify', { signature }, challenge.headers.getSetCookie()[0].split(';')[0]);
+    assert.equal(verified.status, 200);
+    return verified.headers.getSetCookie()[0].split(';')[0];
+  };
+  const adminCookie = await login(admin);
+  const playerCookie = await login(player);
+  const otherCookie = await login(other);
+  assert.equal((await (await request('/api/config')).json()).betaInvitesEnabled, true);
+  assert.equal((await request('/play/')).status, 302, 'solo play remains accessible with the beta gate enabled');
+  assert.deepEqual(await (await request('/api/beta/status', undefined, playerCookie)).json(), { enabled: true, admitted: false });
+  assert.equal((await request('/api/game/ticket', {}, playerCookie)).status, 403);
+  assert.equal((await request('/api/admin/beta/codes', undefined, playerCookie)).status, 403);
+  const created = await request('/api/admin/beta/codes/create', { maxUses: 1, days: 2, intendedAccount: player.address }, adminCookie);
+  assert.equal(created.status, 201);
+  const { id, code } = await created.json();
+  const listing = await (await request('/api/admin/beta/codes', undefined, adminCookie)).json();
+  assert.equal(listing.codes[0].id, id);
+  assert.equal(JSON.stringify(listing).includes(code), false);
+  assert.equal((await request('/api/beta/redeem', { code }, otherCookie)).status, 400);
+  const redeemed = await request('/api/beta/redeem', { code }, playerCookie);
+  assert.deepEqual(await redeemed.json(), { admitted: true, alreadyAdmitted: false });
+  assert.deepEqual(await (await request('/api/beta/status', undefined, playerCookie)).json(), { enabled: true, admitted: true });
+  assert.equal((await request('/api/game/ticket', {}, playerCookie)).status, 503, 'admitted player reaches the normal engine readiness check');
+  assert.equal((await request('/api/beta/redeem', { code }, otherCookie)).status, 400);
+  assert.equal((await request('/api/admin/beta/codes/revoke', { id }, adminCookie)).status, 200);
+  assert.equal((await request('/api/game/ticket', {}, playerCookie)).status, 503, 'revoking a code does not erase an existing admission');
+  now += 5 * 60_000;
+  assert.equal((await request('/api/admin/beta/codes/create', {}, adminCookie)).status, 403);
+});

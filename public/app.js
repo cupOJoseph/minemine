@@ -2,7 +2,7 @@ import { encodeAllowance, encodeApprove, encodeBuyBlocks, encodeTransfer, parseT
 import { createWalletRegistry } from './wallet-providers.mjs';
 
 const $ = id => document.getElementById(id);
-let config, session, busy = false, tokenDecimals, townPriceRaw, walletProvider;
+let config, session, betaStatus, busy = false, tokenDecimals, townPriceRaw, walletProvider;
 let walletEntries = [];
 function status(message, error = false) { $('status').textContent = message; $('status').classList.toggle('error', error); }
 function transferStatus(message, error = false) { $('transfer-status').textContent = message; $('transfer-status').classList.toggle('error', error); }
@@ -25,7 +25,10 @@ function renderSession() {
   $('connect').hidden = !!session;
   $('connect').disabled = busy || !config;
   $('wallet-provider').disabled = busy;
-  $('play').disabled = busy || !session || !config?.gameReady;
+  $('play').disabled = busy || !session || !config?.gameReady || (config?.betaInvitesEnabled && !betaStatus?.admitted);
+  $('beta-invite').hidden = !session || !config?.betaInvitesEnabled;
+  $('beta-form').hidden = Boolean(betaStatus?.admitted);
+  if (session && config?.betaInvitesEnabled && betaStatus) $('beta-status').textContent = betaStatus.admitted ? 'Invite accepted. Shared-world entry is unlocked when the server is ready.' : 'Redeem an invite to enter the shared world. Solo play remains open.';
   $('refresh-balance').disabled = busy || !session || !config?.tokenAddress;
   $('send-form').hidden = !session || !config?.tokenAddress;
   $('send').disabled = busy || tokenDecimals === undefined;
@@ -40,6 +43,11 @@ function renderSession() {
 async function refreshIdentity() {
   if (!session) return;
   try { session = await api('identity'); } catch { /* Address remains authoritative if ENS is unavailable. */ }
+  renderSession();
+}
+async function refreshBetaStatus() {
+  if (!session || !config?.betaInvitesEnabled) return;
+  betaStatus = await api('beta/status');
   renderSession();
 }
 async function refreshBalance() {
@@ -74,6 +82,7 @@ function setPlayLinks(href) {
 async function signOut() {
   await api('auth/logout', {});
   session = null;
+  betaStatus = undefined;
   tokenDecimals = undefined;
   townPriceRaw = undefined;
   $('engine-container').replaceChildren();
@@ -105,12 +114,24 @@ $('connect').addEventListener('click', async () => {
     session = await api('auth/verify', { signature });
     status(config.gameReady ? 'Signed in. Your world is ready.' : 'Signed in. Shared multiplayer is still being built.');
     await refreshIdentity();
+    if (config.betaInvitesEnabled) await refreshBetaStatus().catch(error => { $('beta-status').textContent = error.message; });
     if (config.tokenAddress) await refreshBalance().catch(error => { $('currency-status').textContent = error.message; });
     if (config.townContractAddress) await refreshTownStatus().catch(error => townStatus(error.message, true));
   } catch (error) { status(error.code === 4001 ? 'Wallet request cancelled. You can try again.' : error.message, true); }
   finally { busy = false; renderSession(); }
 });
 $('logout').addEventListener('click', () => signOut().catch(error => status(error.message, true)));
+$('beta-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = $('beta-form').querySelector('button');
+  button.disabled = true;
+  try {
+    await api('beta/redeem', { code: $('beta-code').value.trim() });
+    $('beta-code').value = '';
+    await refreshBetaStatus();
+  } catch (error) { $('beta-status').textContent = error.message; }
+  finally { button.disabled = false; }
+});
 $('refresh-balance').addEventListener('click', () => refreshBalance().catch(error => { $('currency-status').textContent = error.message; }));
 $('send-form').addEventListener('submit', async event => {
   event.preventDefault();
@@ -223,6 +244,7 @@ try {
   if (session) {
     status('Wallet session restored.');
     await refreshIdentity();
+    if (config.betaInvitesEnabled) await refreshBetaStatus().catch(error => { $('beta-status').textContent = error.message; });
     if (config.tokenAddress) await refreshBalance().catch(error => { $('currency-status').textContent = error.message; });
     if (config.townContractAddress) await refreshTownStatus().catch(error => townStatus(error.message, true));
   }

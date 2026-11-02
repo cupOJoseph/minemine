@@ -5,7 +5,7 @@ import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
 import { isIP } from 'node:net';
 import { fileURLToPath } from 'node:url';
-import { Contract, FetchRequest, JsonRpcProvider, formatUnits } from 'ethers';
+import { Contract, FetchRequest, JsonRpcProvider, formatUnits, getAddress } from 'ethers';
 import { AuthError, createAuth } from './auth.mjs';
 import { createGrants } from './grants.mjs';
 import { createEnsResolver } from './ens.mjs';
@@ -14,6 +14,7 @@ import { writeBalanceSnapshot } from './balance-snapshot.mjs';
 import { attachGameProxy } from './game-proxy.mjs';
 import { createPlayerStats, createPlayerExplorer } from './player-stats.mjs';
 import { createNameRegistry, NameRegistryError } from './name-registry.mjs';
+import { createBetaCodes, BetaCodeError } from './beta-codes.mjs';
 
 const publicRoot = path.resolve(fileURLToPath(new URL('../public/', import.meta.url)));
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.ogg': 'audio/ogg' };
@@ -71,10 +72,17 @@ export function createApp(config) {
   const playerStats = createPlayerStats(config.worldDir);
   const playerExplorer = createPlayerExplorer(config.worldDir);
   const names = createNameRegistry(config.worldDir, config.now || Date.now);
+  const betaCodes = createBetaCodes(config.worldDir, config.now || Date.now);
   const adminWallets = new Set((config.adminWalletAddresses || []).map(address => address.toLowerCase()));
   const adminWriteFresh = session => {
     const age = (config.now || Date.now)() - session.authenticatedAt;
     return Number.isFinite(age) && age >= 0 && age < 5 * 60_000;
+  };
+  const betaAdmitted = session => {
+    if (!session) return false;
+    if (!config.betaInvitesEnabled || adminWallets.has(session.address.toLowerCase()) || session.betaAdmitted) return true;
+    if (betaCodes.isAdmitted(session.address.toLowerCase())) { session.betaAdmitted = true; return true; }
+    return false;
   };
   const balances = new Map();
   async function balance(address, fresh = false) {
@@ -127,7 +135,7 @@ export function createApp(config) {
         const jar = cookies(req);
         const sessionToken = jar[sessionCookie];
         const session = auth.get(sessionToken);
-        if (req.method === 'GET' && url.pathname === '/api/config') return json(res, 200, { chainId: config.chainId, tokenAddress: config.tokenAddress, townContractAddress: config.townContractAddress, currencySymbol: 'MINE', gameReady: available(), soloPlaytestAvailable: soloAvailable(), enginePresent: existsSync(path.join(publicRoot, 'engine/index.html')), ensAvailable: Boolean(config.ensRpcUrl), milestone: 'solo-playtest', walletSupport: 'EOA' });
+        if (req.method === 'GET' && url.pathname === '/api/config') return json(res, 200, { chainId: config.chainId, tokenAddress: config.tokenAddress, townContractAddress: config.townContractAddress, currencySymbol: 'MINE', gameReady: available(), soloPlaytestAvailable: soloAvailable(), enginePresent: existsSync(path.join(publicRoot, 'engine/index.html')), ensAvailable: Boolean(config.ensRpcUrl), betaInvitesEnabled: Boolean(config.betaInvitesEnabled), milestone: 'solo-playtest', walletSupport: 'EOA' });
         if (req.method === 'GET' && url.pathname === '/api/health') return json(res, 200, { ok: true, nativeReady: nativeReady(), gameReady: available(), currencyConfigured: Boolean(config.tokenAddress && config.rpcUrl) });
         if (req.method === 'POST' && url.pathname === '/api/auth/challenge') {
           const data = await body(req);
@@ -163,6 +171,30 @@ export function createApp(config) {
           if (req.method === 'GET' && url.pathname === '/api/admin/names') {
             return json(res, 200, { reservations: names.adminReservations().map(row => ({ handle: row.handle, expiresAt: new Date(row.expires_at).toISOString() })) });
           }
+          if (req.method === 'GET' && url.pathname === '/api/admin/beta/codes') {
+            return json(res, 200, { codes: betaCodes.list().map(row => ({ id: row.id, createdAt: new Date(row.created_at).toISOString(), expiresAt: new Date(row.expires_at).toISOString(), maxUses: row.max_uses, uses: row.uses, intendedAccount: row.intended_account, revokedAt: row.revoked_at === null ? null : new Date(row.revoked_at).toISOString() })) });
+          }
+          if (req.method === 'POST' && ['/api/admin/beta/codes/create', '/api/admin/beta/codes/revoke'].includes(url.pathname)) {
+            if (!adminWriteFresh(session)) throw new AuthError('Sign in with your admin wallet again before changing beta codes.', 403);
+            const data = await body(req);
+            try {
+              if (url.pathname.endsWith('/create')) {
+                let intendedAccount = null;
+                if (data.intendedAccount) {
+                  try { intendedAccount = getAddress(data.intendedAccount).toLowerCase(); }
+                  catch { throw new BetaCodeError('Invalid intended wallet address.', 'invalid_input'); }
+                }
+                const days = data.days ?? 14;
+                if (!Number.isInteger(days) || days < 1 || days > 30) throw new BetaCodeError('Choose 1 to 30 days.', 'invalid_input');
+                const created = betaCodes.create({ actor: session.address.toLowerCase(), maxUses: data.maxUses ?? 1, expiresAt: (config.now || Date.now)() + days * 24 * 60 * 60_000, intendedAccount });
+                return json(res, 201, { ...created, expiresAt: new Date(created.expiresAt).toISOString() });
+              }
+              return json(res, 200, { revoked: betaCodes.revoke(data.id, session.address.toLowerCase()) });
+            } catch (error) {
+              if (error instanceof BetaCodeError) throw new AuthError(error.message, error.code === 'not_found' ? 404 : 400);
+              throw error;
+            }
+          }
           if (req.method === 'POST' && ['/api/admin/names/reserve', '/api/admin/names/release'].includes(url.pathname)) {
             if (!adminWriteFresh(session)) throw new AuthError('Sign in with your admin wallet again before changing reservations.', 403);
             const data = await body(req);
@@ -181,6 +213,18 @@ export function createApp(config) {
           throw new AuthError('Unknown admin route.', 404);
         }
         if (req.method === 'GET' && url.pathname === '/api/session') return json(res, 200, session);
+        if (req.method === 'GET' && url.pathname === '/api/beta/status') return json(res, 200, { enabled: Boolean(config.betaInvitesEnabled), admitted: adminWallets.has(session.address.toLowerCase()) || betaCodes.isAdmitted(session.address.toLowerCase()) });
+        if (req.method === 'POST' && url.pathname === '/api/beta/redeem') {
+          const data = await body(req);
+          try {
+            const result = betaCodes.redeem(data.code, session.address.toLowerCase());
+            session.betaAdmitted = true;
+            return json(res, 200, result);
+          } catch (error) {
+            if (error instanceof BetaCodeError) throw new AuthError(error.message, 400);
+            throw error;
+          }
+        }
         if (req.method === 'GET' && url.pathname === '/api/identity') return json(res, 200, { ...session, ensName: await ens.name(session.address) });
         if (req.method === 'GET' && url.pathname === '/api/currency/recipient') return json(res, 200, await ens.recipient(url.searchParams.get('input')));
         if (req.method === 'GET' && url.pathname === '/api/currency/balance') return json(res, 200, await balance(session.address));
@@ -194,6 +238,7 @@ export function createApp(config) {
         if (req.method === 'GET' && url.pathname === '/api/towns/status') return json(res, 200, await towns.status(session.address));
         if (req.method === 'POST' && url.pathname === '/api/towns/sync') return json(res, 200, await towns.sync(session));
         if (req.method === 'POST' && url.pathname === '/api/game/ticket') {
+          if (!betaAdmitted(session)) throw new AuthError('Redeem a beta invite before joining the shared world.', 403);
           if (!available()) throw new AuthError('The Luanti engine and server adapter are not ready yet. See the roadmap.', 503);
           let ensName = null;
           try { ensName = await ens.name(session.address); } catch { /* Identity remains the signed address when ENS is unavailable. */ }
@@ -236,8 +281,8 @@ export function createApp(config) {
   });
   server.requestTimeout = 15_000;
   server.headersTimeout = 10_000;
-  const gameProxy = attachGameProxy(server, config, request => cookies(request)[sessionCookie], token => Boolean(auth.get(token)));
+  const gameProxy = attachGameProxy(server, config, request => cookies(request)[sessionCookie], token => betaAdmitted(auth.get(token)));
   server.stopGameProxy = () => gameProxy.close();
-  server.on('close', () => { gameProxy.close(); provider?.destroy(); ens.close(); names.close(); });
+  server.on('close', () => { gameProxy.close(); provider?.destroy(); ens.close(); names.close(); betaCodes.close(); });
   return server;
 }

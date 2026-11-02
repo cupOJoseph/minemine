@@ -11,6 +11,11 @@ const nameForm = document.getElementById('name-reservation');
 const nameHandle = document.getElementById('name-handle');
 const nameStatus = document.getElementById('name-status');
 const nameReservations = document.getElementById('name-reservations');
+const betaOperations = document.getElementById('beta-operations');
+const betaCreate = document.getElementById('beta-create');
+const betaCreateStatus = document.getElementById('beta-create-status');
+const betaSecret = document.getElementById('beta-secret');
+const betaList = document.getElementById('beta-codes');
 let playerPage = 1;
 let playerRequest = 0;
 const number = (id, value) => { document.getElementById(id).textContent = String(value); };
@@ -33,6 +38,51 @@ function clear() {
   playerNext.disabled = true;
   nameOperations.hidden = true;
   nameReservations.replaceChildren();
+  betaOperations.hidden = true;
+  betaSecret.hidden = true;
+  betaSecret.textContent = '';
+  betaList.replaceChildren();
+}
+
+async function betaPost(route, payload) {
+  const response = await fetch(route, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: AbortSignal.timeout(8000) });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || 'Could not change beta codes.');
+  return result;
+}
+
+async function refreshBetaCodes() {
+  const response = await fetch('/api/admin/beta/codes', { credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.timeout(8000) });
+  if (!response.ok) throw new Error('Could not load beta codes.');
+  const { codes } = await response.json();
+  betaList.replaceChildren();
+  if (!codes.length) {
+    const item = document.createElement('li');
+    item.textContent = 'No beta codes created.';
+    betaList.appendChild(item);
+  }
+  for (const code of codes) {
+    const item = document.createElement('li');
+    const label = document.createElement('span');
+    label.textContent = `${code.id.slice(0, 8)} · ${code.uses}/${code.maxUses} used · expires ${dateLabel(code.expiresAt)}${code.intendedAccount ? ' · ' + code.intendedAccount : ''}${code.revokedAt ? ' · revoked' : ''}`;
+    item.appendChild(label);
+    if (!code.revokedAt) {
+      const revoke = document.createElement('button');
+      revoke.type = 'button';
+      revoke.textContent = 'Revoke';
+      revoke.setAttribute('aria-label', `Revoke beta code ${code.id.slice(0, 8)}`);
+      revoke.addEventListener('click', async () => {
+        revoke.disabled = true;
+        try {
+          await betaPost('/api/admin/beta/codes/revoke', { id: code.id });
+          betaCreateStatus.textContent = `Revoked code ${code.id.slice(0, 8)}.`;
+          await refreshBetaCodes();
+        } catch (error) { betaCreateStatus.textContent = error.message; revoke.disabled = false; }
+      });
+      item.appendChild(revoke);
+    }
+    betaList.appendChild(item);
+  }
 }
 
 async function nameRequest(route, handle) {
@@ -133,9 +183,11 @@ async function refresh(withPlayers = true) {
     }
     status.textContent = stats.current.fresh ? 'Statistics are up to date.' : 'Historical joins are available; current presence is stale or the server is offline.';
     nameOperations.hidden = false;
+    betaOperations.hidden = false;
     if (withPlayers) {
       await refreshPlayers();
       await refreshReservations().catch(error => { nameStatus.textContent = error.message; });
+      await refreshBetaCodes().catch(error => { betaCreateStatus.textContent = error.message; });
     }
   } catch (error) {
     status.classList.add('error');
@@ -158,6 +210,26 @@ nameForm.addEventListener('submit', async event => {
     nameForm.reset();
     await refreshReservations();
   } catch (error) { nameStatus.textContent = error.message; }
+  finally { button.disabled = false; }
+});
+betaCreate.addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = betaCreate.querySelector('button');
+  button.disabled = true;
+  betaCreateStatus.textContent = 'Creating invite…';
+  betaSecret.hidden = true;
+  betaSecret.textContent = '';
+  try {
+    const result = await betaPost('/api/admin/beta/codes/create', {
+      maxUses: Number(document.getElementById('beta-max-uses').value),
+      days: Number(document.getElementById('beta-days').value),
+      intendedAccount: document.getElementById('beta-intended').value.trim() || null,
+    });
+    betaSecret.textContent = result.code;
+    betaSecret.hidden = false;
+    betaCreateStatus.textContent = `Code created. Expires ${dateLabel(result.expiresAt)}. Copy it now; it will not appear in the list.`;
+    await refreshBetaCodes();
+  } catch (error) { betaCreateStatus.textContent = error.message; }
   finally { button.disabled = false; }
 });
 playerPrev.addEventListener('click', () => { if (playerPage > 1) playerPage--; refreshPlayers().catch(error => { status.classList.add('error'); status.textContent = error.message; }); });

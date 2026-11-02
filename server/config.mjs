@@ -27,6 +27,7 @@ export function readConfig(env = process.env) {
     trustedLoopbackProxy,
     worldDir: path.resolve(env.WORLD_DIR || './runtime/world'),
     gameEnabled: env.GAME_ENABLED === 'true', adapterReady: env.ENGINE_ADAPTER_READY === 'true',
+    betaInvitesEnabled: env.BETA_INVITES_ENABLED === 'true',
     gameAddress: env.GAME_ADDRESS || '10.0.0.1', gamePort,
     tokenAddress: env.TOKEN_ADDRESS ? getAddress(env.TOKEN_ADDRESS) : null,
     rpcUrl: env.RPC_URL || null,

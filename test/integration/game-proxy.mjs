@@ -106,3 +106,46 @@ test('wallet-only WebSocket proxy forwards UDP only to the configured private ga
   assert.equal((await once(active, 'close'))[0], 1008, 'logout closes an established proxy link');
   assert.throws(() => readConfig({ GAME_ENABLED: 'true', GAME_ADDRESS: '8.8.8.8' }), /10\.0\.0\.1/);
 });
+
+test('beta invite gate rejects signed wallets until a code is redeemed', async t => {
+  const worldDir = mkdtempSync(path.join(tmpdir(), 'minemine-beta-proxy-'));
+  const admin = new Wallet('0x' + '77'.repeat(32));
+  const player = new Wallet('0x' + '88'.repeat(32));
+  const config = { ...readConfig({ GAME_ENABLED: 'true', BETA_INVITES_ENABLED: 'true', ADMIN_WALLET_ADDRESSES: admin.address }), worldDir };
+  const server = createApp(config);
+  const clients = [];
+  t.after(async () => {
+    server.stopGameProxy();
+    for (const client of clients) client.terminate();
+    await new Promise(resolve => server.close(resolve));
+    rmSync(worldDir, { recursive: true, force: true });
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const url = `http://127.0.0.1:${server.address().port}`;
+  const wsUrl = `ws://127.0.0.1:${server.address().port}/game-proxy`;
+  const headers = { Host: 'localhost:3000', Origin: config.origin, 'Content-Type': 'application/json' };
+  const login = async wallet => {
+    const challengeResponse = await send(url + '/api/auth/challenge', { method: 'POST', headers, body: JSON.stringify({ address: wallet.address, chainId: config.chainId }) });
+    const signature = await wallet.signMessage((await challengeResponse.json()).message);
+    const verified = await send(url + '/api/auth/verify', { method: 'POST', headers: { ...headers, Cookie: challengeResponse.headers['set-cookie'][0].split(';')[0] }, body: JSON.stringify({ signature }) });
+    assert.equal(verified.status, 200);
+    return verified.headers['set-cookie'][0].split(';')[0];
+  };
+  const adminCookie = await login(admin);
+  const playerCookie = await login(player);
+  const options = { headers: { Host: 'localhost:3000', Origin: config.origin, Cookie: playerCookie } };
+  const denied = new WebSocket(wsUrl, options);
+  clients.push(denied);
+  assert.match((await once(denied, 'error'))[0].message, /403/);
+  const created = await send(url + '/api/admin/beta/codes/create', { method: 'POST', headers: { ...headers, Cookie: adminCookie }, body: JSON.stringify({ maxUses: 1, days: 1 }) });
+  assert.equal(created.status, 201);
+  const { code } = await created.json();
+  const redeemed = await send(url + '/api/beta/redeem', { method: 'POST', headers: { ...headers, Cookie: playerCookie }, body: JSON.stringify({ code }) });
+  assert.equal(redeemed.status, 200);
+  const admitted = new WebSocket(wsUrl, options);
+  clients.push(admitted);
+  await once(admitted, 'open');
+  admitted.send('NEWADDR');
+  assert.match((await once(admitted, 'message'))[0].toString(), /^ADDR fd00::/);
+});

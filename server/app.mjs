@@ -411,6 +411,7 @@ export function createApp(config) {
           if (!betaAdmitted(session)) throw new AuthError('Redeem a beta invite before joining the shared world.', 403);
           if (!available()) throw new AuthError('The Luanti engine and server adapter are not ready yet. See the roadmap.', 503);
           const identity = await playerIdentity(session);
+          if (!betaAdmitted(session)) throw new AuthError('Redeem a beta invite before joining the shared world.', 403);
           return json(res, 200, { ...grants.issue(session, sessionToken, identity.ensName), address: config.gameAddress, port: config.gamePort });
         }
         throw new AuthError('Unknown API route.', 404);

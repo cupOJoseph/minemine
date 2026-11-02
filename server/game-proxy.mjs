@@ -39,6 +39,7 @@ export function attachGameProxy(server, config, tokenFromRequest, activeToken) {
 
   wss.on('connection', (ws, token) => {
     tokens.set(ws, token);
+    if (!activeToken(token)) return ws.close(1008, 'Session ended');
     let bound = null;
     let udp = null;
     let udpReady = false;

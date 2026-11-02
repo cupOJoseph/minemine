@@ -1,0 +1,209 @@
+import { pixelAtWorld, worldAtPixel, zoomAround } from './coordinates.mjs';
+import { validateClaims } from './claims.mjs';
+import { validateSpawn } from './spawn.mjs';
+
+const $ = id => document.getElementById(id);
+const viewport = $('map-viewport');
+const canvas = $('map-canvas');
+const context = canvas.getContext('2d');
+const image = new Image();
+let geometry, focusPoint, view, dragging = null, claims = [], spawn = null;
+let width = 1, height = 1;
+const minScale = 0.25, maxScale = 16;
+
+function coordinatesAt(x, y) {
+  if (!geometry || !view) return null;
+  return worldAtPixel(geometry, (x - view.x) / view.scale, (y - view.y) / view.scale);
+}
+function describe(value) { return value ? `X ${value.x}, Z ${value.z}` : 'Outside mapped area'; }
+function draw() {
+  const ratio = Math.min(devicePixelRatio || 1, 2);
+  const targetWidth = Math.round(width * ratio), targetHeight = Math.round(height * ratio);
+  if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+  }
+  context.setTransform(ratio, 0, 0, ratio, 0, 0);
+  context.fillStyle = '#101b18';
+  context.fillRect(0, 0, width, height);
+  if (!view || !image.complete || !image.naturalWidth) return;
+  context.imageSmoothingEnabled = view.scale < 1;
+  context.drawImage(image, view.x, view.y, geometry.width * view.scale, geometry.height * view.scale);
+  for (const claim of claims) {
+    const topLeft = pixelAtWorld(geometry, claim.x1, claim.z2);
+    const x = view.x + topLeft.x * view.scale;
+    const y = view.y + topLeft.y * view.scale;
+    const claimWidth = (claim.x2 - claim.x1 + 1) * view.scale;
+    const claimHeight = (claim.z2 - claim.z1 + 1) * view.scale;
+    context.fillStyle = 'rgba(212, 241, 138, .24)';
+    context.fillRect(x, y, claimWidth, claimHeight);
+    context.strokeStyle = '#e6ff9f';
+    context.lineWidth = 2;
+    context.strokeRect(x, y, claimWidth, claimHeight);
+    if (claimWidth >= 64) {
+      context.fillStyle = '#f8ffdb';
+      context.font = 'bold 12px Arial, sans-serif';
+      context.fillText(claim.town, x + 4, y - 5);
+    }
+  }
+  if (spawn) {
+    const point = pixelAtWorld(geometry, spawn.x, spawn.z);
+    const x = view.x + (point.x + .5) * view.scale;
+    const y = view.y + (point.y + .5) * view.scale;
+    context.beginPath();
+    context.arc(x, y, 8, 0, Math.PI * 2);
+    context.fillStyle = '#17251b';
+    context.fill();
+    context.strokeStyle = '#ffcc77';
+    context.lineWidth = 3;
+    context.stroke();
+    context.fillStyle = '#ffcc77';
+    context.fillRect(x - 2, y - 2, 4, 4);
+  }
+  context.strokeStyle = '#d4f18a';
+  context.lineWidth = 1;
+  context.strokeRect(view.x - .5, view.y - .5, geometry.width * view.scale + 1, geometry.height * view.scale + 1);
+  $('center-coordinates').textContent = describe(coordinatesAt(width / 2, height / 2));
+}
+function fit() {
+  if (!geometry) return;
+  const scale = Math.min(width / geometry.width, height / geometry.height) * .92;
+  view = { scale, x: (width - geometry.width * scale) / 2, y: (height - geometry.height * scale) / 2 };
+  draw();
+}
+function focus() {
+  if (!focusPoint) return fit();
+  const pixel = pixelAtWorld(geometry, focusPoint.x, focusPoint.z);
+  const scale = Math.min(maxScale, Math.max(minScale, Math.min(width, height) * .92 / focusPoint.span));
+  view = { scale, x: width / 2 - pixel.x * scale, y: height / 2 - pixel.y * scale };
+  draw();
+}
+function locateClaim(claim) {
+  const centerX = Math.floor((claim.x1 + claim.x2) / 2);
+  const centerZ = Math.floor((claim.z1 + claim.z2) / 2);
+  const pixel = pixelAtWorld(geometry, centerX, centerZ);
+  const scale = Math.min(maxScale, Math.max(minScale, Math.min(width, height) / 48));
+  view = { scale, x: width / 2 - (pixel.x + .5) * scale, y: height / 2 - (pixel.y + .5) * scale };
+  $('pointer-town').textContent = claim.town;
+  draw();
+  viewport.focus();
+}
+function locateSpawn() {
+  if (!spawn) return;
+  const pixel = pixelAtWorld(geometry, spawn.x, spawn.z);
+  const scale = Math.min(maxScale, Math.max(minScale, Math.min(width, height) / 128));
+  view = { scale, x: width / 2 - (pixel.x + .5) * scale, y: height / 2 - (pixel.y + .5) * scale };
+  draw();
+  viewport.focus();
+}
+function zoom(factor, x = width / 2, y = height / 2) {
+  if (!view) return;
+  view = zoomAround(view, factor, x, y, minScale, maxScale);
+  draw();
+}
+$('zoom-in').addEventListener('click', () => zoom(1.5));
+$('zoom-out').addEventListener('click', () => zoom(1 / 1.5));
+$('reset-view').addEventListener('click', fit);
+$('locate-spawn').addEventListener('click', locateSpawn);
+viewport.addEventListener('wheel', event => {
+  if (!view) return;
+  event.preventDefault();
+  const bounds = viewport.getBoundingClientRect();
+  zoom(Math.exp(-event.deltaY * .001), event.clientX - bounds.left, event.clientY - bounds.top);
+}, { passive: false });
+viewport.addEventListener('pointerdown', event => {
+  if (!view) return;
+  dragging = { id: event.pointerId, x: event.clientX, y: event.clientY };
+  viewport.setPointerCapture(event.pointerId);
+  viewport.classList.add('dragging');
+});
+viewport.addEventListener('pointermove', event => {
+  if (!view) return;
+  if (dragging?.id === event.pointerId) {
+    view.x += event.clientX - dragging.x;
+    view.y += event.clientY - dragging.y;
+    dragging.x = event.clientX;
+    dragging.y = event.clientY;
+    draw();
+  }
+  const bounds = viewport.getBoundingClientRect();
+  const position = coordinatesAt(event.clientX - bounds.left, event.clientY - bounds.top);
+  $('pointer-coordinates').textContent = describe(position);
+  $('pointer-town').textContent = position ? (claims.find(claim => position.x >= claim.x1 && position.x <= claim.x2 && position.z >= claim.z1 && position.z <= claim.z2)?.town || 'No protected town here') : 'Outside mapped area';
+});
+function release(event) {
+  if (dragging?.id !== event.pointerId) return;
+  dragging = null;
+  viewport.classList.remove('dragging');
+}
+viewport.addEventListener('pointerup', release);
+viewport.addEventListener('pointercancel', release);
+viewport.addEventListener('pointerleave', () => { if (!dragging) $('pointer-coordinates').textContent = 'Move over the map'; });
+viewport.addEventListener('keydown', event => {
+  if (!view) return;
+  const movements = { ArrowLeft: [48, 0], ArrowRight: [-48, 0], ArrowUp: [0, 48], ArrowDown: [0, -48] };
+  if (movements[event.key]) {
+    event.preventDefault();
+    view.x += movements[event.key][0]; view.y += movements[event.key][1]; draw();
+  } else if (event.key === '+' || event.key === '=') { event.preventDefault(); zoom(1.5); }
+  else if (event.key === '-') { event.preventDefault(); zoom(1 / 1.5); }
+});
+new ResizeObserver(() => {
+  const bounds = viewport.getBoundingClientRect();
+  const center = view ? { x: (width / 2 - view.x) / view.scale, y: (height / 2 - view.y) / view.scale } : null;
+  width = bounds.width; height = bounds.height;
+  if (view) {
+    view.x = width / 2 - center.x * view.scale;
+    view.y = height / 2 - center.y * view.scale;
+    draw();
+  } else fit();
+}).observe(viewport);
+
+try {
+  const response = await fetch('./snapshot.json', { cache: 'no-store' });
+  if (!response.ok) throw new Error('Map snapshot is not available yet.');
+  const metadata = await response.json();
+  const bounds = metadata.geometry;
+  if (metadata.kind !== 'snapshot' || !Number.isInteger(bounds?.minX) || !Number.isInteger(bounds?.minZ) || bounds.width !== 1024 || bounds.height !== 1024 || !Number.isFinite(Date.parse(metadata.generatedAt))) throw new Error('Map metadata is invalid.');
+  const imageName = metadata.image || 'snapshot.png';
+  if (imageName !== 'snapshot.png' &&
+      (!/^snapshot-[a-f0-9]{16}\.png$/.test(imageName) || !metadata.sha256?.startsWith(imageName.slice(9, 25)))) {
+    throw new Error('Map image reference is invalid.');
+  }
+  geometry = bounds;
+  claims = validateClaims(metadata.townClaims);
+  const recordedSpawn = validateSpawn(metadata.spawn);
+  if (recordedSpawn) {
+    const inside = recordedSpawn.x >= bounds.minX && recordedSpawn.x < bounds.minX + bounds.width &&
+      recordedSpawn.z >= bounds.minZ && recordedSpawn.z < bounds.minZ + bounds.height;
+    $('spawn-location').textContent = `X ${recordedSpawn.x}, Z ${recordedSpawn.z}${inside ? '' : ' (outside mapped area)'}`;
+    if (inside) {
+      spawn = recordedSpawn;
+      $('locate-spawn').hidden = false;
+    }
+  }
+  const townList = $('town-list');
+  townList.replaceChildren();
+  if (!claims.length) townList.textContent = 'No protected areas in this snapshot.';
+  for (const claim of claims) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = `${claim.town} · ${(claim.x2 - claim.x1 + 1) * (claim.z2 - claim.z1 + 1)} columns`;
+    button.addEventListener('click', () => locateClaim(claim));
+    townList.append(button);
+  }
+  if (Number.isInteger(metadata.focus?.x) && Number.isInteger(metadata.focus?.z) && Number.isInteger(metadata.focus?.span) && metadata.focus.span >= 32 && metadata.focus.span <= 1024) focusPoint = metadata.focus;
+  $('map-source').textContent = metadata.world;
+  $('generated-at').dateTime = metadata.generatedAt;
+  $('generated-at').textContent = new Date(metadata.generatedAt).toLocaleString();
+  $('map-bounds').textContent = `X ${bounds.minX} to ${bounds.minX + bounds.width - 1}; Z ${bounds.minZ} to ${bounds.minZ + bounds.height - 1}`;
+  const ageDays = Math.floor((Date.now() - Date.parse(metadata.generatedAt)) / 86400000);
+  $('snapshot-status').textContent = ageDays > 7 ? `Snapshot is ${ageDays} days old. Newer world changes are not shown.` : 'Snapshot loaded. Newer world changes are not shown.';
+  await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error('Map image could not be loaded.')); image.src = './' + imageName; });
+  if (image.naturalWidth !== bounds.width || image.naturalHeight !== bounds.height) throw new Error('Map image size does not match its metadata.');
+  $('map-message').hidden = true;
+  focus();
+} catch (error) {
+  $('map-message').textContent = error.message;
+  $('snapshot-status').textContent = error.message;
+}

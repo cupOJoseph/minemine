@@ -139,6 +139,28 @@ async function mouseDigFallback(gamePage, marker) {
   }
   return result;
 }
+async function placeWithBrowserInput(gamePage, marker) {
+  const resultPath = path.join(worldDir, marker);
+  let result = await readFile(resultPath, 'utf8').catch(() => '');
+  for (let attempt = 0; attempt < 3 && !result; attempt++) {
+    await gamePage.keyboard.down('f');
+    await sleep(350);
+    await gamePage.keyboard.up('f');
+    await sleep(1000);
+    result = await readFile(resultPath, 'utf8').catch(() => '');
+  }
+  // The browser's headless SDL keyboard bridge sometimes drops the place
+  // key after a map update. A real right click still sends a native place
+  // packet and must produce the same server-side protection result.
+  for (let attempt = 0; attempt < 3 && !result; attempt++) {
+    await gamePage.mouse.down({ button: 'right' });
+    await sleep(350);
+    await gamePage.mouse.up({ button: 'right' });
+    await sleep(1000);
+    result = await readFile(resultPath, 'utf8').catch(() => '');
+  }
+  return result;
+}
 try {
   const wallet = new Wallet('0x' + '12'.repeat(32));
   const signed = await signedSession(wallet);
@@ -317,14 +339,11 @@ try {
   assert.match(placeAimReady, /^PASS /, `browser place camera reset failed: ${placeAimReady || 'no result'}`);
   await sleep(2000);
   await secondPage.screenshot({ path: artifacts + '/packet-place-target.png' });
-  let packetPlace = await readFile(path.join(worldDir, 'town-packet-place-result.txt'), 'utf8').catch(() => '');
-  for (let attempt = 0; attempt < 3 && !packetPlace; attempt++) {
-    await secondPage.keyboard.down('f');
-    await sleep(350);
-    await secondPage.keyboard.up('f');
-    await sleep(1000);
-    packetPlace = await readFile(path.join(worldDir, 'town-packet-place-result.txt'), 'utf8').catch(() => '');
-  }
+  const packetPlace = await placeWithBrowserInput(secondPage, 'town-packet-place-result.txt');
+  record(`place input state ${JSON.stringify(await secondPage.evaluate(() => ({
+    focused: document.hasFocus(), active: document.activeElement?.id,
+    pointerLock: document.pointerLockElement?.id,
+  })))}`);
   assert.match(packetPlace, /^PASS /, `browser place packet did not hit protected claim: ${packetPlace || 'no result'}`);
 
   const ownerCanvas = page.locator('#canvas');
@@ -354,14 +373,7 @@ try {
   assert.match(ownerPlaceAimReady, /^PASS /, `owner place camera reset failed: ${ownerPlaceAimReady || 'no result'}`);
   await sleep(2000);
   await page.screenshot({ path: artifacts + '/packet-owner-place-target.png' });
-  let ownerPlace = await readFile(path.join(worldDir, 'town-packet-owner-place-result.txt'), 'utf8').catch(() => '');
-  for (let attempt = 0; attempt < 3 && !ownerPlace; attempt++) {
-    await page.keyboard.down('f');
-    await sleep(350);
-    await page.keyboard.up('f');
-    await sleep(1000);
-    ownerPlace = await readFile(path.join(worldDir, 'town-packet-owner-place-result.txt'), 'utf8').catch(() => '');
-  }
+  const ownerPlace = await placeWithBrowserInput(page, 'town-packet-owner-place-result.txt');
   assert.match(ownerPlace, /^PASS /, `owner browser place packet did not edit own claim: ${ownerPlace || 'no result'}`);
 
   await writeFile(path.join(worldDir, 'town-packet-owner-dig-arm.txt'), 'dig\n', { mode: 0o600 });
@@ -410,14 +422,7 @@ try {
   await sleep(2500);
   await signalProbe('town-packet-member-place-aim.txt', 'town-packet-member-place-aim-ready.txt', 'invited-member place aim');
   await sleep(2000);
-  let memberPlace = await readFile(path.join(worldDir, 'town-packet-member-place-result.txt'), 'utf8').catch(() => '');
-  for (let attempt = 0; attempt < 3 && !memberPlace; attempt++) {
-    await secondPage.keyboard.down('f');
-    await sleep(350);
-    await secondPage.keyboard.up('f');
-    await sleep(1000);
-    memberPlace = await readFile(path.join(worldDir, 'town-packet-member-place-result.txt'), 'utf8').catch(() => '');
-  }
+  const memberPlace = await placeWithBrowserInput(secondPage, 'town-packet-member-place-result.txt');
   assert.match(memberPlace, /^PASS /, `invited-member browser place did not edit claim: ${memberPlace || 'no result'}`);
 
   await signalProbe('town-packet-member-dig-arm.txt', 'town-packet-member-dig-ready.txt', 'invited-member dig target');
@@ -443,14 +448,7 @@ try {
   await sleep(2500);
   await signalProbe('town-packet-removed-place-aim.txt', 'town-packet-removed-place-aim-ready.txt', 'removed-member place aim');
   await sleep(2000);
-  let removedPlace = await readFile(path.join(worldDir, 'town-packet-removed-place-result.txt'), 'utf8').catch(() => '');
-  for (let attempt = 0; attempt < 3 && !removedPlace; attempt++) {
-    await secondPage.keyboard.down('f');
-    await sleep(350);
-    await secondPage.keyboard.up('f');
-    await sleep(1000);
-    removedPlace = await readFile(path.join(worldDir, 'town-packet-removed-place-result.txt'), 'utf8').catch(() => '');
-  }
+  const removedPlace = await placeWithBrowserInput(secondPage, 'town-packet-removed-place-result.txt');
   assert.match(removedPlace, /^PASS /, `removed-member browser place was not denied: ${removedPlace || 'no result'}`);
 
   // Luanti re-reads auth for privileges during play. Expiring the short-lived

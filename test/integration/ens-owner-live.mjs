@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { addEnsContracts } from '@ensdomains/ensjs';
 import { getOwner as getV1Owner } from '@ensdomains/ensjs/public/v1';
-import { createPublicClient, http } from 'viem';
+import { getOwner as getV2Owner } from '@ensdomains/ensjs/public/v2';
+import { createPublicClient, http, zeroAddress } from 'viem';
 import { mainnet } from 'viem/chains';
 import { createEnsOwnership } from '../../server/ens-ownership.mjs';
 
@@ -16,4 +17,8 @@ assert.deepEqual(await ens.verify('vitalik.eth', record.registrant), { name: 'vi
 if (record.owner?.toLowerCase() !== record.registrant.toLowerCase()) {
   await assert.rejects(ens.verify('vitalik.eth', record.owner), { status: 403 });
 }
-console.log('PASS mainnet ENS registrar ownership and manager-only denial.');
+const v2Name = 'ur.integration-tests.eth';
+const v2Owner = await getV2Owner(client, { name: v2Name });
+assert.notEqual(v2Owner, zeroAddress);
+assert.deepEqual(await ens.verify(v2Name, v2Owner), { name: v2Name, version: 'v2' });
+console.log('PASS mainnet ENSv1 registrar ownership, manager-only denial and ENSv2 exact ownership.');

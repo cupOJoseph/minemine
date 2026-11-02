@@ -20,6 +20,7 @@
     "upstream:fetch": "node scripts/fetch-upstream.mjs",
     "test:evm": "node --test test/integration/token-evm.mjs",
     "test:smart-auth": "node --test test/integration/smart-auth.mjs",
+    "test:ens-owner-live": "node --env-file-if-exists=.env test/integration/ens-owner-live.mjs",
     "test:wallet-ui": "node test/integration/wallet-ui-evm.mjs",
     "test:admin-ui": "node test/integration/admin-beta-ui.mjs",
     "test:beta-player-ui": "node test/integration/beta-player-ui.mjs",
@@ -27,6 +28,7 @@
     "test:ens-live": "node --env-file-if-exists=.env test/integration/ens-live.mjs"
   },
   "dependencies": {
+    "@ensdomains/ensjs": "5.2.12",
     "ethers": "6.17.0",
     "viem": "2.57.14",
     "ws": "8.22.0"

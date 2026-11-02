@@ -252,6 +252,11 @@ export function createApp(config) {
         res.end();
         return;
       }
+      if (url.pathname === '/map' || url.pathname === '/map/') {
+        res.writeHead(302, { Location: '/map/index.html' });
+        res.end();
+        return;
+      }
       let relative;
       try { relative = decodeURIComponent(url.pathname); } catch { throw new AuthError('Invalid path.', 400); }
       if (relative.includes('\0') || relative.split('/').some(s => s.startsWith('.') || s.includes('\\'))) throw new AuthError('Not found.', 404);

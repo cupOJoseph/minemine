@@ -108,6 +108,10 @@ test('static files supply isolation headers; private paths and invalid bodies ar
   const play = await request('/play/');
   assert.equal(play.status, 302);
   assert.equal(play.headers.get('Location'), soloPlaytestAvailable ? '/engine/index.html' : 'https://cupojoseph.github.io/minemine/play/');
+  const map = await request('/map/');
+  assert.equal(map.status, 302);
+  assert.equal(map.headers.get('Location'), '/map/index.html');
+  assert.match(await (await request('/map/index.html')).text(), /World map snapshot/);
   for (const route of ['/.env', '/%2e%2e%2fpackage.json', '/server/auth.mjs', '/%00']) assert.equal((await request(route)).status, 404);
   const tooBig = await request('/api/auth/challenge', { data: 'x'.repeat(9000) });
   assert.equal(tooBig.status, 413);

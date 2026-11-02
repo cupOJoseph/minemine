@@ -33,6 +33,7 @@ if (!preflight) {
   fs.writeFileSync(path.join(play, 'build.json'), JSON.stringify(build, null, 2) + '\n');
   for (const file of ['index.html', 'style.css', 'app.js', 'transfer.mjs', 'wallet-providers.mjs']) fs.copyFileSync(path.join(root, 'public', file), path.join(target, file));
   fs.cpSync(path.join(root, 'public/screenshots'), path.join(target, 'screenshots'), { recursive: true });
+  fs.cpSync(path.join(root, 'public/map'), path.join(target, 'map'), { recursive: true });
 }
 for (const file of fs.readdirSync(hosting)) fs.copyFileSync(path.join(hosting, file), path.join(preflight ? target : path.join(target, 'play'), file));
 if (preflight) {

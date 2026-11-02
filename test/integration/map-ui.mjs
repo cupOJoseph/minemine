@@ -62,8 +62,11 @@ try {
   await page.screenshot({ path: 'runtime/static-map-mobile.png', fullPage: true });
   const metadata = JSON.parse(readFileSync('public/map/snapshot.json', 'utf8'));
   const versionedImage = `snapshot-${metadata.sha256.slice(0, 16)}.png`;
+  const negativeClaim = { town: 'West Hollow', x1: -30, x2: -28, z1: -30, z2: -28 };
   await page.route('**/map/snapshot.json', route => route.fulfill({
-    contentType: 'application/json', body: JSON.stringify({ ...metadata, image: versionedImage }),
+    contentType: 'application/json', body: JSON.stringify({
+      ...metadata, image: versionedImage, townClaims: [...metadata.townClaims, negativeClaim],
+    }),
   }));
   await page.route(`**/map/${versionedImage}`, route => route.fulfill({
     contentType: 'image/png', body: readFileSync(`public/map/${metadata.image || 'snapshot.png'}`),
@@ -74,8 +77,11 @@ try {
   await page.locator('#map-message').waitFor({ state: 'hidden' });
   assert.equal(await page.locator('#map-source').textContent(),
     process.env.EXPECTED_MAP_WORLD || 'MineMine native CI test world');
+  await page.getByRole('button', { name: 'West Hollow · 9 columns' }).click();
+  assert.equal(await page.locator('#center-coordinates').textContent(), 'X -29, Z -29');
+  assert.equal(await page.locator('#pointer-town').textContent(), 'West Hollow');
   assert.deepEqual(pageErrors, []);
-  console.log('PASS static world-map desktop/mobile rendering, real town overlay, pan, zoom, coordinates, keyboard controls and no page errors.');
+  console.log('PASS static world-map desktop/mobile rendering, real town overlay, negative claim location, pan, zoom, coordinates, keyboard controls and no page errors.');
 } finally {
   await browser?.close();
   if (app.listening) await new Promise(resolve => app.close(resolve));

@@ -14,6 +14,7 @@ local member_dig_ready, member_dig_aimed, member_dig_reaimed, member_dig_done
 local removed_place_ready, removed_place_aimed, removed_place_done
 local expired_grant_checked = false
 local negative_claim_checked = false
+local manager_visual_opened = false
 
 local function write_result(filename, status, ok)
     local file = assert(io.open(world .. "/" .. filename, "w"))
@@ -695,6 +696,26 @@ core.register_globalstep(function()
         return "PASS paid negative claim creation, protection, removal, movement and public projection"
     end)
     write_result("town-negative-claim-result.txt", ok and result or "FAIL " .. tostring(result), ok)
+end)
+
+core.register_globalstep(function()
+    if not negative_claim_checked or manager_visual_opened then return end
+    local arm = io.open(world .. "/town-manager-visual-arm.txt", "r")
+    if not arm then return end
+    arm:close()
+    manager_visual_opened = true
+    local ok, result = pcall(function()
+        check(core.get_player_by_name(owner_name) and core.get_player_by_name(guest_name),
+            "town manager visual probe needs both connected wallet players")
+        local town = core.registered_chatcommands.town
+        for _, name in ipairs({ owner_name, guest_name }) do
+            local opened, message = town.func(name, "menu")
+            check(opened and message:find("Town manager opened", 1, true),
+                "town manager did not open for " .. name)
+        end
+        return "PASS server sent owner and guest town manager forms to browser clients"
+    end)
+    write_result("town-manager-visual-result.txt", ok and result or "FAIL " .. tostring(result), ok)
 end)
 
 core.register_globalstep(function()

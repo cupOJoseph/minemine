@@ -1,7 +1,8 @@
 import { chmodSync, closeSync, constants, lstatSync, mkdirSync, openSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { ensNormalize } from 'ethers';
+import { ensNormalize, getAddress } from 'ethers';
+import { playerName } from './auth.mjs';
 
 const reserved = new Set(['admin', 'api', 'ens', 'map', 'mine', 'minemine', 'moderator', 'null', 'play', 'root', 'support', 'system', 'wallet']);
 
@@ -64,6 +65,12 @@ export function createNameRegistry(worldDir, now = Date.now) {
       account_id TEXT PRIMARY KEY,
       ens_name TEXT NOT NULL UNIQUE,
       selected_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS wallet_profiles (
+      player_name TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL UNIQUE,
+      first_signed_in_at INTEGER NOT NULL,
+      last_signed_in_at INTEGER NOT NULL
     );`);
   const find = db.prepare('SELECT * FROM names WHERE handle = ?');
   const byOrder = db.prepare('SELECT * FROM names WHERE order_id = ?');
@@ -119,6 +126,34 @@ export function createNameRegistry(worldDir, now = Date.now) {
     },
     recentAudit(limit = 50) {
       return db.prepare('SELECT id, handle, action, actor, at FROM name_audit ORDER BY at DESC, id DESC LIMIT ?').all(limit);
+    },
+    recordWalletSignIn(session) {
+      let accountId;
+      try { accountId = getAddress(session?.address).toLowerCase(); }
+      catch { throw new NameRegistryError('Invalid wallet profile address.', 'invalid_input'); }
+      if (session.playerName !== playerName(accountId)) {
+        throw new NameRegistryError('Wallet profile and character do not match.', 'conflict');
+      }
+      return transaction(() => {
+        const existing = db.prepare('SELECT account_id FROM wallet_profiles WHERE player_name = ?').get(session.playerName);
+        if (existing && existing.account_id !== accountId) {
+          throw new NameRegistryError('Player ID collision; refusing to overwrite identity.', 'conflict');
+        }
+        const at = now();
+        db.prepare(`INSERT INTO wallet_profiles(player_name, account_id, first_signed_in_at, last_signed_in_at)
+          VALUES (?, ?, ?, ?) ON CONFLICT(player_name) DO UPDATE SET last_signed_in_at = excluded.last_signed_in_at`)
+          .run(session.playerName, accountId, at, at);
+        return this.walletProfile(session.playerName);
+      });
+    },
+    walletProfile(name) {
+      if (typeof name !== 'string' || !/^w_[a-f0-9]{17}$/.test(name)) {
+        throw new NameRegistryError('Invalid player ID.', 'invalid_input');
+      }
+      const row = db.prepare('SELECT player_name, account_id, first_signed_in_at, last_signed_in_at FROM wallet_profiles WHERE player_name = ?').get(name);
+      return row ? { playerName: row.player_name, address: row.account_id,
+        firstSignedInAt: new Date(row.first_signed_in_at).toISOString(),
+        lastSignedInAt: new Date(row.last_signed_in_at).toISOString() } : null;
     },
     selectedEns(accountId) {
       return db.prepare('SELECT ens_name FROM ens_selections WHERE account_id = ?').get(identifier(accountId, 'account'))?.ens_name || null;

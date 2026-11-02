@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { Wallet } from 'ethers';
 import { createNameRegistry, normalizeHandle } from '../server/name-registry.mjs';
+import { playerName } from '../server/auth.mjs';
 
 test('normalization uses one case-insensitive, restricted MineMine namespace', () => {
   assert.equal(normalizeHandle('Alice9'), 'alice9');
@@ -101,4 +103,26 @@ test('verified full ENS selection is durable, unique, and can follow an onchain 
     first.close(); second.close();
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('signed wallet profile binds one stable character across logins and registry restart', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'minemine-wallet-profile-'));
+  let clock = Date.parse('2026-11-01T12:00:00Z');
+  const wallet = new Wallet('0x' + 'ab'.repeat(32));
+  const name = playerName(wallet.address);
+  const first = createNameRegistry(dir, () => clock);
+  try {
+    const profile = first.recordWalletSignIn({ address: wallet.address, playerName: name });
+    assert.equal(profile.address, wallet.address.toLowerCase());
+    assert.equal(profile.firstSignedInAt, '2026-11-01T12:00:00.000Z');
+    clock += 60_000;
+    first.recordWalletSignIn({ address: wallet.address.toLowerCase(), playerName: name });
+    assert.equal(first.walletProfile(name).lastSignedInAt, '2026-11-01T12:01:00.000Z');
+    assert.throws(() => first.recordWalletSignIn({ address: wallet.address, playerName: `w_${'f'.repeat(17)}` }), { code: 'conflict' });
+    assert.throws(() => first.recordWalletSignIn({ address: 'invalid', playerName: name }), { code: 'invalid_input' });
+    first.close();
+    const reopened = createNameRegistry(dir, () => clock);
+    try { assert.equal(reopened.walletProfile(name).firstSignedInAt, '2026-11-01T12:00:00.000Z'); }
+    finally { reopened.close(); }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });

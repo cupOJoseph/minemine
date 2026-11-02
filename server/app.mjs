@@ -168,6 +168,8 @@ export function createApp(config) {
         if (req.method === 'POST' && url.pathname === '/api/auth/verify') {
           const data = await body(req);
           const verified = await auth.verify(jar[challengeCookie], data.signature);
+          try { names.recordWalletSignIn(verified.session); }
+          catch (error) { auth.revoke(verified.token); throw error; }
           if (session) { grants.revoke(session, sessionToken); auth.revoke(sessionToken); gameProxy.revoke(sessionToken); }
           res.setHeader('Set-Cookie', [cookie(sessionCookie, verified.token, 43200), cookie(challengeCookie, '', 0)]);
           return json(res, 200, verified.session);
@@ -187,8 +189,21 @@ export function createApp(config) {
           if (req.method === 'GET' && url.pathname === '/api/admin/players') {
             const query = url.searchParams.get('q') || '';
             const page = Number(url.searchParams.get('page') || '1');
-            try { return json(res, 200, await playerExplorer(query, page)); }
+            try {
+              const roster = await playerExplorer(query, page);
+              return json(res, 200, { ...roster, players: roster.players.map(player => ({
+                ...player, walletAddress: names.walletProfile(player.playerName)?.address || null,
+              })) });
+            }
             catch (error) { if (error.message.startsWith('Invalid player')) throw new AuthError(error.message, 400); throw error; }
+          }
+          if (req.method === 'GET' && url.pathname.startsWith('/api/admin/players/')) {
+            const name = url.pathname.slice('/api/admin/players/'.length);
+            if (!/^w_[a-f0-9]{17}$/.test(name)) throw new AuthError('Invalid player ID.', 400);
+            const profile = names.walletProfile(name);
+            if (!profile) throw new AuthError('Player profile not found.', 404);
+            const identity = await playerIdentity({ address: profile.address, playerName: name });
+            return json(res, 200, { ...profile, ensName: identity.ensName });
           }
           if (req.method === 'GET' && url.pathname === '/api/admin/names') {
             return json(res, 200, { reservations: names.adminReservations().map(row => ({

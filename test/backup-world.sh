@@ -17,9 +17,12 @@ PY
 node --input-type=module - "$scratch/world" <<'JS'
 import { createNameRegistry } from './server/name-registry.mjs';
 import { createBetaCodes } from './server/beta-codes.mjs';
+import { playerName } from './server/auth.mjs';
 const registry = createNameRegistry(process.argv[2]);
 registry.beginCheckout('alice', 'smart:alice', 'order-backup');
 registry.markPaid('alice', 'smart:alice', 'order-backup', 'payment-backup');
+const wallet = `0x${'c'.repeat(40)}`;
+registry.recordWalletSignIn({ address: wallet, playerName: playerName(wallet) });
 registry.close();
 const invites = createBetaCodes(process.argv[2]);
 const admin = `0x${'a'.repeat(40)}`;
@@ -71,9 +74,12 @@ cmp "$scratch/world/town_quotas/w_0123456789abcdef0.json" "$scratch/restore/worl
 node --input-type=module - "$scratch/restore/world" <<'JS'
 import { createNameRegistry } from './server/name-registry.mjs';
 import { createBetaCodes } from './server/beta-codes.mjs';
+import { playerName } from './server/auth.mjs';
 import assert from 'node:assert/strict';
 const registry = createNameRegistry(process.argv[2]);
 assert.equal(registry.lookup('alice').payment_id, 'payment-backup');
+const wallet = `0x${'c'.repeat(40)}`;
+assert.equal(registry.walletProfile(playerName(wallet)).address, wallet);
 registry.close();
 const invites = createBetaCodes(process.argv[2]);
 assert.equal(invites.isAdmitted(`0x${'b'.repeat(40)}`), true);

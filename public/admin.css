@@ -17,7 +17,17 @@ td:first-child{font-family:ui-monospace,SFMono-Regular,monospace;color:#d7f7b6}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 24px;border-top:1px solid #354d35;color:#9eb8a4;font-size:.82rem}
 .pager div{display:flex;gap:8px}
 .pager button{background:transparent;color:#d9f8ba;padding:8px 12px}
+.inspect-button,.player-detail-heading button{border:1px solid #718c70;border-radius:3px;background:transparent;color:#d9f8ba;padding:7px 11px;cursor:pointer}
+.player-detail{margin:0 24px 24px;padding:18px;border:1px solid #4d674e;background:#0a1510}
+.player-detail[hidden]{display:none}
+.player-detail-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.player-detail h3{margin:0;font-size:1rem}
+.player-detail p{min-height:20px;color:#b0cbb1;font-size:.85rem}
+.player-detail dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:0}
+.player-detail dt{font-size:.72rem;text-transform:uppercase;color:#8ea595}
+.player-detail dd{margin:5px 0 0;overflow-wrap:anywhere;font-family:ui-monospace,SFMono-Regular,monospace;font-size:.88rem}
 @media(max-width:520px){.pager{align-items:flex-start;flex-direction:column}th,td{padding:12px 16px}}
+@media(max-width:520px){.player-detail dl{grid-template-columns:1fr}}
 
 #name-operations[hidden]{display:none}
 .name-status{min-height:20px;margin:0;padding:0 24px 12px;color:#c5edaa;font-size:.85rem;overflow-wrap:anywhere}

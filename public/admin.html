@@ -36,9 +36,10 @@
         <label for="player-query">Search stable character ID</label>
         <div><input id="player-query" name="q" maxlength="19" pattern="[a-z0-9_]*" autocomplete="off" placeholder="w_…" aria-describedby="explorer-note"><button type="submit">Search</button></div>
       </form>
-      <p id="explorer-note" class="explorer-note">Public usernames, ENS aliases and town membership will appear after the account registry is built.</p>
-      <div class="table-scroll"><table><thead><tr><th scope="col">Character ID</th><th scope="col">First join in window</th><th scope="col">Last join</th><th scope="col">Joins</th></tr></thead><tbody id="player-rows"><tr><td colspan="4">Waiting for admin access.</td></tr></tbody></table></div>
+      <p id="explorer-note" class="explorer-note">Wallet addresses come from signed MineMine logins. Inspect a character to recheck its selected ENS name. Town membership and paid account details will follow account integration.</p>
+      <div class="table-scroll"><table><thead><tr><th scope="col">Character ID</th><th scope="col">Wallet</th><th scope="col">First join in window</th><th scope="col">Last join</th><th scope="col">Joins</th><th scope="col">Profile</th></tr></thead><tbody id="player-rows"><tr><td colspan="6">Waiting for admin access.</td></tr></tbody></table></div>
       <div class="pager"><span id="player-page-label">—</span><div><button id="player-prev" type="button" disabled>Previous</button><button id="player-next" type="button" disabled>Next</button></div></div>
+      <div id="player-detail" class="player-detail" hidden><div class="player-detail-heading"><h3>Character profile</h3><button id="player-detail-close" type="button">Close</button></div><p id="player-detail-status" role="status" aria-live="polite"></p><dl><div><dt>Character</dt><dd id="profile-character">—</dd></div><div><dt>Signed wallet</dt><dd id="profile-wallet">—</dd></div><div><dt>Current verified ENS</dt><dd id="profile-ens">—</dd></div><div><dt>First sign-in</dt><dd id="profile-first">—</dd></div><div><dt>Last sign-in</dt><dd id="profile-last">—</dd></div></dl></div>
     </section>
     <section id="name-operations" class="detail" aria-labelledby="names-heading" hidden>
       <div class="section-heading"><div><p class="eyebrow">BETA OPERATIONS</p><h2 id="names-heading">Reserved usernames</h2></div><span>Seven-day administrative holds</span></div>

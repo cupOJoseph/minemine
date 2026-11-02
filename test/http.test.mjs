@@ -6,7 +6,7 @@ import path from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { Wallet } from 'ethers';
 import { createApp } from '../server/app.mjs';
-import { AuthError } from '../server/auth.mjs';
+import { AuthError, playerName } from '../server/auth.mjs';
 import { readConfig } from '../server/config.mjs';
 
 async function fixture(t, env = {}, clock, overrides = {}) {
@@ -178,6 +178,42 @@ test('player statistics require an allowlisted signed wallet', async t => {
   assert.equal((await roster.json()).players[0].playerName, `w_${'a'.repeat(17)}`);
   assert.equal((await request('/api/admin/players?q=A', undefined, adminCookie)).status, 400);
   assert.equal((await request('/api/admin/players?page=0', undefined, adminCookie)).status, 400);
+});
+
+test('admin player explorer links accepted joins to signed wallets and rechecks ENS on inspection', async t => {
+  const admin = new Wallet('0x' + '51'.repeat(32));
+  const player = new Wallet('0x' + '52'.repeat(32));
+  let currentOwner = player.address;
+  const { request, worldDir } = await fixture(t, { ADMIN_WALLET_ADDRESSES: admin.address }, undefined, {
+    ensOwnership: { verify: async (name, address) => {
+      if (name !== 'builder.eth' || address.toLowerCase() !== currentOwner.toLowerCase()) throw new AuthError('This wallet does not own that ENS name.', 403);
+      return { name, version: 'v1' };
+    } },
+  });
+  const login = async wallet => {
+    const challenge = await request('/api/auth/challenge', { address: wallet.address, chainId: 11155111 });
+    const challengeCookie = challenge.headers.getSetCookie()[0].split(';')[0];
+    const signature = await wallet.signMessage((await challenge.json()).message);
+    const verified = await request('/api/auth/verify', { signature }, challengeCookie);
+    assert.equal(verified.status, 200);
+    return verified.headers.getSetCookie()[0].split(';')[0];
+  };
+  const playerCookie = await login(player);
+  const name = playerName(player.address);
+  assert.equal((await request('/api/identity/ens', { name: 'builder.eth' }, playerCookie)).status, 200);
+  const key = new Date().toISOString().slice(0, 7);
+  writeFileSync(path.join(worldDir, `minemine-player-joins-${key}.log`), `${Math.floor(Date.now() / 1000)}\t${name}\n`);
+  assert.equal((await request(`/api/admin/players/${name}`, undefined, playerCookie)).status, 403);
+  const adminCookie = await login(admin);
+  const roster = await (await request('/api/admin/players', undefined, adminCookie)).json();
+  assert.equal(roster.players[0].walletAddress, player.address.toLowerCase());
+  const profile = await (await request(`/api/admin/players/${name}`, undefined, adminCookie)).json();
+  assert.equal(profile.address, player.address.toLowerCase());
+  assert.equal(profile.ensName, 'builder.eth');
+  assert.equal(profile.playerName, name);
+  currentOwner = admin.address;
+  assert.equal((await (await request(`/api/admin/players/${name}`, undefined, adminCookie)).json()).ensName, null);
+  assert.equal((await request('/api/admin/players/not-a-character', undefined, adminCookie)).status, 400);
 });
 
 test('admin name reservations require an allowlisted fresh signature and prevent duplicate handles', async t => {

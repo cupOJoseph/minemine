@@ -6,6 +6,8 @@ const playerQuery = document.getElementById('player-query');
 const playerPageLabel = document.getElementById('player-page-label');
 const playerPrev = document.getElementById('player-prev');
 const playerNext = document.getElementById('player-next');
+const playerDetail = document.getElementById('player-detail');
+const playerDetailStatus = document.getElementById('player-detail-status');
 const nameOperations = document.getElementById('name-operations');
 const nameForm = document.getElementById('name-reservation');
 const nameHandle = document.getElementById('name-handle');
@@ -22,11 +24,14 @@ const auditRows = document.getElementById('audit-rows');
 const auditStatus = document.getElementById('audit-status');
 let playerPage = 1;
 let playerRequest = 0;
+let playerDetailRequest = 0;
 const number = (id, value) => { document.getElementById(id).textContent = String(value); };
 const label = (id, value) => { document.getElementById(id).textContent = value; };
 const dateLabel = value => new Date(value).toLocaleString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) + ' UTC';
 function clear() {
   playerRequest++;
+  playerDetailRequest++;
+  playerDetail.hidden = true;
   for (const id of ['current-count', 'daily-count', 'weekly-count', 'monthly-count']) number(id, '—');
   online.replaceChildren();
   const item = document.createElement('li');
@@ -35,7 +40,7 @@ function clear() {
   online.appendChild(item);
   playerRows.replaceChildren();
   const row = playerRows.insertRow();
-  row.insertCell().colSpan = 4;
+  row.insertCell().colSpan = 6;
   row.cells[0].textContent = 'Sign in to view recent characters.';
   playerPageLabel.textContent = '—';
   playerPrev.disabled = true;
@@ -49,6 +54,29 @@ function clear() {
   auditOperations.hidden = true;
   auditRows.replaceChildren();
   auditStatus.textContent = '';
+}
+
+async function inspectPlayer(name) {
+  const request = ++playerDetailRequest;
+  playerDetail.hidden = false;
+  playerDetailStatus.textContent = 'Checking current ENS ownership…';
+  for (const id of ['profile-character', 'profile-wallet', 'profile-ens', 'profile-first', 'profile-last']) label(id, '—');
+  try {
+    const response = await fetch(`/api/admin/players/${encodeURIComponent(name)}`, {
+      credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.timeout(12_000),
+    });
+    if (!response.ok) throw new Error('Could not load this character profile.');
+    const profile = await response.json();
+    if (request !== playerDetailRequest) return;
+    label('profile-character', profile.playerName);
+    label('profile-wallet', profile.address);
+    label('profile-ens', profile.ensName || 'No currently verified ENS name');
+    label('profile-first', dateLabel(profile.firstSignedInAt));
+    label('profile-last', dateLabel(profile.lastSignedInAt));
+    playerDetailStatus.textContent = 'Signed wallet profile loaded.';
+  } catch (error) {
+    if (request === playerDetailRequest) playerDetailStatus.textContent = error.message;
+  }
 }
 
 async function refreshAudit() {
@@ -151,6 +179,8 @@ async function refreshReservations() {
 
 async function refreshPlayers() {
   const request = ++playerRequest;
+  playerDetailRequest++;
+  playerDetail.hidden = true;
   const params = new URLSearchParams({ q: playerQuery.value.trim().toLowerCase(), page: String(playerPage) });
   const response = await fetch(`/api/admin/players?${params}`, { credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.timeout(8000) });
   if (!response.ok) {
@@ -162,11 +192,20 @@ async function refreshPlayers() {
   playerRows.replaceChildren();
   for (const player of data.players) {
     const row = playerRows.insertRow();
-    for (const value of [player.playerName, dateLabel(player.firstSeen), dateLabel(player.lastSeen), String(player.joins)]) row.insertCell().textContent = value;
+    for (const value of [player.playerName, player.walletAddress || 'Earlier join',
+      dateLabel(player.firstSeen), dateLabel(player.lastSeen), String(player.joins)]) row.insertCell().textContent = value;
+    const inspect = document.createElement('button');
+    inspect.className = 'inspect-button';
+    inspect.type = 'button';
+    inspect.textContent = 'Inspect';
+    inspect.disabled = !player.walletAddress;
+    inspect.setAttribute('aria-label', `Inspect ${player.playerName}`);
+    inspect.addEventListener('click', () => inspectPlayer(player.playerName));
+    row.insertCell().append(inspect);
   }
   if (!data.players.length) {
     const row = playerRows.insertRow();
-    row.insertCell().colSpan = 4;
+    row.insertCell().colSpan = 6;
     row.cells[0].textContent = 'No matching joins in the last 12 months.';
   }
   const lastPage = Math.max(1, Math.ceil(data.total / data.pageSize));
@@ -226,6 +265,10 @@ async function refresh(withPlayers = true) {
 }
 
 refreshButton.addEventListener('click', () => refresh());
+document.getElementById('player-detail-close').addEventListener('click', () => {
+  playerDetailRequest++;
+  playerDetail.hidden = true;
+});
 document.getElementById('player-search').addEventListener('submit', event => { event.preventDefault(); playerPage = 1; refreshPlayers().catch(error => { status.classList.add('error'); status.textContent = error.message; }); });
 nameForm.addEventListener('submit', async event => {
   event.preventDefault();

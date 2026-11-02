@@ -20,6 +20,7 @@
     "upstream:fetch": "node scripts/fetch-upstream.mjs",
     "test:evm": "node --test test/integration/token-evm.mjs",
     "test:wallet-ui": "node test/integration/wallet-ui-evm.mjs",
+    "test:admin-ui": "node test/integration/admin-beta-ui.mjs",
     "test:ens-live": "node --env-file-if-exists=.env test/integration/ens-live.mjs"
   },
   "dependencies": {

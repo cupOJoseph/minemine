@@ -13,6 +13,7 @@ on:
       - 'test/integration/admin-beta-ui.mjs'
       - 'test/integration/beta-player-ui.mjs'
       - 'test/integration/town_probe/**'
+      - 'test/integration/map_edit_probe/**'
       - 'package.json'
       - 'scripts/setup-world.mjs'
       - 'scripts/sample-stack-memory.sh'
@@ -329,6 +330,11 @@ jobs:
             runtime/mapserver-index.html
             runtime/mapserver-blank.png
             runtime/mapserver-tile.png
+            runtime/mapserver-tile-before-edit.png
+            runtime/mapserver-tile-after-edit.png
+            runtime/mapserver-edit-native.log
+            runtime/mapserver-edit-native-console.log
+            runtime/mapserver-console.log
             runtime/mapserver-world-restart.log
             runtime/mapserver-world-restart-console.log
           if-no-files-found: ignore

@@ -12,6 +12,7 @@ on:
       - 'test/integration/wallet-ui-evm.mjs'
       - 'test/integration/admin-beta-ui.mjs'
       - 'test/integration/beta-player-ui.mjs'
+      - 'test/integration/managed-name-ui.mjs'
       - 'test/integration/map-ui.mjs'
       - 'test/integration/town_probe/**'
       - 'package.json'
@@ -26,6 +27,9 @@ on:
       - 'scripts/ci-mapserver-smoke.sh'
       - 'scripts/ci-static-map-snapshot.sh'
       - 'public/map/**'
+      - 'public/app.js'
+      - 'public/index.html'
+      - 'public/style.css'
       - 'deploy/vps/**'
       - 'upstream.sources.json'
 permissions:

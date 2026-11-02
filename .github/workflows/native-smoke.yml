@@ -11,6 +11,7 @@ on:
       - 'test/integration/browser-native-restart.mjs'
       - 'test/integration/wallet-ui-evm.mjs'
       - 'test/integration/admin-beta-ui.mjs'
+      - 'test/integration/beta-player-ui.mjs'
       - 'test/integration/town_probe/**'
       - 'package.json'
       - 'scripts/setup-world.mjs'
@@ -103,6 +104,8 @@ jobs:
         run: npm run test:wallet-ui
       - name: Exercise beta admin controls in Chromium
         run: npm run test:admin-ui
+      - name: Exercise player beta redemption in Chromium
+        run: npm run test:beta-player-ui
       - uses: actions/download-artifact@v4
         with:
           name: miners-solo-playtest
@@ -286,6 +289,7 @@ jobs:
             runtime/server-memory-summary.txt
             runtime/admin-beta-desktop.png
             runtime/admin-beta-mobile.png
+            runtime/beta-player-admitted.png
             runtime/server-cgroup-first-peak-bytes.txt
             runtime/server-cgroup-first-events.txt
             runtime/server-cgroup-restart-peak-bytes.txt

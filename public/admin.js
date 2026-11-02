@@ -182,10 +182,10 @@ async function refreshPlayers() {
   playerDetailRequest++;
   playerDetail.hidden = true;
   const params = new URLSearchParams({ q: playerQuery.value.trim().toLowerCase(), page: String(playerPage) });
-  const response = await fetch(`/api/admin/players?${params}`, { credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.timeout(8000) });
+  const response = await fetch(`/api/admin/players?${params}`, { credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.timeout(12000) });
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) clear();
-    throw new Error(response.status === 400 ? 'Search using a stable character ID or full wallet address.' : 'Player explorer is temporarily unavailable.');
+    throw new Error(response.status === 400 ? 'Enter a character ID, full wallet address, MineMine username or full ENS name.' : 'Player explorer is temporarily unavailable.');
   }
   const data = await response.json();
   if (request !== playerRequest) return;

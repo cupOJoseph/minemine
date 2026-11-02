@@ -22,10 +22,10 @@ try {
         let result;
         let status = 200;
         if (pathname === '/api/admin/stats') result = { current: { count: 0, fresh: false, playerNames: [] }, active: { daily: 2, weekly: 3, monthly: 4 }, periods: { dayStart: '2026-11-01T00:00:00Z', weekStart: '2026-10-26T00:00:00Z', monthStart: '2026-11-01T00:00:00Z' } };
-        else if (pathname === '/api/admin/players') result = { players: [{
+        else if (pathname === '/api/admin/players') { window.lastPlayerSearch = new URL(String(input), 'https://minemine.test').searchParams.get('q'); result = { players: [{
           playerName: 'w_' + 'a'.repeat(17), walletAddress: '0x' + '12'.repeat(20),
           firstSeen: '2026-11-01T10:00:00Z', lastSeen: '2026-11-01T11:00:00Z', joins: 2,
-        }], total: 1, page: 1, pageSize: 25 };
+        }], total: 1, page: 1, pageSize: 25 }; }
         else if (pathname === '/api/admin/players/' + 'w_' + 'a'.repeat(17)) result = {
           playerName: 'w_' + 'a'.repeat(17), address: '0x' + '12'.repeat(20), ensName: 'builder.eth',
           firstSignedInAt: '2026-11-01T09:00:00Z', lastSignedInAt: '2026-11-01T11:00:00Z',
@@ -64,6 +64,9 @@ try {
     await page.evaluate(source => { new Function(source)(); }, script);
     await page.locator('#name-operations').waitFor({ state: 'visible' });
     await page.locator('#beta-operations').waitFor({ state: 'visible' });
+    await page.locator('#player-query').fill('Builder.MineMine.ETH');
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    assert.equal(await page.evaluate(() => window.lastPlayerSearch), 'builder.minemine.eth');
     await page.getByRole('button', { name: 'Inspect w_' + 'a'.repeat(17) }).click();
     await page.getByText('builder.eth', { exact: true }).waitFor();
     assert.equal(await page.locator('#profile-wallet').textContent(), '0x' + '12'.repeat(20));

@@ -14,6 +14,7 @@ on:
       - 'test/integration/beta-player-ui.mjs'
       - 'test/integration/map-ui.mjs'
       - 'test/integration/town_probe/**'
+      - 'test/integration/map_edit_probe/**'
       - 'package.json'
       - 'scripts/setup-world.mjs'
       - 'scripts/sample-stack-memory.sh'
@@ -291,6 +292,7 @@ jobs:
         env:
           MAPSERVER_BINARY: ${{ github.workspace }}/runtime/mapserver-patched
           MAPSERVER_BURST_PROOF: 'true'
+          MAPSERVER_LIVE_EDIT_PROOF: 'true'
         run: bash scripts/ci-mapserver-smoke.sh
       - name: Render a bounded static map from a stopped-world copy
         run: bash scripts/ci-static-map-snapshot.sh
@@ -379,6 +381,10 @@ jobs:
             runtime/mapserver-index.html
             runtime/mapserver-blank.png
             runtime/mapserver-tile.png
+            runtime/mapserver-tile-before-edit.png
+            runtime/mapserver-tile-after-edit.png
+            runtime/mapserver-edit-native.log
+            runtime/mapserver-edit-native-console.log
             runtime/mapserver-world-restart.log
             runtime/mapserver-world-restart-console.log
             runtime/static-world-map.png

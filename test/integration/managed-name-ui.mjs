@@ -27,6 +27,10 @@ names.beginCheckout('builder', accountId, 'order-1');
 names.markPaid('builder', accountId, 'order-1', 'payment-1');
 const config = readConfig({ PUBLIC_ORIGIN: origin, PORT: String(port), CHAIN_ID: '31337', WORLD_DIR: worldDir });
 config.now = () => now;
+config.ensOwnership = { async verify(name, address) {
+  if (name !== 'other.eth' || address !== wallet.address) throw new Error('Unexpected ENS owner fixture.');
+  return { name, version: 'v1' };
+} };
 config.ensResolver = {
   async name() { return null; },
   async recipient(name) {
@@ -57,6 +61,10 @@ try {
   await page.locator('#connect').click();
   await page.getByText('Payment recorded; ENS activation is pending.', { exact: false }).waitFor();
   assert.equal(await page.locator('#player').textContent(), (await page.evaluate(async () => (await (await fetch('/api/session')).json()))).playerName);
+  await page.locator('#ens-name').fill('other.eth');
+  await page.locator('#ens-save').click();
+  await page.getByText('Payment recorded; ENS activation is pending.', { exact: false }).waitFor();
+  assert.equal(await page.locator('#managed-name').isVisible(), true, 'selecting an owned ENS alias keeps the paid-name term visible');
 
   await names.activateManagedName('builder', accountId, 'order-1', 'payment-1', async () => wallet.address);
   const expiresAt = names.lookup('builder').expires_at;

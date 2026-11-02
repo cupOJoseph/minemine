@@ -147,6 +147,7 @@ $('ens-form').addEventListener('submit', async event => {
   try {
     const identity = await api('identity/ens', { name: $('ens-name').value.trim() });
     session = identity;
+    await refreshIdentity();
     $('ens-name').value = identity.selectedEnsName;
     $('ens-status').textContent = `Verified ownership of ${identity.selectedEnsName} on Ethereum mainnet. Your stable character and towns stay the same.`;
     $('ens-status').classList.remove('error');

@@ -52,8 +52,15 @@ const focus = {
 };
 const sourceClaims = JSON.parse(readFileSync('runtime/static-map-world/town-map-claims.json', 'utf8'));
 if (sourceClaims.version !== 1 || Object.keys(sourceClaims).sort().join(',') !== 'claims,version') throw new Error('Unexpected town map export.');
-const townClaims = validateClaims(sourceClaims.claims);
-if (!townClaims.some(claim => claim.town === 'Probe Town')) throw new Error('Native paid town claim is missing from map export.');
+const allClaims = validateClaims(sourceClaims.claims);
+const probe = JSON.parse(readFileSync('runtime/static-map-world/town-probe-state.json', 'utf8'));
+const expectedX = Math.floor(probe.pos.x), expectedZ = Math.floor(probe.pos.z);
+if (allClaims.length !== 1 || allClaims[0].town !== 'Probe Town' ||
+    allClaims[0].x1 !== expectedX - 1 || allClaims[0].x2 !== expectedX + 1 ||
+    allClaims[0].z1 !== expectedZ - 1 || allClaims[0].z2 !== expectedZ + 1) throw new Error('Public claim projection differs from the native paid claim.');
+const townClaims = allClaims.filter(claim =>
+  claim.x1 < -512 + width && claim.x2 >= -512 && claim.z1 < -512 + height && claim.z2 >= -512);
+if (townClaims.length !== 1) throw new Error('Native paid claim is outside the mapped snapshot.');
 const metadata = {
   kind: 'snapshot',
   world: 'MineMine native CI test world',

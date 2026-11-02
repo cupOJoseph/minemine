@@ -1,7 +1,7 @@
 {
   "kind": "snapshot",
   "world": "MineMine native CI test world",
-  "generatedAt": "2026-11-02T03:42:41.764Z",
+  "generatedAt": "2026-11-02T04:13:01.339Z",
   "geometry": {
     "minX": -512,
     "minZ": -512,
@@ -9,11 +9,20 @@
     "height": 1024
   },
   "focus": {
-    "x": -232,
-    "z": 328,
+    "x": 88,
+    "z": 88,
     "span": 352
   },
+  "townClaims": [
+    {
+      "town": "Probe Town",
+      "x1": 63,
+      "x2": 65,
+      "z1": 63,
+      "z2": 65
+    }
+  ],
   "mapperCommit": "88c7381a20ada1992169522d590ebad36195507e",
-  "sha256": "d6f07d45a29ded1c0148a8f5c0c1f8a76a861d060fe5c1565928e63f5354e472",
-  "bytes": 38611
+  "sha256": "23e557f7103c12b50978d0d9cbc68885f0bc44067da18599760bdd04eb073885",
+  "bytes": 44739
 }

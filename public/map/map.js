@@ -142,7 +142,7 @@ try {
   const bounds = metadata.geometry;
   if (metadata.kind !== 'snapshot' || !Number.isInteger(bounds?.minX) || !Number.isInteger(bounds?.minZ) || bounds.width !== 1024 || bounds.height !== 1024 || !Number.isFinite(Date.parse(metadata.generatedAt))) throw new Error('Map metadata is invalid.');
   geometry = bounds;
-  claims = validateClaims(metadata.townClaims || []);
+  claims = validateClaims(metadata.townClaims);
   const townList = $('town-list');
   townList.replaceChildren();
   if (!claims.length) townList.textContent = 'No protected areas in this snapshot.';

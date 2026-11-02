@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { validateWasm } from './stage-playtest.mjs';
+import { validateClaims } from '../public/map/claims.mjs';
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)));
 const preflight = process.argv.includes('--preflight');
@@ -36,6 +37,10 @@ if (!preflight) {
   const mapSource = path.join(root, 'public/map');
   const mapImage = fs.readFileSync(path.join(mapSource, 'snapshot.png'));
   const mapMetadata = JSON.parse(fs.readFileSync(path.join(mapSource, 'snapshot.json'), 'utf8'));
+  if (Object.keys(mapMetadata).sort().join(',') !== 'bytes,focus,generatedAt,geometry,kind,mapperCommit,sha256,townClaims,world') throw new Error('World map metadata has unexpected fields.');
+  if (!mapMetadata.geometry || Object.keys(mapMetadata.geometry).sort().join(',') !== 'height,minX,minZ,width' ||
+      !mapMetadata.focus || Object.keys(mapMetadata.focus).sort().join(',') !== 'span,x,z') throw new Error('World map metadata has unexpected coordinates.');
+  validateClaims(mapMetadata.townClaims);
   if (mapMetadata.kind !== 'snapshot' || mapImage.length !== mapMetadata.bytes ||
       createHash('sha256').update(mapImage).digest('hex') !== mapMetadata.sha256 ||
       mapImage.subarray(0, 8).toString('base64') !== 'iVBORw0KGgo=' ||

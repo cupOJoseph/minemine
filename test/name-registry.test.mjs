@@ -69,6 +69,7 @@ test('only an unpaid matching checkout can be explicitly released', () => {
     assert.throws(() => registry.releaseCheckout('captain', 'smart:b', 'order-a'), { code: 'conflict' });
     assert.throws(() => registry.releaseCheckout('captain', 'smart:a', 'order-b'), { code: 'conflict' });
     assert.equal(registry.releaseCheckout('captain', 'smart:a', 'order-a'), true);
+    assert.deepEqual(registry.recentAudit().map(event => event.action), ['checkout_released', 'checkout_held']);
     assert.equal(registry.lookup('captain'), null);
     assert.equal(registry.beginCheckout('captain', 'smart:b', 'order-b').account_id, 'smart:b');
     assert.throws(() => registry.markPaid('captain', 'smart:a', 'order-a', 'payment-late'), { code: 'conflict' });

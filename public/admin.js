@@ -16,6 +16,9 @@ const betaCreate = document.getElementById('beta-create');
 const betaCreateStatus = document.getElementById('beta-create-status');
 const betaSecret = document.getElementById('beta-secret');
 const betaList = document.getElementById('beta-codes');
+const auditOperations = document.getElementById('audit-operations');
+const auditRows = document.getElementById('audit-rows');
+const auditStatus = document.getElementById('audit-status');
 let playerPage = 1;
 let playerRequest = 0;
 const number = (id, value) => { document.getElementById(id).textContent = String(value); };
@@ -42,6 +45,26 @@ function clear() {
   betaSecret.hidden = true;
   betaSecret.textContent = '';
   betaList.replaceChildren();
+  auditOperations.hidden = true;
+  auditRows.replaceChildren();
+  auditStatus.textContent = '';
+}
+
+async function refreshAudit() {
+  const response = await fetch('/api/admin/audit', { credentials: 'same-origin', cache: 'no-store', signal: AbortSignal.timeout(8000) });
+  if (!response.ok) throw new Error('Could not load recent activity.');
+  const { events } = await response.json();
+  auditRows.replaceChildren();
+  for (const event of events) {
+    const row = auditRows.insertRow();
+    for (const value of [dateLabel(event.at), `${event.source}: ${event.target}`, event.action.replaceAll('_', ' '), event.actor]) row.insertCell().textContent = value;
+  }
+  if (!events.length) {
+    const row = auditRows.insertRow();
+    row.insertCell().colSpan = 4;
+    row.cells[0].textContent = 'No username or invite activity yet.';
+  }
+  auditStatus.textContent = '';
 }
 
 async function betaPost(route, payload) {
@@ -77,6 +100,7 @@ async function refreshBetaCodes() {
           await betaPost('/api/admin/beta/codes/revoke', { id: code.id });
           betaCreateStatus.textContent = `Revoked code ${code.id.slice(0, 8)}.`;
           await refreshBetaCodes();
+          await refreshAudit();
         } catch (error) { betaCreateStatus.textContent = error.message; revoke.disabled = false; }
       });
       item.appendChild(revoke);
@@ -116,6 +140,7 @@ async function refreshReservations() {
         await nameRequest('/api/admin/names/release', reservation.handle);
         nameStatus.textContent = `Released ${reservation.handle}.`;
         await refreshReservations();
+        await refreshAudit();
       } catch (error) { nameStatus.textContent = error.message; release.disabled = false; }
     });
     item.append(label, release);
@@ -184,10 +209,12 @@ async function refresh(withPlayers = true) {
     status.textContent = stats.current.fresh ? 'Statistics are up to date.' : 'Historical joins are available; current presence is stale or the server is offline.';
     nameOperations.hidden = false;
     betaOperations.hidden = false;
+    auditOperations.hidden = false;
     if (withPlayers) {
       await refreshPlayers();
       await refreshReservations().catch(error => { nameStatus.textContent = error.message; });
       await refreshBetaCodes().catch(error => { betaCreateStatus.textContent = error.message; });
+      await refreshAudit().catch(error => { auditStatus.textContent = error.message; });
     }
   } catch (error) {
     status.classList.add('error');
@@ -209,6 +236,7 @@ nameForm.addEventListener('submit', async event => {
     nameStatus.textContent = `Reserved ${result.handle}.minemine.eth until ${dateLabel(result.expiresAt)}.`;
     nameForm.reset();
     await refreshReservations();
+    await refreshAudit();
   } catch (error) { nameStatus.textContent = error.message; }
   finally { button.disabled = false; }
 });
@@ -229,6 +257,7 @@ betaCreate.addEventListener('submit', async event => {
     betaSecret.hidden = false;
     betaCreateStatus.textContent = `Code created. Expires ${dateLabel(result.expiresAt)}. Copy it now; it will not appear in the list.`;
     await refreshBetaCodes();
+    await refreshAudit();
   } catch (error) { betaCreateStatus.textContent = error.message; }
   finally { button.disabled = false; }
 });

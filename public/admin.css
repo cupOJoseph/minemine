@@ -26,7 +26,7 @@ td:first-child{font-family:ui-monospace,SFMono-Regular,monospace;color:#d7f7b6}
 .name-list button:disabled,#name-reservation button:disabled{opacity:.5;cursor:wait}
 @media(max-width:520px){.name-list li{align-items:flex-start;flex-direction:column}}
 
-#beta-operations[hidden],#beta-secret[hidden]{display:none}
+#beta-operations[hidden],#beta-secret[hidden],#audit-operations[hidden]{display:none}
 .beta-tools{display:grid;grid-template-columns:110px 150px minmax(220px,1fr) auto;align-items:end;gap:12px;padding:22px 24px}
 .beta-tools label{display:flex;flex-direction:column;gap:7px;color:#b0cbb1;font-size:.82rem;font-weight:700}
 .beta-tools input{min-width:0;width:100%;border:1px solid #4d674e;border-radius:3px;background:#0a1510;color:#ecf8e8;padding:11px 12px;font:inherit}

@@ -174,6 +174,13 @@ export function createApp(config) {
           if (req.method === 'GET' && url.pathname === '/api/admin/beta/codes') {
             return json(res, 200, { codes: betaCodes.list().map(row => ({ id: row.id, createdAt: new Date(row.created_at).toISOString(), expiresAt: new Date(row.expires_at).toISOString(), maxUses: row.max_uses, uses: row.uses, intendedAccount: row.intended_account, revokedAt: row.revoked_at === null ? null : new Date(row.revoked_at).toISOString() })) });
           }
+          if (req.method === 'GET' && url.pathname === '/api/admin/audit') {
+            const events = [
+              ...names.recentAudit().map(row => ({ source: 'username', target: row.handle, action: row.action, actor: row.actor, at: row.at, id: row.id })),
+              ...betaCodes.recentAudit().map(row => ({ source: 'beta code', target: row.code_id, action: row.action, actor: row.actor, at: row.at, id: row.id })),
+            ].sort((a, b) => b.at - a.at || b.id - a.id || a.source.localeCompare(b.source)).slice(0, 50);
+            return json(res, 200, { events: events.map(({ id, ...event }) => ({ ...event, at: new Date(event.at).toISOString() })) });
+          }
           if (req.method === 'POST' && ['/api/admin/beta/codes/create', '/api/admin/beta/codes/revoke'].includes(url.pathname)) {
             if (!adminWriteFresh(session)) throw new AuthError('Sign in with your admin wallet again before changing beta codes.', 403);
             const data = await body(req);

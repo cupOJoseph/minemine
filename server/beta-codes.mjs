@@ -90,6 +90,9 @@ export function createBetaCodes(worldDir, now = Date.now) {
     list() {
       return db.prepare('SELECT id, created_at, expires_at, max_uses, uses, intended_account, revoked_at FROM beta_codes ORDER BY created_at DESC, id DESC LIMIT 100').all();
     },
+    recentAudit(limit = 50) {
+      return db.prepare('SELECT id, code_id, action, actor, at FROM beta_audit ORDER BY at DESC, id DESC LIMIT ?').all(limit);
+    },
     revoke(id, actor) {
       account(actor);
       if (typeof id !== 'string' || !/^[0-9a-f]{24}$/.test(id)) throw new BetaCodeError('Invalid beta code ID.', 'invalid_input');

@@ -25,10 +25,11 @@ test('beta code is shown once, stored hashed, redeemed atomically and durable', 
     assert.equal(first.redeem(created.code, alice).alreadyAdmitted, true);
     assert.equal(first.isAdmitted(alice), true);
     assert.equal(first.list()[0].uses, 1);
+    assert.deepEqual(first.recentAudit().map(event => event.action), ['redeemed', 'created']);
     assert.throws(() => first.redeem(created.code, bob), { code: 'invalid_code' });
     first.close();
     const reopened = createBetaCodes(dir, () => clock);
-    try { assert.equal(reopened.isAdmitted(alice), true); }
+    try { assert.equal(reopened.isAdmitted(alice), true); assert.equal(reopened.recentAudit()[0].actor, alice); }
     finally { reopened.close(); }
   } finally {
     second.close();

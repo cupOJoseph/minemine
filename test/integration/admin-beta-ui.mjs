@@ -16,32 +16,38 @@ try {
     await page.evaluate(() => {
       let reservations = [];
       let codes = [];
+      let events = [];
       window.fetch = async (input, options = {}) => {
         const pathname = String(input).split('?')[0];
         let result;
         let status = 200;
         if (pathname === '/api/admin/stats') result = { current: { count: 0, fresh: false, playerNames: [] }, active: { daily: 2, weekly: 3, monthly: 4 }, periods: { dayStart: '2026-11-01T00:00:00Z', weekStart: '2026-10-26T00:00:00Z', monthStart: '2026-11-01T00:00:00Z' } };
         else if (pathname === '/api/admin/players') result = { players: [], total: 0, page: 1, pageSize: 25 };
+        else if (pathname === '/api/admin/audit') result = { events };
         else if (pathname === '/api/admin/names' && !options.method) result = { reservations };
         else if (pathname === '/api/admin/names/reserve') {
           const { handle } = JSON.parse(options.body);
           reservations.push({ handle: handle.toLowerCase(), expiresAt: '2026-11-08T00:00:00Z' });
+          events = [{ source: 'username', target: handle.toLowerCase(), action: 'admin_reserved', actor: '0xadmin', at: '2026-11-01T12:00:00Z' }, ...events];
           result = reservations.at(-1);
           status = 201;
         } else if (pathname === '/api/admin/names/release') {
           const { handle } = JSON.parse(options.body);
           reservations = reservations.filter(item => item.handle !== handle);
+          events = [{ source: 'username', target: handle, action: 'admin_released', actor: '0xadmin', at: '2026-11-01T12:01:00Z' }, ...events];
           result = { released: true };
         } else if (pathname === '/api/admin/beta/codes' && !options.method) result = { codes };
         else if (pathname === '/api/admin/beta/codes/create') {
           const payload = JSON.parse(options.body);
           const id = 'a'.repeat(24);
           codes.push({ id, uses: 0, maxUses: payload.maxUses, intendedAccount: payload.intendedAccount, expiresAt: '2026-11-15T00:00:00Z', revokedAt: null });
+          events = [{ source: 'beta code', target: id, action: 'created', actor: '0xadmin', at: '2026-11-01T12:00:30Z' }, ...events];
           result = { id, code: 'MM-' + 'A'.repeat(32), expiresAt: '2026-11-15T00:00:00Z' };
           status = 201;
         } else if (pathname === '/api/admin/beta/codes/revoke') {
           const { id } = JSON.parse(options.body);
           codes = codes.map(item => item.id === id ? { ...item, revokedAt: '2026-11-01T12:00:00Z' } : item);
+          events = [{ source: 'beta code', target: id, action: 'revoked', actor: '0xadmin', at: '2026-11-01T12:02:00Z' }, ...events];
           result = { revoked: true };
         } else { result = { error: 'Unexpected browser-test request.' }; status = 404; }
         return { ok: status >= 200 && status < 300, status, json: async () => result };
@@ -56,14 +62,18 @@ try {
     await page.getByRole('button', { name: 'Create invite' }).click();
     await page.locator('#beta-secret').waitFor({ state: 'visible' });
     assert.equal(await page.locator('#beta-secret').textContent(), 'MM-' + 'A'.repeat(32));
+    await page.locator('#audit-rows').getByText('beta code: aaaaaaaa', { exact: false }).waitFor();
+    assert.equal((await page.locator('#audit-rows').textContent()).includes('MM-' + 'A'.repeat(32)), false);
     await page.screenshot({ path: `runtime/admin-beta-${viewport.label}.png`, fullPage: true });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${viewport.label} has horizontal overflow`);
     await page.getByRole('button', { name: 'Release demouser' }).click();
     await page.locator('#name-reservations').getByText('No active administrative holds.').waitFor();
     await page.getByRole('button', { name: 'Revoke beta code aaaaaaaa' }).click();
     await page.locator('#beta-codes').getByText('revoked', { exact: false }).waitFor();
+    await page.locator('#audit-rows').getByText('admin released').waitFor();
+    await page.locator('#audit-rows').getByText('revoked').waitFor();
     assert.deepEqual(errors, [], `${viewport.label} page errors`);
     await page.close();
   }
-  console.log('PASS desktop/mobile admin name and beta-code controls, no page errors or horizontal overflow.');
+  console.log('PASS desktop/mobile admin name, beta-code and audit controls, no page errors or horizontal overflow.');
 } finally { await browser.close(); }

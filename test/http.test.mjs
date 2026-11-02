@@ -193,8 +193,10 @@ test('admin name reservations require an allowlisted fresh signature and prevent
     return verified.headers.getSetCookie()[0].split(';')[0];
   };
   assert.equal((await request('/api/admin/names')).status, 401);
+  assert.equal((await request('/api/admin/audit')).status, 401);
   const outsiderCookie = await login(outsider);
   assert.equal((await request('/api/admin/names/reserve', { handle: 'alice' }, outsiderCookie)).status, 403);
+  assert.equal((await request('/api/admin/audit', undefined, outsiderCookie)).status, 403);
   const adminCookie = await login(admin);
   assert.equal((await request('/api/admin/names/reserve', { handle: 'admin' }, adminCookie)).status, 400);
   const reserved = await request('/api/admin/names/reserve', { handle: 'Alice' }, adminCookie);
@@ -208,6 +210,11 @@ test('admin name reservations require an allowlisted fresh signature and prevent
   const freshCookie = await login(admin);
   assert.equal((await request('/api/admin/names/release', { handle: 'alice' }, freshCookie)).status, 200);
   assert.equal((await (await request('/api/admin/names', undefined, freshCookie)).json()).reservations.length, 0);
+  const audit = await (await request('/api/admin/audit', undefined, freshCookie)).json();
+  assert.deepEqual(audit.events.map(event => event.action), ['admin_released', 'admin_reserved']);
+  assert.equal(audit.events[0].target, 'alice');
+  assert.equal(audit.events[0].source, 'username');
+  assert.equal(audit.events[0].actor, admin.address);
 });
 
 test('beta invitations are hashed, wallet bound, and gate shared-world tickets', async t => {
@@ -244,6 +251,11 @@ test('beta invitations are hashed, wallet bound, and gate shared-world tickets',
   assert.equal((await request('/api/game/ticket', {}, playerCookie)).status, 503, 'admitted player reaches the normal engine readiness check');
   assert.equal((await request('/api/beta/redeem', { code }, otherCookie)).status, 400);
   assert.equal((await request('/api/admin/beta/codes/revoke', { id }, adminCookie)).status, 200);
+  const audit = await (await request('/api/admin/audit', undefined, adminCookie)).json();
+  assert.deepEqual(audit.events.map(event => event.action), ['revoked', 'redeemed', 'created']);
+  assert.deepEqual(audit.events.map(event => event.target), [id, id, id]);
+  assert.equal(audit.events[1].actor, player.address.toLowerCase());
+  assert.equal(JSON.stringify(audit).includes(code), false, 'audit never exposes the beta secret');
   assert.equal((await request('/api/game/ticket', {}, playerCookie)).status, 503, 'revoking a code does not erase an existing admission');
   now += 5 * 60_000;
   assert.equal((await request('/api/admin/beta/codes/create', {}, adminCookie)).status, 403);

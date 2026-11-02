@@ -112,6 +112,9 @@ export function createNameRegistry(worldDir, now = Date.now) {
     adminReservations() {
       return db.prepare("SELECT handle, intended_account_id, expires_at FROM names WHERE state = 'admin_reserved' AND expires_at > ? ORDER BY updated_at DESC LIMIT 100").all(now());
     },
+    recentAudit(limit = 50) {
+      return db.prepare('SELECT id, handle, action, actor, at FROM name_audit ORDER BY at DESC, id DESC LIMIT ?').all(limit);
+    },
     reserveAdmin(input, actor, intendedAccountId, expiresAt) {
       const handle = normalizeHandle(input);
       identifier(actor, 'admin actor');

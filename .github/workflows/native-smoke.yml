@@ -78,6 +78,7 @@ jobs:
           fi
           grep -Fq 'Mod "wallet_auth" loaded' runtime/native-console.log
           grep -Fq 'Mod "town_claims" loaded' runtime/native-console.log
+          grep -Fq 'Mod "world_map_spawn" loaded' runtime/native-console.log
           grep -Fq 'listening on 127.0.0.1:30000' runtime/native-console.log
           if grep -Fq 'ERROR[Main]' runtime/native-console.log; then
             echo 'Native server logged an error while starting the world.'
@@ -154,6 +155,7 @@ jobs:
           grep -Fq 'listening on 127.0.0.1:30000' runtime/host-bundle-check-console.log
           grep -Fq 'Mod "wallet_auth" loaded' runtime/host-bundle-check-console.log
           grep -Fq 'Mod "town_claims" loaded' runtime/host-bundle-check-console.log
+          grep -Fq 'Mod "world_map_spawn" loaded' runtime/host-bundle-check-console.log
       - name: Two browser wallets join native world
         run: |
           set -euo pipefail

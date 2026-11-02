@@ -63,7 +63,7 @@ Create the test world and install the auth and town mods:
 node scripts/setup-world.mjs
 ```
 
-Run the resulting server binary using `game/minetest.conf`, the configured `WORLD_DIR`, and game ID `minetest`. Native executable naming varies by engine version; confirm the name from that build. The config binds UDP to loopback and disables server-list advertising. Keep it private until the restricted proxy is working. For an existing world, back up the world and install/enable `town_claims` manually; the setup script refuses to overwrite an existing `world.mt`.
+Run the resulting server binary using `game/minetest.conf`, the configured `WORLD_DIR`, and game ID `minetest`. Native executable naming varies by engine version; confirm the name from that build. The config binds UDP to loopback and disables server-list advertising. Keep it private until the restricted proxy is working. For an existing world, back up the world and install/enable `town_claims` and `world_map_spawn` manually; the setup script refuses to overwrite an existing `world.mt`. The spawn projection appears only after a new player joins with the game's default spawn, so a map from an older world can omit it.
 
 The Node service and Luanti must run as the same dedicated OS user (or use carefully scoped directory permissions) so Lua can read grant, balance-snapshot, and quota files with mode 0600. `WORLD_DIR/wallet_grants`, `WORLD_DIR/wallet_balances`, and `WORLD_DIR/town_quotas` must never be static web directories. Keep mod security enabled; the mods read only their world directory and need no insecure environment or outbound HTTP permissions.
 

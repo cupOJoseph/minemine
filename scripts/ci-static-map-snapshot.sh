@@ -28,6 +28,7 @@ node --input-type=module <<'EOF'
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { validateClaims } from './public/map/claims.mjs';
+import { validateSpawn } from './public/map/spawn.mjs';
 const image = readFileSync('runtime/static-world-map.png');
 if (image.subarray(0, 8).toString('base64') !== 'iVBORw0KGgo=') throw new Error('Static map is not a PNG.');
 const width = image.readUInt32BE(16), height = image.readUInt32BE(20);
@@ -57,6 +58,9 @@ if (allClaims.length !== 2 || !paid ||
 const townClaims = allClaims.filter(claim =>
   claim.x1 < -512 + width && claim.x2 >= -512 && claim.z1 < -512 + height && claim.z2 >= -512);
 if (townClaims.length !== 2) throw new Error('Native paid claims are outside the mapped snapshot.');
+const sourceSpawn = JSON.parse(readFileSync('runtime/static-map-world/world-map-spawn.json', 'utf8'));
+if (sourceSpawn.version !== 1 || Object.keys(sourceSpawn).sort().join(',') !== 'version,x,z') throw new Error('Unexpected native spawn projection.');
+const spawn = validateSpawn({ x: sourceSpawn.x, z: sourceSpawn.z });
 const metadata = {
   kind: 'snapshot',
   world: 'MineMine native CI test world',
@@ -64,6 +68,7 @@ const metadata = {
   geometry: { minX: -512, minZ: -512, width, height },
   focus,
   townClaims,
+  spawn,
   mapperCommit: '88c7381a20ada1992169522d590ebad36195507e',
   sha256: createHash('sha256').update(image).digest('hex'),
   bytes: image.length,

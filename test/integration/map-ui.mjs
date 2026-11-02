@@ -67,7 +67,7 @@ try {
     ? metadata.townClaims : [...metadata.townClaims, negativeClaim];
   await page.route('**/map/snapshot.json', route => route.fulfill({
     contentType: 'application/json', body: JSON.stringify({
-      ...metadata, image: versionedImage, townClaims: claims,
+      ...metadata, image: versionedImage, townClaims: claims, spawn: { x: 17, z: -19 },
     }),
   }));
   await page.route(`**/map/${versionedImage}`, route => route.fulfill({
@@ -83,8 +83,11 @@ try {
   assert.equal(await page.locator('#center-coordinates').textContent(),
     metadata.townClaims.some(claim => claim.town === 'West Hollow') ? 'X -64, Z -64' : 'X -29, Z -29');
   assert.equal(await page.locator('#pointer-town').textContent(), 'West Hollow');
+  assert.equal(await page.locator('#spawn-location').textContent(), 'X 17, Z -19');
+  await page.locator('#locate-spawn').click();
+  assert.equal(await page.locator('#center-coordinates').textContent(), 'X 17, Z -19');
   assert.deepEqual(pageErrors, []);
-  console.log('PASS static world-map desktop/mobile rendering, real town overlay, negative claim location, pan, zoom, coordinates, keyboard controls and no page errors.');
+  console.log('PASS static world-map desktop/mobile rendering, real town overlay, negative claim and spawn location, pan, zoom, coordinates, keyboard controls and no page errors.');
 } finally {
   await browser?.close();
   if (app.listening) await new Promise(resolve => app.close(resolve));

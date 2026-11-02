@@ -1,12 +1,13 @@
 import { pixelAtWorld, worldAtPixel, zoomAround } from './coordinates.mjs';
 import { validateClaims } from './claims.mjs';
+import { validateSpawn } from './spawn.mjs';
 
 const $ = id => document.getElementById(id);
 const viewport = $('map-viewport');
 const canvas = $('map-canvas');
 const context = canvas.getContext('2d');
 const image = new Image();
-let geometry, focusPoint, view, dragging = null, claims = [];
+let geometry, focusPoint, view, dragging = null, claims = [], spawn = null;
 let width = 1, height = 1;
 const minScale = 0.25, maxScale = 16;
 
@@ -45,6 +46,20 @@ function draw() {
       context.fillText(claim.town, x + 4, y - 5);
     }
   }
+  if (spawn) {
+    const point = pixelAtWorld(geometry, spawn.x, spawn.z);
+    const x = view.x + (point.x + .5) * view.scale;
+    const y = view.y + (point.y + .5) * view.scale;
+    context.beginPath();
+    context.arc(x, y, 8, 0, Math.PI * 2);
+    context.fillStyle = '#17251b';
+    context.fill();
+    context.strokeStyle = '#ffcc77';
+    context.lineWidth = 3;
+    context.stroke();
+    context.fillStyle = '#ffcc77';
+    context.fillRect(x - 2, y - 2, 4, 4);
+  }
   context.strokeStyle = '#d4f18a';
   context.lineWidth = 1;
   context.strokeRect(view.x - .5, view.y - .5, geometry.width * view.scale + 1, geometry.height * view.scale + 1);
@@ -73,6 +88,14 @@ function locateClaim(claim) {
   draw();
   viewport.focus();
 }
+function locateSpawn() {
+  if (!spawn) return;
+  const pixel = pixelAtWorld(geometry, spawn.x, spawn.z);
+  const scale = Math.min(maxScale, Math.max(minScale, Math.min(width, height) / 128));
+  view = { scale, x: width / 2 - (pixel.x + .5) * scale, y: height / 2 - (pixel.y + .5) * scale };
+  draw();
+  viewport.focus();
+}
 function zoom(factor, x = width / 2, y = height / 2) {
   if (!view) return;
   view = zoomAround(view, factor, x, y, minScale, maxScale);
@@ -81,6 +104,7 @@ function zoom(factor, x = width / 2, y = height / 2) {
 $('zoom-in').addEventListener('click', () => zoom(1.5));
 $('zoom-out').addEventListener('click', () => zoom(1 / 1.5));
 $('reset-view').addEventListener('click', fit);
+$('locate-spawn').addEventListener('click', locateSpawn);
 viewport.addEventListener('wheel', event => {
   if (!view) return;
   event.preventDefault();
@@ -148,6 +172,16 @@ try {
   }
   geometry = bounds;
   claims = validateClaims(metadata.townClaims);
+  const recordedSpawn = validateSpawn(metadata.spawn);
+  if (recordedSpawn) {
+    const inside = recordedSpawn.x >= bounds.minX && recordedSpawn.x < bounds.minX + bounds.width &&
+      recordedSpawn.z >= bounds.minZ && recordedSpawn.z < bounds.minZ + bounds.height;
+    $('spawn-location').textContent = `X ${recordedSpawn.x}, Z ${recordedSpawn.z}${inside ? '' : ' (outside mapped area)'}`;
+    if (inside) {
+      spawn = recordedSpawn;
+      $('locate-spawn').hidden = false;
+    }
+  }
   const townList = $('town-list');
   townList.replaceChildren();
   if (!claims.length) townList.textContent = 'No protected areas in this snapshot.';

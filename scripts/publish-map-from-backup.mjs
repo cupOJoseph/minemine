@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { validateClaims } from '../public/map/claims.mjs';
+import { validateSpawn } from '../public/map/spawn.mjs';
 
 const execFile = promisify(execFileCallback);
 const [archiveInput, mapDirInput, mapperInput, colorsInput] = process.argv.slice(2);
@@ -53,6 +54,18 @@ try {
   if (sourceClaims.version !== 1 || Object.keys(sourceClaims).sort().join(',') !== 'claims,version') throw new Error('Unexpected town map export.');
   const claims = validateClaims(sourceClaims.claims).filter(claim =>
     claim.x1 < 512 && claim.x2 >= -512 && claim.z1 < 512 && claim.z2 >= -512);
+  let spawn;
+  try {
+    const raw = await readFile(path.join(world, 'world-map-spawn.json'), 'utf8');
+    if (raw.length > 256) throw new Error('World spawn projection is too large.');
+    const source = JSON.parse(raw);
+    if (source.version !== 1 || Object.keys(source).sort().join(',') !== 'version,x,z') {
+      throw new Error('Unexpected world spawn projection.');
+    }
+    spawn = validateSpawn({ x: source.x, z: source.z });
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
   const rendered = path.join(scratch, 'rendered.png');
   await execFile(mapper, [
     '--backend', 'sqlite3', '--colors', colors, '--geometry=-512:-512+1024+1024',
@@ -101,6 +114,7 @@ try {
     townClaims: claims, mapperCommit: '88c7381a20ada1992169522d590ebad36195507e',
     sha256: hash, bytes: image.length, image: imageName,
   };
+  if (spawn) metadata.spawn = spawn;
   const temporary = path.join(mapDir, `snapshot.json.${process.pid}.tmp`);
   try {
     await writeFile(temporary, JSON.stringify(metadata, null, 2) + '\n', { mode: 0o644, flag: 'wx' });

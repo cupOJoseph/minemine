@@ -1,6 +1,6 @@
 # Paid MineMine names and collision policy
 
-Research checked 2026-11-01. Product intent: a player using the conventional email/passkey and credit-card signup path pays **$2 USD to reserve `username.minemine.eth`**. The project owner reports owning `minemine.eth` and chose a **MineMine-managed ENS subname** pointing to the player's ZeroDev wallet. Whether the account itself has a separate price is not yet specified. An existing-wallet player can instead sign in with a wallet and choose an ENS name they currently own. No paid checkout, name registry or ENS subname issuance is live yet.
+Research checked 2026-11-01. Product intent: a player using the conventional email/passkey and credit-card signup path pays **$2 USD to reserve `username.minemine.eth`**. The project owner reports owning `minemine.eth` and chose a **MineMine-managed ENS subname** pointing to the player's ZeroDev wallet. Whether the account itself has a separate price is not yet specified. An existing-wallet player can instead sign in with a wallet and choose an ENS name they currently own. The local name registry foundation is implemented; no paid checkout or ENS subname issuance is live yet.
 
 ## The one-name rule
 

@@ -21,6 +21,7 @@ on:
       - 'scripts/ci-deploy-economy.mjs'
       - 'scripts/package-host-runtime.sh'
       - 'scripts/ci-mapserver-smoke.sh'
+      - 'scripts/ci-static-map-snapshot.sh'
       - 'upstream.sources.json'
 permissions:
   contents: read
@@ -48,7 +49,7 @@ jobs:
       - name: Install dependencies from the pinned Luanti Linux guide
         run: |
           sudo apt-get update
-          sudo apt-get install -y g++ make cmake ninja-build sqlite3 libpng-dev libjpeg-dev libgl1-mesa-dev libsqlite3-dev libogg-dev libvorbis-dev libopenal-dev libcurl4-gnutls-dev libfreetype6-dev zlib1g-dev libgmp-dev libjsoncpp-dev libzstd-dev libluajit-5.1-dev gettext libsdl2-dev
+          sudo apt-get install -y g++ make cmake ninja-build sqlite3 libpng-dev libjpeg-dev libgd-dev libgl1-mesa-dev libsqlite3-dev libogg-dev libvorbis-dev libopenal-dev libcurl4-gnutls-dev libfreetype6-dev zlib1g-dev libgmp-dev libjsoncpp-dev libzstd-dev libluajit-5.1-dev gettext libsdl2-dev
       - name: Fetch pinned engine and game
         run: node scripts/fetch-upstream.mjs
       - name: Build native server
@@ -265,6 +266,8 @@ jobs:
           done | tee runtime/server-memory-summary.txt
       - name: Test upstream web mapper on a copied world
         run: bash scripts/ci-mapserver-smoke.sh
+      - name: Render a bounded static map from a stopped-world copy
+        run: bash scripts/ci-static-map-snapshot.sh
       - name: Retain native startup diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -331,6 +334,9 @@ jobs:
             runtime/mapserver-tile.png
             runtime/mapserver-world-restart.log
             runtime/mapserver-world-restart-console.log
+            runtime/static-world-map.png
+            runtime/static-world-map.json
+            runtime/static-map-render.log
           if-no-files-found: ignore
       - name: Publish tested host runtime archive
         if: success()

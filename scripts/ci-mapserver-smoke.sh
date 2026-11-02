@@ -60,7 +60,7 @@ cleanup() {
 }
 trap cleanup EXIT
 if [ "${MAPSERVER_CAPACITY_PROOF:-false}" = true ]; then
-  PUBLIC_ORIGIN=http://localhost:18082 HOST=127.0.0.1 PORT=18082 \
+  PUBLIC_ORIGIN=http://127.0.0.1:18082 HOST=127.0.0.1 PORT=18082 \
     WORLD_DIR="$GITHUB_WORKSPACE/runtime/mapserver-world" \
     GAME_ENABLED=true ENGINE_ADAPTER_READY=true \
     "${NODE_BINARY:-node}" server/index.mjs > runtime/mapserver-api-console.log 2>&1 &

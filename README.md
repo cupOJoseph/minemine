@@ -14,9 +14,10 @@ MineMine is a browser-first voxel crafting MMO project built on Luanti (formerly
 | In-game MINE balance | Wallet-panel refresh makes a fresh authenticated chain read; `/wallet balance` displays its short-lived private snapshot with chain and block. This observed balance cannot be spent as town credit. The native command passed CI with a synthetic snapshot; live testnet QA remains. |
 | Wallet transfers | Browser transaction UI sent 5 MINE on local Anvil through an injected EIP-1193 provider; real extension-wallet and Sepolia QA remain |
 | Town protection | Two wallets bought nine local-chain columns each, synced private quotas, and the owner's paid claim passed native browser owner/outsider/member protection, removal, reconnect, and restart checks. Sepolia finality and public-host QA remain |
+| World map | `/map/` shows an explicitly dated, bounded snapshot of the native CI test world with pan, zoom and X/Z coordinates. The pinned minetestmapper export and desktop/mobile Chromium interactions passed in CI. It is not a live map; public-host export scheduling, town overlays and player visibility policy remain. |
 | SpacetimeDB | [Migration plan](docs/SPACETIMEDB.md) for the next scaling phase; not yet integrated |
 
-The landing page distinguishes playable features from planned ones and uses two actual playtest captures plus an attributed Minetest Game screenshot. The large Play Now link starts solo mode without a wallet.
+The landing page distinguishes playable features from planned ones and uses two actual playtest captures plus an attributed Minetest Game screenshot. Its World map link opens the clearly labeled test-world snapshot. The large Play Now link starts solo mode without a wallet.
 
 ## Run locally
 
@@ -37,13 +38,13 @@ Wallet login requests a message signature, not a transaction. MINE sends and tow
 
 ## Build and publish the browser playtest
 
-The pinned WASM wrapper, engine and Minetest Game sources are in [upstream.sources.json](upstream.sources.json). `bash scripts/build-wasm.sh` builds the engine on the documented Linux toolchain and stages it in ignored `public/engine/`. A successful build artifact can be supplied to the manual Pages workflow. The Pages package now puts this landing page at the root and the solo game at `/play/`; `scripts/prepare-pages-playtest.mjs` verifies engine hashes and prepares that layout. GitHub Pages is static and does not run wallet auth or the multiplayer game server.
+The pinned WASM wrapper, engine and Minetest Game sources are in [upstream.sources.json](upstream.sources.json). `bash scripts/build-wasm.sh` builds the engine on the documented Linux toolchain and stages it in ignored `public/engine/`. A successful build artifact can be supplied to the manual Pages workflow. The Pages package now puts this landing page at the root and the solo game at `/play/`; `scripts/prepare-pages-playtest.mjs` verifies engine and map snapshot hashes and prepares that layout. GitHub Pages is static and does not run wallet auth or the multiplayer game server.
 
 Do not enable `GAME_ENABLED` or `ENGINE_ADAPTER_READY` until the native server, wallet grants, proxy and adapter pass a remote two-player smoke test. The current in-page shared-world button remains disabled.
 
 ## Repository map
 
-- `public/` — MineMine landing page, real gameplay captures, browser-wallet UI.
+- `public/` — MineMine landing page, real gameplay captures, browser-wallet UI and bounded snapshot map.
 - `playtest/` — actual Luanti solo launcher and browser hosting files.
 - `server/` — SIWE sessions, ENS resolution, on-chain reads, private quota sync and join grants.
 - `contracts/` — fixed-supply MINE and testnet town land-credit payment contract.

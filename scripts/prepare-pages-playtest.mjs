@@ -33,7 +33,15 @@ if (!preflight) {
   fs.writeFileSync(path.join(play, 'build.json'), JSON.stringify(build, null, 2) + '\n');
   for (const file of ['index.html', 'style.css', 'app.js', 'transfer.mjs', 'wallet-providers.mjs']) fs.copyFileSync(path.join(root, 'public', file), path.join(target, file));
   fs.cpSync(path.join(root, 'public/screenshots'), path.join(target, 'screenshots'), { recursive: true });
-  fs.cpSync(path.join(root, 'public/map'), path.join(target, 'map'), { recursive: true });
+  const mapSource = path.join(root, 'public/map');
+  const mapImage = fs.readFileSync(path.join(mapSource, 'snapshot.png'));
+  const mapMetadata = JSON.parse(fs.readFileSync(path.join(mapSource, 'snapshot.json'), 'utf8'));
+  if (mapMetadata.kind !== 'snapshot' || mapImage.length !== mapMetadata.bytes ||
+      createHash('sha256').update(mapImage).digest('hex') !== mapMetadata.sha256 ||
+      mapImage.subarray(0, 8).toString('base64') !== 'iVBORw0KGgo=' ||
+      mapImage.readUInt32BE(16) !== mapMetadata.geometry?.width ||
+      mapImage.readUInt32BE(20) !== mapMetadata.geometry?.height) throw new Error('World map snapshot and metadata differ.');
+  fs.cpSync(mapSource, path.join(target, 'map'), { recursive: true });
 }
 for (const file of fs.readdirSync(hosting)) fs.copyFileSync(path.join(hosting, file), path.join(preflight ? target : path.join(target, 'play'), file));
 if (preflight) {

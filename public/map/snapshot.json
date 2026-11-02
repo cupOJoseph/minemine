@@ -1,0 +1,19 @@
+{
+  "kind": "snapshot",
+  "world": "MineMine native CI test world",
+  "generatedAt": "2026-11-02T03:42:41.764Z",
+  "geometry": {
+    "minX": -512,
+    "minZ": -512,
+    "width": 1024,
+    "height": 1024
+  },
+  "focus": {
+    "x": -232,
+    "z": 328,
+    "span": 352
+  },
+  "mapperCommit": "88c7381a20ada1992169522d590ebad36195507e",
+  "sha256": "d6f07d45a29ded1c0148a8f5c0c1f8a76a861d060fe5c1565928e63f5354e472",
+  "bytes": 38611
+}

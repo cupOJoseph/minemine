@@ -24,6 +24,8 @@ on:
       - 'scripts/build-minetestmapper.sh'
       - 'scripts/publish-map-from-backup.mjs'
       - 'scripts/ci-mapserver-smoke.sh'
+      - 'scripts/ci-build-patched-mapserver.sh'
+      - 'patches/mapserver/**'
       - 'scripts/ci-static-map-snapshot.sh'
       - 'public/map/**'
       - 'deploy/vps/**'
@@ -279,7 +281,16 @@ jobs:
           for sample in runtime/server-memory-first.csv runtime/server-memory-restart.csv; do
             awk -F, 'NR > 1 { if ($4 > peak) peak = $4; count++ } END { if (!count) exit 1; printf "%s: %d samples, peak Luanti + Node RSS %.1f MiB\n", FILENAME, count, peak / 1024 }' "$sample"
           done | tee runtime/server-memory-summary.txt
-      - name: Test upstream web mapper on a copied world
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.12'
+          cache: false
+      - name: Build and test pinned mapserver cursor patch
+        run: bash scripts/ci-build-patched-mapserver.sh
+      - name: Test patched web mapper on a copied world
+        env:
+          MAPSERVER_BINARY: ${{ github.workspace }}/runtime/mapserver-patched
+          MAPSERVER_BURST_PROOF: 'true'
         run: bash scripts/ci-mapserver-smoke.sh
       - name: Render a bounded static map from a stopped-world copy
         run: bash scripts/ci-static-map-snapshot.sh

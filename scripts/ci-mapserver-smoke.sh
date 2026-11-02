@@ -7,11 +7,16 @@ release=4.11.0
 archive="mapserver_${release}_linux_amd64.tar.gz"
 expected=21ab70f77ce830e16e254c0a20cba46422ca254c46cdbe554a16141d93d9f869
 mkdir -p runtime/mapserver-download
-curl --fail --location --silent --show-error --retry 3 \
-  "https://github.com/minetest-mapserver/mapserver/releases/download/v${release}/${archive}" \
-  -o "runtime/mapserver-download/${archive}"
-printf '%s  %s\n' "$expected" "runtime/mapserver-download/${archive}" | sha256sum --check
-tar -C runtime/mapserver-download -xzf "runtime/mapserver-download/${archive}"
+if [ -n "${MAPSERVER_BINARY:-}" ]; then
+  test -x "$MAPSERVER_BINARY"
+  cp "$MAPSERVER_BINARY" runtime/mapserver-download/mapserver
+else
+  curl --fail --location --silent --show-error --retry 3 \
+    "https://github.com/minetest-mapserver/mapserver/releases/download/v${release}/${archive}" \
+    -o "runtime/mapserver-download/${archive}"
+  printf '%s  %s\n' "$expected" "runtime/mapserver-download/${archive}" | sha256sum --check
+  tar -C runtime/mapserver-download -xzf "runtime/mapserver-download/${archive}"
+fi
 
 cp -a runtime/native-world runtime/mapserver-world
 test "$(sqlite3 runtime/mapserver-world/map.sqlite 'select count(*) from blocks')" -gt 0
@@ -28,6 +33,7 @@ config.localhostonly = true;
 config.renderingjobs = 1;
 config.renderingfetchlimit = 128;
 config.renderingqueue = 32;
+if (process.env.MAPSERVER_BURST_PROOF === 'true') config.incrementalrenderingtimer = '1s';
 config.mapblockaccessor = { ...config.mapblockaccessor, maxitems: 500 };
 config.enableprometheus = false;
 writeFileSync(file, JSON.stringify(config, null, 2));
@@ -85,6 +91,54 @@ test "$(head -c 8 runtime/mapserver-tile.png | base64)" = 'iVBORw0KGgo='
 if cmp -s runtime/mapserver-tile.png runtime/mapserver-blank.png; then
   echo 'Mapserver tile changed back to its blank response before validation.'
   exit 1
+fi
+if [ "${MAPSERVER_BURST_PROOF:-false}" = true ]; then
+  completed=0
+  for attempt in {1..60}; do
+    if grep -Fq 'initial rendering complete' runtime/mapserver-console.log; then
+      completed=1
+      break
+    fi
+    if ! kill -0 "$mapper_pid" 2>/dev/null; then break; fi
+    sleep 1
+  done
+  if [ "$completed" -ne 1 ]; then
+    tail -60 runtime/mapserver-console.log
+    echo 'Patched mapserver did not complete initial rendering.'
+    exit 1
+  fi
+  sleep 2
+  # One SQLite statement gives 343 existing blocks the same second-resolution
+  # mtime through mapserver's trigger. Their map data stays unchanged.
+  sqlite3 runtime/mapserver-world/map.sqlite \
+    'update blocks set data=data where rowid in (select rowid from blocks order by rowid limit 343)'
+  burst_mtime=$(sqlite3 runtime/mapserver-world/map.sqlite 'select max(mtime) from blocks')
+  burst_count=$(sqlite3 runtime/mapserver-world/map.sqlite "select count(*) from blocks where mtime=$burst_mtime")
+  test "$burst_count" = 343
+  drained=0
+  for attempt in {1..45}; do
+    read -r batches fetched < <(awk -v stamp="$burst_mtime" '
+      /msg="incremental rendering"/ && index($0, "lastMtime=" stamp) {
+        batches++;
+        for (i = 1; i <= NF; i++) if ($i ~ /^fetched=/) {
+          split($i, pair, "="); fetched += pair[2];
+        }
+      }
+      END { print batches+0, fetched+0 }
+    ' runtime/mapserver-console.log)
+    if [ "$batches" -eq 3 ] && [ "$fetched" -eq 343 ]; then
+      drained=1
+      break
+    fi
+    if ! kill -0 "$mapper_pid" 2>/dev/null; then break; fi
+    sleep 2
+  done
+  if [ "$drained" -ne 1 ]; then
+    tail -60 runtime/mapserver-console.log
+    echo "Patched mapserver fetched $fetched of 343 same-second blocks in $batches batches."
+    exit 1
+  fi
+  printf 'Patched incremental renderer drained %s same-second blocks in %s bounded batches.\n' "$fetched" "$batches"
 fi
 printf 'Mapserver served copied Luanti world; HTML bytes: %s\n' "$(wc -c < runtime/mapserver-index.html)"
 printf 'Rendered tile: %s; tile store: %s bytes\n' "$tile_route" "$(du -sb runtime/mapserver-world/mapserver.tiles | cut -f1)"

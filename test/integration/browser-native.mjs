@@ -581,6 +581,7 @@ try {
   const expectedHash = ticketSecrets[0] ? createHash('sha1').update(session.playerName + ticketSecrets[0]).digest('base64').replace(/=+$/, '') : null;
   const grantHashMatches = Boolean(grant && expectedHash && grant.password_hash === expectedHash);
   const townProbe = await readFile(path.join(worldDir, 'town-probe-result.txt'), 'utf8').catch(() => '');
+  const negativeClaim = await readFile(path.join(worldDir, 'town-negative-claim-result.txt'), 'utf8').catch(() => '');
   const reconnectProbe = await readFile(path.join(worldDir, 'town-probe-reconnect-result.txt'), 'utf8').catch(() => '');
   const packetReady = await readFile(path.join(worldDir, 'town-packet-ready.txt'), 'utf8').catch(() => '');
   const aimReady = await readFile(path.join(worldDir, 'town-packet-aim-ready.txt'), 'utf8').catch(() => '');
@@ -600,7 +601,7 @@ try {
   const memberDig = await readFile(path.join(worldDir, 'town-packet-member-dig-result.txt'), 'utf8').catch(() => '');
   const removedPlace = await readFile(path.join(worldDir, 'town-packet-removed-place-result.txt'), 'utf8').catch(() => '');
   const packetDebug = await readFile(path.join(worldDir, 'town-packet-debug.json'), 'utf8').catch(() => '');
-  await writeFile(artifacts + '/diagnostics.json', JSON.stringify({ error: redact(error.message), events, grantExists: Boolean(grant), ticketCaptured: ticketSecrets.length > 0, grantHashMatches, townProbe, reconnectProbe, packetReady, aimReady, reaimReady, packetDig, placeReady, placeAimReady, packetPlace, ownerPlaceReady, ownerPlaceAimReady, ownerPlace, ownerDigReady, ownerDigAimReady, ownerDigReaimReady, ownerDig, memberPlace, memberDig, removedPlace, packetDebug, nativeTail: nativeLog.slice(-5000) }, null, 2));
+  await writeFile(artifacts + '/diagnostics.json', JSON.stringify({ error: redact(error.message), events, grantExists: Boolean(grant), ticketCaptured: ticketSecrets.length > 0, grantHashMatches, townProbe, negativeClaim, reconnectProbe, packetReady, aimReady, reaimReady, packetDig, placeReady, placeAimReady, packetPlace, ownerPlaceReady, ownerPlaceAimReady, ownerPlace, ownerDigReady, ownerDigAimReady, ownerDigReaimReady, ownerDig, memberPlace, memberDig, removedPlace, packetDebug, nativeTail: nativeLog.slice(-5000) }, null, 2));
   console.error('Browser diagnostics:', JSON.stringify(events));
   throw error;
 } finally {

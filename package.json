@@ -26,7 +26,8 @@
     "test:admin-ui": "node test/integration/admin-beta-ui.mjs",
     "test:beta-player-ui": "node test/integration/beta-player-ui.mjs",
     "test:map-ui": "node test/integration/map-ui.mjs",
-    "test:ens-live": "node --env-file-if-exists=.env test/integration/ens-live.mjs"
+    "test:ens-live": "node --env-file-if-exists=.env test/integration/ens-live.mjs",
+    "account:build": "node scripts/build-account.mjs"
   },
   "dependencies": {
     "@ensdomains/ensjs": "5.2.12",
@@ -45,6 +46,7 @@
     "@zerodev/wallet-core": "0.0.7",
     "@zerodev/wallet-react": "0.0.10",
     "esbuild": "0.28.2",
+    "events": "3.3.0",
     "playwright": "1.64.1",
     "react": "19.3.1",
     "react-dom": "19.3.1",

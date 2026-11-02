@@ -25,6 +25,13 @@ export function readConfig(env = process.env) {
   if (env.STRIPE_TEST_SECRET_KEY && (!env.STRIPE_TEST_SECRET_KEY.startsWith('sk_test_') || !env.STRIPE_TEST_WEBHOOK_SECRET.startsWith('whsec_'))) {
     throw new Error('Only Stripe test-mode checkout credentials are accepted.');
   }
+  const zeroDevTestSignup = env.ZERODEV_TEST_SIGNUP === 'true';
+  if (zeroDevTestSignup && (
+    !['localhost', '127.0.0.1', '[::1]'].includes(origin.hostname) ||
+    !['127.0.0.1', '::1'].includes(env.HOST || '127.0.0.1') || chainId !== 11155111 ||
+    !env.RPC_URL || env.GAME_ENABLED === 'true' ||
+    !/^[a-zA-Z0-9-]{8,128}$/.test(env.ZERODEV_PROJECT_ID || '')
+  )) throw new Error('ZeroDev test signup requires a loopback Sepolia host and origin, RPC_URL, and project ID.');
   return {
     origin: origin.origin, host: env.HOST || '127.0.0.1', port, chainId,
     secure: origin.protocol === 'https:',
@@ -38,6 +45,8 @@ export function readConfig(env = process.env) {
     ensRpcUrl: env.ENS_RPC_URL || null,
     stripeTestSecretKey: env.STRIPE_TEST_SECRET_KEY || null,
     stripeWebhookSecret: env.STRIPE_TEST_WEBHOOK_SECRET || null,
+    zeroDevTestSignup,
+    zeroDevProjectId: zeroDevTestSignup ? env.ZERODEV_PROJECT_ID : null,
     adminWalletAddresses,
     townContractAddress: env.TOWN_CONTRACT_ADDRESS ? getAddress(env.TOWN_CONTRACT_ADDRESS) : null,
     townConfirmations,

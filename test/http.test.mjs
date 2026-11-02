@@ -106,8 +106,17 @@ test('static files supply isolation headers; private paths and invalid bodies ar
   assert.ok(remoteFrame.headers.get('Content-Security-Policy').includes("frame-ancestors 'self'"));
   const config = await request('/api/config');
   assert.equal(config.headers.get('Cache-Control'), 'no-store');
-  const { soloPlaytestAvailable } = await config.json();
+  const { soloPlaytestAvailable, zeroDevTestProjectId } = await config.json();
   assert.equal(typeof soloPlaytestAvailable, 'boolean');
+  assert.equal(zeroDevTestProjectId, null);
+  const account = await request('/account/');
+  assert.equal(account.status, 302);
+  assert.equal(account.headers.get('Location'), '/account/index.html');
+  const accountPage = await request('/account/index.html');
+  assert.equal(accountPage.status, 200);
+  assert.match(await accountPage.text(), /Create a MineMine account/);
+  assert.ok(accountPage.headers.get('Content-Security-Policy').includes('https://kms.zerodev.app'));
+  assert.ok(!page.headers.get('Content-Security-Policy').includes('https://kms.zerodev.app'));
   const play = await request('/play/');
   assert.equal(play.status, 302);
   assert.equal(play.headers.get('Location'), soloPlaytestAvailable ? '/engine/index.html' : 'https://cupojoseph.github.io/minemine/play/');
@@ -126,6 +135,16 @@ test('rate limiting bounds anonymous authentication attempts', async t => {
   let response;
   for (let n = 0; n < 121; n++) response = await request('/api/config');
   assert.equal(response.status, 429);
+});
+test('local ZeroDev lab exposes only its public project ID and keeps the game closed', async t => {
+  const { request } = await fixture(t, {
+    ZERODEV_TEST_SIGNUP: 'true', ZERODEV_PROJECT_ID: 'test-project-123',
+    RPC_URL: 'https://ethereum-sepolia-rpc.publicnode.com',
+  });
+  const configuration = await (await request('/api/config')).json();
+  assert.equal(configuration.zeroDevTestProjectId, 'test-project-123');
+  assert.equal(configuration.gameReady, false);
+  assert.equal((await request('/api/game/ticket', {})).status, 401);
 });
 test('trusted local Caddy gives visitors separate limits and cannot be spoofed by a remote peer', async t => {
   const { request } = await fixture(t, { PUBLIC_ORIGIN: 'https://play.example', TRUST_LOOPBACK_PROXY: 'true' });

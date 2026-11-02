@@ -64,8 +64,12 @@ try {
   await page.locator('#logout').click();
   await page.locator('#connect').waitFor({ state: 'visible' });
   await page.locator('#connect').click();
+  await page.locator('#identity').waitFor({ state: 'visible' });
+  await page.locator('#beta-invite').waitFor({ state: 'visible' });
+  await page.locator('#beta-form').waitFor({ state: 'hidden' });
   await page.getByText(/Invite accepted\. Shared-world entry/).waitFor();
   assert.equal(await page.locator('#beta-form').isVisible(), false);
+  assert.deepEqual(await page.evaluate(async () => (await (await fetch('/api/beta/status')).json())), { enabled: true, admitted: true });
   assert.deepEqual(pageErrors, []);
   console.log('PASS browser wallet sign-in, invalid invite denial, wallet-bound redemption and persistent admission after re-login.');
 } finally {

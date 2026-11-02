@@ -288,12 +288,30 @@ jobs:
           cache: false
       - name: Build and test pinned mapserver cursor patch
         run: bash scripts/ci-build-patched-mapserver.sh
-      - name: Test patched web mapper on a copied world
-        env:
-          MAPSERVER_BINARY: ${{ github.workspace }}/runtime/mapserver-patched
-          MAPSERVER_BURST_PROOF: 'true'
-          MAPSERVER_LIVE_EDIT_PROOF: 'true'
-        run: bash scripts/ci-mapserver-smoke.sh
+      - name: Rehearse native world, API, and patched live map within 768 MiB
+        run: |
+          sudo systemctl set-property --runtime minemine-map-ci.slice MemoryAccounting=yes MemoryMax=768M MemorySwapMax=0
+          test "$(systemctl show -P MemoryMax minemine-map-ci.slice)" = '805306368'
+          test "$(systemctl show -P MemorySwapMax minemine-map-ci.slice)" = '0'
+          sudo systemd-run --quiet --scope --unit=minemine-map-ci-rehearsal --slice=minemine-map-ci.slice --uid="$USER" --same-dir \
+            /usr/bin/env GITHUB_WORKSPACE="$GITHUB_WORKSPACE" \
+            MAPSERVER_BINARY="$GITHUB_WORKSPACE/runtime/mapserver-patched" \
+            MAPSERVER_BURST_PROOF=true MAPSERVER_LIVE_EDIT_PROOF=true MAPSERVER_CAPACITY_PROOF=true \
+            NODE_BINARY="$(command -v node)" \
+            /usr/bin/bash scripts/ci-mapserver-smoke.sh
+      - name: Record copied-world service memory
+        if: always()
+        run: |
+          cgroup=$(systemctl show -P ControlGroup minemine-map-ci.slice 2>/dev/null || true)
+          if [ -z "$cgroup" ] || [ ! -f "/sys/fs/cgroup$cgroup/memory.peak" ]; then
+            echo 'Map capacity slice was not created.'
+            exit 0
+          fi
+          cat "/sys/fs/cgroup$cgroup/memory.peak" | tee runtime/mapserver-cgroup-peak-bytes.txt
+          cat "/sys/fs/cgroup$cgroup/memory.events" | tee runtime/mapserver-cgroup-events.txt
+          test "$(cat "/sys/fs/cgroup$cgroup/memory.max")" = '805306368'
+          test "$(cat "/sys/fs/cgroup$cgroup/memory.swap.max")" = '0'
+          test "$(awk '$1 == "oom_kill" { print $2 }' runtime/mapserver-cgroup-events.txt)" = '0'
       - name: Render a bounded static map from a stopped-world copy
         run: bash scripts/ci-static-map-snapshot.sh
       - name: Exercise the generated world map in Chromium
@@ -378,6 +396,10 @@ jobs:
             runtime/native-world/town-packet-removed-place-result.txt
             runtime/browser-artifacts/
             runtime/mapserver-console.log
+            runtime/mapserver-api-console.log
+            runtime/mapserver-api-health.json
+            runtime/mapserver-cgroup-peak-bytes.txt
+            runtime/mapserver-cgroup-events.txt
             runtime/mapserver-index.html
             runtime/mapserver-blank.png
             runtime/mapserver-tile.png

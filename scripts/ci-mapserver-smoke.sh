@@ -45,15 +45,41 @@ EOF
 ) &
 mapper_pid=$!
 native_pid=''
+api_pid=''
 cleanup() {
   if [ -n "$native_pid" ]; then
     kill -INT "$native_pid" 2>/dev/null || true
     wait "$native_pid" 2>/dev/null || true
   fi
+  if [ -n "$api_pid" ]; then
+    kill -INT "$api_pid" 2>/dev/null || true
+    wait "$api_pid" 2>/dev/null || true
+  fi
   kill "$mapper_pid" 2>/dev/null || true
   wait "$mapper_pid" 2>/dev/null || true
 }
 trap cleanup EXIT
+if [ "${MAPSERVER_CAPACITY_PROOF:-false}" = true ]; then
+  PUBLIC_ORIGIN=http://localhost:18082 HOST=127.0.0.1 PORT=18082 \
+    WORLD_DIR="$GITHUB_WORKSPACE/runtime/mapserver-world" \
+    GAME_ENABLED=true ENGINE_ADAPTER_READY=true \
+    "${NODE_BINARY:-node}" server/index.mjs > runtime/mapserver-api-console.log 2>&1 &
+  api_pid=$!
+  api_ready=0
+  for attempt in {1..30}; do
+    if curl --fail --silent http://127.0.0.1:18082/api/health -o runtime/mapserver-api-health.json; then
+      api_ready=1
+      break
+    fi
+    if ! kill -0 "$api_pid" 2>/dev/null; then break; fi
+    sleep 1
+  done
+  if [ "$api_ready" -ne 1 ]; then
+    cat runtime/mapserver-api-console.log
+    echo 'MineMine API did not start during the map capacity rehearsal.'
+    exit 1
+  fi
+fi
 ready=0
 for attempt in {1..45}; do
   if curl --fail --silent --show-error http://127.0.0.1:18080/ -o runtime/mapserver-index.html 2>/dev/null; then
@@ -218,6 +244,12 @@ if [ "${MAPSERVER_LIVE_EDIT_PROOF:-false}" = true ]; then
   native_pid=''
   rm -r runtime/mapserver-world/worldmods/map_edit_probe
   sed -i '/^load_mod_map_edit_probe = true$/d' runtime/mapserver-world/world.mt
+fi
+if [ -n "$api_pid" ]; then
+  curl --fail --silent --show-error http://127.0.0.1:18082/api/health -o runtime/mapserver-api-health.json
+  kill -INT "$api_pid" 2>/dev/null || true
+  wait "$api_pid" 2>/dev/null || true
+  api_pid=''
 fi
 printf 'Mapserver served copied Luanti world; HTML bytes: %s\n' "$(wc -c < runtime/mapserver-index.html)"
 printf 'Rendered tile: %s; tile store: %s bytes\n' "$tile_route" "$(du -sb runtime/mapserver-world/mapserver.tiles | cut -f1)"

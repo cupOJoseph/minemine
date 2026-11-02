@@ -63,7 +63,7 @@ try {
     headers: { Cookie: sessionCookie }, signal: AbortSignal.timeout(15_000),
   });
   assert.equal(identityResponse.status, 200, 'authenticated identity lookup');
-  assert.deepEqual(await identityResponse.json(), { ...session, ensName: null });
+  assert.deepEqual(await identityResponse.json(), { ...session, ensName: null, managedName: null });
   console.log(`PASS live ENS reverse/forward and authenticated MineMine recipient lookup: ${name} → ${address}`);
 } finally {
   ens.close();

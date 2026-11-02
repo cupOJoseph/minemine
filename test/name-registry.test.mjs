@@ -205,6 +205,8 @@ test('public-name lookup exposes only active managed names or selected full ENS 
   try {
     names.beginCheckout('builder', accountId, 'order-1');
     names.markPaid('builder', accountId, 'order-1', 'payment-1');
+    assert.deepEqual(names.managedNameTermForAccount(accountId), { name: 'builder.minemine.eth', status: 'pending', expiresAt: null });
+    assert.equal(names.managedNameTermForAccount(Wallet.createRandom().address.toLowerCase()), null);
     assert.equal(names.accountForPublicName('builder'), null);
     assert.equal(names.accountForPublicName('builder.minemine.eth'), null);
     names.selectEns(accountId, 'Other.eth');
@@ -230,11 +232,13 @@ test('managed name lasts one calendar year from verified activation and then sto
     const active = await names.activateManagedName('builder', accountId, 'order-1', 'payment-1', async () => wallet.address);
     const expiresAt = Date.UTC(2025, 1, 28, 12, 30);
     assert.equal(active.expires_at, expiresAt);
+    assert.deepEqual(names.managedNameTermForAccount(accountId), { name: 'builder.minemine.eth', status: 'active', expiresAt: new Date(expiresAt).toISOString() });
     names.selectEns(accountId, 'builder.minemine.eth');
     assert.equal(names.managedNameForAccount(accountId), 'builder.minemine.eth');
     assert.equal(names.accountForPublicName('builder'), accountId);
     assert.equal(names.accountForPublicName('builder.minemine.eth'), accountId);
     clock = expiresAt;
+    assert.deepEqual(names.managedNameTermForAccount(accountId), { name: 'builder.minemine.eth', status: 'expired', expiresAt: new Date(expiresAt).toISOString() });
     assert.equal(names.managedNameForAccount(accountId), null);
     assert.equal(names.accountForPublicName('builder'), null);
     assert.equal(names.accountForPublicName('builder.minemine.eth'), null, 'selected alias cannot bypass paid term');

@@ -460,6 +460,14 @@ try {
   await rename(grantPath + '.expired.tmp', grantPath);
   await signalProbe('town-expired-grant-check-arm.txt', 'town-expired-grant-check-result.txt',
     'connected owner privilege after game ticket expiry');
+  await signalProbe('town-negative-claim-arm.txt', 'town-negative-claim-result.txt',
+    'paid negative town projection and removal');
+  const mapProjection = JSON.parse(await readFile(path.join(worldDir, 'town-map-claims.json'), 'utf8'));
+  assert.equal(mapProjection.version, 1);
+  assert.deepEqual(Object.keys(mapProjection).sort(), ['claims', 'version']);
+  assert.deepEqual(mapProjection.claims.find(claim => claim.town === 'West Hollow'),
+    { town: 'West Hollow', x1: -65, x2: -63, z1: -65, z2: -63 });
+  assert.equal(mapProjection.claims.length, 2, 'removed negative claim leaked into the map projection');
 
   await page.close();
   let disconnected = false;

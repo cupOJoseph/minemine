@@ -118,11 +118,24 @@ if [[ ! "$tile_x" =~ ^-?[0-9]+$ || ! "$tile_y" =~ ^-?[0-9]+$ ]]; then
   echo 'Mapserver returned unexpected zoom-12 tile coordinates.'
   exit 1
 fi
-# At zoom 12 a tile spans two 16-node mapblocks. The pinned mapserver's
-# GetMapBlockRangeFromTile maps tile Y to descending world Z mapblocks.
-edit_x=$((tile_x * 32 + 4))
-edit_z=$(((-tile_y * 2 - 1) * 16 + 4))
-printf '{"x":%d,"z":%d}\n' "$edit_x" "$edit_z" > runtime/mapserver-world/map-edit-target.json
+# At zoom 12 a tile spans two 16-node mapblocks. Edit an existing block in
+# that tile: emerging a new height can generate hundreds of blocks and obscure
+# whether a normal single-block update refreshes correctly.
+block_x_min=$((tile_x * 2))
+block_z_min=$((-tile_y * 2 - 2))
+read -r block_x block_y block_z < <(sqlite3 -separator ' ' runtime/mapserver-world/map.sqlite "select x,y,z from blocks where x between $block_x_min and $((block_x_min + 1)) and z between $block_z_min and $((block_z_min + 1)) and y between -16 and 159 order by y desc limit 1") || true
+if [ -z "${block_x:-}" ]; then
+  echo 'The selected rendered tile has no existing mapblock to edit.'
+  exit 1
+fi
+edit_x=$((block_x * 16 + 4))
+edit_y=$((block_y * 16 + 15))
+edit_z=$((block_z * 16 + 4))
+blocks_before=$(sqlite3 runtime/mapserver-world/map.sqlite 'select count(*) from blocks')
+printf '{"x":%d,"y":%d,"z":%d}\n' "$edit_x" "$edit_y" "$edit_z" > runtime/mapserver-world/map-edit-target.json
+# The upstream mtime trigger has one-second precision, and the incremental
+# cursor uses a strict greater-than comparison.
+sleep 2
 cp -a test/integration/map_edit_probe runtime/mapserver-world/worldmods/map_edit_probe
 printf '\nload_mod_map_edit_probe = true\n' >> runtime/mapserver-world/world.mt
 cp game/minetest.conf runtime/mapserver-edit.conf
@@ -146,6 +159,8 @@ if [ "$edit_ready" -ne 1 ]; then
   echo 'Native Luanti did not place the map edit probe.'
   exit 1
 fi
+blocks_after=$(sqlite3 runtime/mapserver-world/map.sqlite 'select count(*) from blocks')
+printf 'Map edit touched existing block (%s,%s,%s); mapblocks before=%s after=%s.\n' "$block_x" "$block_y" "$block_z" "$blocks_before" "$blocks_after"
 tile_refreshed=0
 for attempt in {1..45}; do
   if ! kill -0 "$native_pid" 2>/dev/null || ! kill -0 "$mapper_pid" 2>/dev/null; then break; fi
@@ -162,7 +177,7 @@ if [ "$tile_refreshed" -ne 1 ]; then
   echo 'Mapserver did not refresh the edited tile while native Luanti was running.'
   exit 1
 fi
-printf 'Live map edit refreshed %s after placing gold at x=%s z=%s (poll %s).\n' "$tile_route" "$edit_x" "$edit_z" "$attempt"
+printf 'Live map edit refreshed %s after placing gold at x=%s y=%s z=%s (poll %s).\n' "$tile_route" "$edit_x" "$edit_y" "$edit_z" "$attempt"
 printf 'Mapserver served copied Luanti world; HTML bytes: %s\n' "$(wc -c < runtime/mapserver-index.html)"
 printf 'Rendered tile: %s; tile store: %s bytes\n' "$tile_route" "$(du -sb runtime/mapserver-world/mapserver.tiles | cut -f1)"
 printf 'Map blocks on copy: %s\n' "$(sqlite3 runtime/mapserver-world/map.sqlite 'select count(*) from blocks')"

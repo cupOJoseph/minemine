@@ -107,8 +107,17 @@ test('static files supply isolation headers; private paths and invalid bodies ar
   assert.ok(remoteFrame.headers.get('Content-Security-Policy').includes("frame-ancestors 'self'"));
   const config = await request('/api/config');
   assert.equal(config.headers.get('Cache-Control'), 'no-store');
-  const { soloPlaytestAvailable } = await config.json();
+  const { soloPlaytestAvailable, zeroDevTestProjectId } = await config.json();
   assert.equal(typeof soloPlaytestAvailable, 'boolean');
+  assert.equal(zeroDevTestProjectId, null);
+  const account = await request('/account/');
+  assert.equal(account.status, 302);
+  assert.equal(account.headers.get('Location'), '/account/index.html');
+  const accountPage = await request('/account/index.html');
+  assert.equal(accountPage.status, 200);
+  assert.match(await accountPage.text(), /Create a MineMine account/);
+  assert.ok(accountPage.headers.get('Content-Security-Policy').includes('https://kms.zerodev.app'));
+  assert.ok(!page.headers.get('Content-Security-Policy').includes('https://kms.zerodev.app'));
   const play = await request('/play/');
   assert.equal(play.status, 302);
   assert.equal(play.headers.get('Location'), soloPlaytestAvailable ? '/engine/index.html' : 'https://cupojoseph.github.io/minemine/play/');
@@ -127,6 +136,16 @@ test('rate limiting bounds anonymous authentication attempts', async t => {
   let response;
   for (let n = 0; n < 121; n++) response = await request('/api/config');
   assert.equal(response.status, 429);
+});
+test('local ZeroDev lab exposes only its public project ID and keeps the game closed', async t => {
+  const { request } = await fixture(t, {
+    ZERODEV_TEST_SIGNUP: 'true', ZERODEV_PROJECT_ID: 'test-project-123',
+    RPC_URL: 'https://ethereum-sepolia-rpc.publicnode.com',
+  });
+  const configuration = await (await request('/api/config')).json();
+  assert.equal(configuration.zeroDevTestProjectId, 'test-project-123');
+  assert.equal(configuration.gameReady, false);
+  assert.equal((await request('/api/game/ticket', {})).status, 401);
 });
 test('trusted local Caddy gives visitors separate limits and cannot be spoofed by a remote peer', async t => {
   const { request } = await fixture(t, { PUBLIC_ORIGIN: 'https://play.example', TRUST_LOOPBACK_PROXY: 'true' });
@@ -422,6 +441,7 @@ test('selected ENS identity is wallet-bound, rechecked, and removed after owners
 test('paid managed name displays only while ENS resolves to its signed account wallet', async t => {
   const wallet = new Wallet('0x' + 'd1'.repeat(32));
   const other = new Wallet('0x' + 'd2'.repeat(32));
+  let now = Date.UTC(2026, 10, 2, 12);
   let target = wallet.address;
   let offline = false;
   const ensResolver = {
@@ -433,29 +453,45 @@ test('paid managed name displays only while ENS resolves to its signed account w
     },
     close() {},
   };
-  const { request, worldDir } = await fixture(t, {}, null, { ensResolver });
+  const { request, worldDir } = await fixture(t, {}, () => now, { ensResolver });
   const challenge = await request('/api/auth/challenge', { address: wallet.address, chainId: 11155111 });
   const signature = await wallet.signMessage((await challenge.json()).message);
   const verified = await request('/api/auth/verify', { signature }, challenge.headers.getSetCookie()[0].split(';')[0]);
   const cookie = verified.headers.getSetCookie()[0].split(';')[0];
-  const names = createNameRegistry(worldDir);
+  const names = createNameRegistry(worldDir, () => now);
   t.after(() => names.close());
   const accountId = wallet.address.toLowerCase();
   names.beginCheckout('builder', accountId, 'order-1');
   names.markPaid('builder', accountId, 'order-1', 'payment-1');
-  assert.equal((await (await request('/api/identity', undefined, cookie)).json()).ensName, null, 'payment alone is not issuance');
+  const pending = await (await request('/api/identity', undefined, cookie)).json();
+  assert.equal(pending.ensName, null, 'payment alone is not issuance');
+  assert.deepEqual(pending.managedName, { name: 'builder.minemine.eth', status: 'pending', expiresAt: null });
   await names.activateManagedName('builder', accountId, 'order-1', 'payment-1', async name => (await ensResolver.recipient(name)).address);
   const active = await (await request('/api/identity', undefined, cookie)).json();
+  const expiresAt = names.lookup('builder').expires_at;
+  assert.deepEqual(active.managedName, { name: 'builder.minemine.eth', status: 'active', expiresAt: new Date(expiresAt).toISOString() });
   assert.equal(active.ensName, 'builder.minemine.eth');
   assert.equal(active.managedEnsName, 'builder.minemine.eth');
   assert.equal(active.playerName, playerName(wallet.address), 'display names do not change native identity');
   target = other.address;
-  assert.equal((await (await request('/api/identity', undefined, cookie)).json()).ensName, null, 'a changed record is hidden');
+  const changed = await (await request('/api/identity', undefined, cookie)).json();
+  assert.equal(changed.ensName, null, 'a changed record is hidden');
+  assert.equal(changed.managedName.status, 'unverified');
   offline = true;
-  assert.equal((await (await request('/api/identity', undefined, cookie)).json()).ensName, null, 'an ENS outage is hidden');
+  const unavailable = await (await request('/api/identity', undefined, cookie)).json();
+  assert.equal(unavailable.ensName, null, 'an ENS outage is hidden');
+  assert.equal(unavailable.managedName.status, 'unverified');
   offline = false;
   target = wallet.address;
   assert.equal((await (await request('/api/identity', undefined, cookie)).json()).ensName, 'builder.minemine.eth');
+  now = expiresAt;
+  const laterChallenge = await request('/api/auth/challenge', { address: wallet.address, chainId: 11155111 });
+  const laterSignature = await wallet.signMessage((await laterChallenge.json()).message);
+  const laterVerified = await request('/api/auth/verify', { signature: laterSignature }, laterChallenge.headers.getSetCookie()[0].split(';')[0]);
+  const laterCookie = laterVerified.headers.getSetCookie()[0].split(';')[0];
+  const expired = await (await request('/api/identity', undefined, laterCookie)).json();
+  assert.equal(expired.ensName, null);
+  assert.deepEqual(expired.managedName, { name: 'builder.minemine.eth', status: 'expired', expiresAt: new Date(expiresAt).toISOString() });
 });
 
 test('signed loopback checkout reuses a durable hold and rejects unavailable names', async t => {
@@ -506,6 +542,10 @@ test('signed loopback checkout reuses a durable hold and rejects unavailable nam
   assert.equal(result.handle, 'builder');
   assert.equal(calls[0].params.metadata.account_id, first.address.toLowerCase(), 'body cannot select the billed account');
   assert.equal(names.lookup('builder').state, 'checkout_held');
+  const heldIdentity = await (await request('/api/identity', undefined, firstCookie)).json();
+  assert.equal(heldIdentity.managedName.status, 'held');
+  assert.equal(heldIdentity.managedName.name, 'builder.minemine.eth');
+  assert.equal(heldIdentity.ensName, null, 'a checkout hold is never a public ENS name');
   const retried = await request('/api/names/checkout', { handle: 'builder' }, firstCookie);
   assert.equal(retried.status, 200);
   assert.equal((await retried.json()).orderId, result.orderId);

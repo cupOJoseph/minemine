@@ -1,5 +1,15 @@
 # Validation record
 
+## Local ZeroDev email account lab — 2026-11-02 UTC
+
+The account lab and signed-name checkout branches are now combined in a stacked feature branch. `npm run account:build` passed, and local Chromium loaded the disabled and dummy-project email-form states at desktop and mobile widths without page errors. The signed handle form is shown only after ZeroDev sign-in and requires the separate loopback Stripe test flag; it could not be exercised through a real provider because the owner has not created the Sepolia project yet. The server-side handler tests cover checkout authorization, ENS preflight denial before any hold or Stripe call, wallet binding, collision, and idempotent retry. No Stripe test account or real ENS writer is configured, and no card or onchain name was charged or issued.
+
+The combined signed identity API now includes the checkout-held state and its original 45-minute session window, then pending, active, unverified and expired states. The wallet panel's Chromium test signed in against Node and observed all five states; the held name never became a public identity. The ZeroDev account lab reads the same status after sign-in and has a manual refresh for delayed webhook processing. Its signed-in screen still awaits real provider credentials for browser QA.
+
+The current ZeroDev Wallet docs require a React/Wagmi client, a project ID, an exact origin allowlist and an enabled chain. The isolated `/account/` lab pins `@zerodev/wallet-react` 0.0.10, uses email OTP and `7702` on Sepolia, and calls MineMine's existing signed-message challenge and verification endpoints after wallet connection. `npm run account:build` produced a 1.2 MB browser bundle and retained its generated license notice file. The default loader does not fetch that bundle when the lab is unconfigured.
+
+Local Chromium loaded the disabled page without errors. With a dummy project ID and the local-only feature flag, desktop and mobile Chromium rendered the email form without page errors or mobile horizontal overflow. No OTP was sent, no actual ZeroDev wallet was created, and the SIWE handoff was not exercised against ZeroDev. Source/handler tests cover the public-origin and shared-world disable gates; a real project, allowed origin, provider account, signature test, recovery and payment remain necessary. Full `npm audit` reported three pre-existing `solc`/`tmp`/`follow-redirects` development-chain advisories, with none from the newly bundled client packages.
+
 ## Public MineMine landing and solo game — 2026-11-02 UTC
 
 [PR #2](https://github.com/cupOJoseph/minemine/pull/2) published the landing and [PR #3](https://github.com/cupOJoseph/minemine/pull/3) added a one-time recovery reload for Pages service-worker isolation. [Pages run 41496694370](https://github.com/cupOJoseph/minemine/actions/runs/41496694370) succeeded. Live `/`, `/map/` and `/play/` returned 200; the map image hash matched its metadata and displayed two paid test-world claims with the native default spawn at X −192, Z −192. The live `/play/build.json` reports release `21f97a29c16b` and launcher revision `151de0b568bf9548eb176e389e034b9b4c5424bc`.

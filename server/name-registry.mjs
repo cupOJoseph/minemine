@@ -169,6 +169,21 @@ export function createNameRegistry(worldDir, now = Date.now) {
       return db.prepare("SELECT ens_name FROM names WHERE account_id = ? AND state = 'paid_active' AND expires_at > ?")
         .get(accountId, now())?.ens_name || null;
     },
+    managedNameTermForAccount(accountId) {
+      identifier(accountId, 'account');
+      const row = db.prepare("SELECT handle, state, expires_at, updated_at FROM names WHERE account_id = ? AND state IN ('checkout_held', 'paid_pending_ens', 'paid_active')")
+        .get(accountId);
+      if (!row) return null;
+      if (row.state === 'checkout_held') return {
+        name: `${row.handle}.minemine.eth`, status: 'held', expiresAt: null,
+        checkoutEndsAt: new Date(row.updated_at + 45 * 60_000).toISOString(),
+      };
+      return {
+        name: `${row.handle}.minemine.eth`,
+        status: row.state === 'paid_pending_ens' ? 'pending' : row.expires_at > now() ? 'active' : 'expired',
+        expiresAt: row.expires_at === null ? null : new Date(row.expires_at).toISOString(),
+      };
+    },
     accountForPublicName(input) {
       if (typeof input !== 'string' || input.length > 255 || input !== input.trim()) {
         throw new NameRegistryError('Invalid public name.', 'invalid_input');

@@ -51,8 +51,8 @@ export function createNameCheckout({ stripe, names, origin, webhookSecret, prefl
           product_data: { name: `MineMine account and first year of ${handle}.minemine.eth` } }, quantity: 1 }],
         client_reference_id: orderId,
         metadata: { order_id: orderId, account_id: accountId, handle },
-        success_url: `${origin}/?name_checkout=success`,
-        cancel_url: `${origin}/?name_checkout=cancelled`,
+        success_url: `${origin}/account/?name_checkout=success`,
+        cancel_url: `${origin}/account/?name_checkout=cancelled`,
         // Stripe compares every parameter on an idempotent retry. Keep this
         // timestamp tied to the durable hold, even across a server restart.
         expires_at: Math.floor(hold.updated_at / 1000) + 45 * 60,

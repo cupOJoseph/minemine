@@ -15,6 +15,7 @@ on:
       - 'test/integration/beta-player-ui.mjs'
       - 'test/integration/map-ui.mjs'
       - 'test/integration/town_probe/**'
+      - 'test/integration/load_probe/**'
       - 'package.json'
       - 'scripts/setup-world.mjs'
       - 'scripts/sample-stack-memory.sh'

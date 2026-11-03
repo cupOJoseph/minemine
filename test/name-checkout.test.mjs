@@ -21,13 +21,15 @@ function signedEvent(type, id = sessionId) {
 
 function fixture(t) {
   const world = mkdtempSync(path.join(os.tmpdir(), 'minemine-checkout-'));
-  const names = createNameRegistry(world);
+  let now = Date.parse('2026-11-02T17:00:00Z');
+  const names = createNameRegistry(world, () => now);
   t.after(() => { names.close(); rmSync(world, { recursive: true, force: true }); });
   const wallet = new Wallet('0x' + 'a4'.repeat(32));
   const accountId = wallet.address.toLowerCase();
   let session;
   let createCalls = 0;
   let failNextCreate = false;
+  const createParams = [];
   let preflightError = null;
   const checkedHandles = [];
   const stripe = {
@@ -35,10 +37,11 @@ function fixture(t) {
     checkout: { sessions: {
       async create(params, options) {
         createCalls++;
+        createParams.push(params);
         assert.equal(params.line_items[0].price_data.unit_amount, 200);
         assert.equal(params.line_items[0].price_data.currency, 'usd');
         assert.equal(params.line_items[0].price_data.product_data.name,
-          'MineMine signup and builder.minemine.eth reservation');
+          'MineMine account and first year of builder.minemine.eth');
         assert.deepEqual(params.payment_method_types, ['card']);
         assert.equal(params.metadata.account_id, accountId);
         assert.equal(params.metadata.handle, 'builder');
@@ -59,9 +62,10 @@ function fixture(t) {
   };
   const checkout = createNameCheckout({ stripe, names, origin: 'https://play.example', webhookSecret: secret,
     preflight: async handle => { checkedHandles.push(handle); if (preflightError) throw preflightError; },
-    now: () => Date.parse('2026-11-02T17:00:00Z') });
+  });
   return { checkout, stripe, names, accountId, setSession: value => { session = value; },
-    getSession: () => session, getCreateCalls: () => createCalls,
+    getSession: () => session, getCreateCalls: () => createCalls, createParams,
+    advance: milliseconds => { now += milliseconds; },
     failNextCreate: () => { failNextCreate = true; }, checkedHandles,
     failPreflight: error => { preflightError = error; } };
 }
@@ -118,13 +122,15 @@ test('only a verified expired and unpaid test session releases a checkout hold',
   await assert.rejects(checkout.handleWebhook(paid.payload, paid.signature), { code: 'conflict' });
 });
 
-test('an uncertain Stripe create result retains the account hold for an idempotent retry', async t => {
-  const { checkout, names, accountId, failNextCreate, getCreateCalls } = fixture(t);
+test('an uncertain Stripe create result retains stable parameters for an idempotent retry', async t => {
+  const { checkout, names, accountId, failNextCreate, getCreateCalls, createParams, advance } = fixture(t);
   failNextCreate();
   await assert.rejects(checkout.create({ handle: 'builder', accountId, orderId }), /Uncertain/);
   assert.equal(names.lookup('builder').state, 'checkout_held');
+  advance(60_000);
   await checkout.create({ handle: 'builder', accountId, orderId });
   assert.equal(getCreateCalls(), 2);
+  assert.deepEqual(createParams[1], createParams[0], 'Stripe requires identical retry parameters');
   assert.equal(names.lookup('builder').order_id, orderId);
   const liveEvent = { id: 'evt_live', object: 'event', livemode: true, type: 'checkout.session.completed',
     data: { object: { id: sessionId } } };

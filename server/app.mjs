@@ -95,7 +95,7 @@ export function createApp(config) {
       writerAddress: config.ensNameWriterAddress, now: config.now || Date.now }) : null);
   const nameCheckout = stripe && config.stripeWebhookSecret ? createNameCheckout({
     stripe, names, origin: config.origin, webhookSecret: config.stripeWebhookSecret,
-    preflight: namePreflight, now: config.now || Date.now,
+    preflight: namePreflight,
   }) : null;
   const betaCodes = createBetaCodes(config.worldDir, config.now || Date.now);
   const adminWallets = new Set((config.adminWalletAddresses || []).map(address => address.toLowerCase()));

@@ -394,8 +394,21 @@ test('beta invitations are hashed, wallet bound, and gate shared-world tickets',
   assert.equal(audit.events[1].actor, player.address.toLowerCase());
   assert.equal(JSON.stringify(audit).includes(code), false, 'audit never exposes the beta secret');
   assert.equal((await request('/api/game/ticket', {}, playerCookie)).status, 503, 'revoking a code does not erase an existing admission');
+  const profile = await (await request(`/api/admin/players/${(await (await request('/api/session', undefined, playerCookie)).json()).playerName}`, undefined, adminCookie)).json();
+  assert.equal(profile.betaAdmission.revokedAt, null);
+  assert.equal(profile.betaGateEnabled, true);
+  assert.equal((await request('/api/admin/beta/admissions/revoke', { address: player.address }, playerCookie)).status, 403);
+  assert.equal((await request('/api/admin/beta/admissions/revoke', { address: admin.address }, adminCookie)).status, 400);
+  assert.deepEqual(await (await request('/api/admin/beta/admissions/revoke', { address: player.address }, adminCookie)).json(), { revoked: true });
+  assert.deepEqual(await (await request('/api/beta/status', undefined, playerCookie)).json(), { enabled: true, admitted: false });
+  assert.equal((await request('/api/game/ticket', {}, playerCookie)).status, 403);
+  assert.equal((await request('/api/beta/redeem', { code }, playerCookie)).status, 400);
+  assert.deepEqual(await (await request('/api/admin/beta/admissions/revoke', { address: player.address }, adminCookie)).json(), { revoked: false });
+  assert.deepEqual(await (await request('/api/admin/beta/admissions/restore', { address: player.address }, adminCookie)).json(), { restored: true });
+  assert.equal((await request('/api/game/ticket', {}, playerCookie)).status, 503);
   now += 5 * 60_000;
   assert.equal((await request('/api/admin/beta/codes/create', {}, adminCookie)).status, 403);
+  assert.equal((await request('/api/admin/beta/admissions/revoke', { address: player.address }, adminCookie)).status, 403);
 });
 
 test('selected ENS identity is wallet-bound, rechecked, and removed after ownership transfers', async t => {

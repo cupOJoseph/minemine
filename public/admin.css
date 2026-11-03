@@ -26,6 +26,9 @@ td:first-child{font-family:ui-monospace,SFMono-Regular,monospace;color:#d7f7b6}
 .player-detail dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:0}
 .player-detail dt{font-size:.72rem;text-transform:uppercase;color:#8ea595}
 .player-detail dd{margin:5px 0 0;overflow-wrap:anywhere;font-family:ui-monospace,SFMono-Regular,monospace;font-size:.88rem}
+.profile-beta-action{margin-top:18px;border:1px solid #b8ef72;border-radius:3px;background:transparent;color:#d9f8ba;padding:9px 13px;cursor:pointer}
+.profile-beta-action[hidden]{display:none}
+.profile-beta-action:disabled{opacity:.5;cursor:wait}
 @media(max-width:520px){.pager{align-items:flex-start;flex-direction:column}th,td{padding:12px 16px}}
 @media(max-width:520px){.player-detail dl{grid-template-columns:1fr}}
 

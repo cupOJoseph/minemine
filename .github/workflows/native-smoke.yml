@@ -331,6 +331,7 @@ jobs:
             runtime/server-memory-restart.csv
             runtime/server-memory-summary.txt
             runtime/native-load-snapshots.jsonl
+            runtime/native-load-joins.jsonl
             runtime/native-world/minemine-native-metrics.json
             runtime/admin-beta-desktop.png
             runtime/admin-beta-mobile.png

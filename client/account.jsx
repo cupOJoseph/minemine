@@ -20,13 +20,16 @@ async function api(route, data) {
   return result;
 }
 
-function AccountLab() {
+function AccountLab({ nameCheckoutTestEnabled }) {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [otp, setOtp] = useState(null);
   const [session, setSession] = useState(null);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+  const [handle, setHandle] = useState('');
+  const [checkoutUrl, setCheckoutUrl] = useState('');
+  const [checkoutPending, setCheckoutPending] = useState(false);
   const { address, chainId, isConnected } = useAccount();
   const { disconnectAsync } = useDisconnect();
   const { signMessageAsync, isPending: signing } = useSignMessage();
@@ -34,10 +37,11 @@ function AccountLab() {
   const verifyOTP = useVerifyOTP();
 
   useEffect(() => {
-    if (!isConnected || !address) { setSession(null); return; }
+    if (!isConnected || !address) { setSession(null); setCheckoutUrl(''); return; }
     let current = true;
+    setSession(null); setCheckoutUrl('');
     api('session').then(value => {
-      if (current && value.address?.toLowerCase() === address.toLowerCase()) setSession(value);
+      if (current) setSession(value.address?.toLowerCase() === address.toLowerCase() ? value : null);
     }).catch(() => { if (current) setSession(null); });
     return () => { current = false; };
   }, [address, isConnected]);
@@ -77,17 +81,45 @@ function AccountLab() {
     try {
       await api('auth/logout', {});
       await disconnectAsync();
-      setSession(null); setOtp(null); setEmail(''); setCode('');
+      setSession(null); setOtp(null); setEmail(''); setCode(''); setHandle(''); setCheckoutUrl('');
       setStatus('Signed out of MineMine and ZeroDev.');
     } catch (cause) { setError(cause.message); }
   }
+
+  async function prepareCheckout(event) {
+    event.preventDefault(); setError(''); setCheckoutUrl(''); setCheckoutPending(true);
+    try {
+      if (!session || !address || session.address?.toLowerCase() !== address.toLowerCase()) {
+        throw new Error('Sign in with your ZeroDev test wallet again.');
+      }
+      const result = await api('names/checkout', { handle: handle.trim() });
+      const target = new URL(result.url);
+      if (!result.testMode || target.protocol !== 'https:' || target.hostname !== 'checkout.stripe.com') {
+        throw new Error('The test checkout link is invalid.');
+      }
+      setCheckoutUrl(target.href);
+      setStatus(`Test checkout prepared for ${result.handle}.minemine.eth. Continue on Stripe to use a test card.`);
+    } catch (cause) { setError(cause.message); setStatus(''); }
+    finally { setCheckoutPending(false); }
+  }
+
+  const returnState = new URLSearchParams(window.location.search).get('name_checkout');
 
   return <div className="account-form">
     {isConnected ? <>
       <p>ZeroDev test wallet: <strong className="account-address">{address}</strong></p>
       {session ? <>
         <p>MineMine test session: <strong>{session.playerName}</strong></p>
-        <p className="account-note">The $2 checkout, username reservation, and shared-world access are not enabled in this lab.</p>
+        {nameCheckoutTestEnabled ? <form className="account-form account-checkout" onSubmit={prepareCheckout}>
+          <h2>Choose a MineMine username</h2>
+          <label htmlFor="account-handle">Username</label>
+          <input id="account-handle" type="text" autoComplete="off" pattern="[A-Za-z][A-Za-z0-9]{2,15}" maxLength={16}
+            value={handle} onChange={event => { setHandle(event.target.value); setCheckoutUrl(''); }} required />
+          <p className="account-note">Your public name would be <strong>{handle.trim().toLowerCase() || 'username'}.minemine.eth</strong>. MineMine manages the ENS record; the name is not a transferable token. The planned single $2 USD charge covers the account and its first year, starting after verified ENS activation. Renewal is required after that year.</p>
+          <p className="account-note">This lab uses Stripe test mode. It does not charge a real card or issue an ENS name.</p>
+          <button className="button button-primary" type="submit" disabled={checkoutPending || !handle.trim()}>Prepare $2 test checkout</button>
+          {checkoutUrl && <a className="button button-ghost account-checkout-link" href={checkoutUrl}>Continue to Stripe test checkout</a>}
+        </form> : <p className="account-note">Username checkout and shared-world access are not enabled in this lab.</p>}
       </> : <button className="button button-primary" type="button" disabled={signing} onClick={signIn}>Sign in to MineMine</button>}
       <button className="button button-ghost" type="button" onClick={signOut}>Sign out</button>
     </> : otp ? <form className="account-form" onSubmit={verifyCode}>
@@ -101,6 +133,8 @@ function AccountLab() {
       <button className="button button-primary" type="submit" disabled={sendOTP.isPending || !email.trim()}>Send one-time code</button>
     </form>}
     {status && <p role="status">{status}</p>}
+    {returnState === 'success' && <p role="status">Returned from Stripe test checkout. The server verifies payment by webhook; ENS activation is still pending.</p>}
+    {returnState === 'cancelled' && <p role="status">Test checkout was cancelled. The temporary username hold remains until Stripe confirms expiry.</p>}
     {error && <p role="alert" className="account-error">{error}</p>}
   </div>;
 }
@@ -111,5 +145,5 @@ export function start(settings) {
     connectors: [zeroDevWallet({ projectId: settings.zeroDevTestProjectId, chains: [sepolia], mode: '7702' })],
     transports: { [sepolia.id]: http(chainRpc) },
   });
-  root.render(<WagmiProvider config={wagmi}><QueryClientProvider client={new QueryClient()}><AccountLab /></QueryClientProvider></WagmiProvider>);
+  root.render(<WagmiProvider config={wagmi}><QueryClientProvider client={new QueryClient()}><AccountLab nameCheckoutTestEnabled={settings.nameCheckoutTestEnabled} /></QueryClientProvider></WagmiProvider>);
 }

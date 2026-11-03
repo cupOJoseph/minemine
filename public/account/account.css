@@ -9,4 +9,8 @@
 .account-error { color: #ffb1a5; }
 .account-note { font-size: .9rem; opacity: .8; }
 .account-address { overflow-wrap: anywhere; }
+.account-checkout { border-top: 1px solid #526250; padding-top: 20px; }
+.account-checkout h2 { margin: 0; font-size: 1.5rem; }
+.account-checkout .account-note { margin: 0; }
+.account-checkout-link { width: fit-content; }
 @media (max-width: 600px) { .account-card { padding: 24px 18px; } }

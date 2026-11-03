@@ -9,6 +9,7 @@ const worldDir = process.env.WORLD_DIR || 'runtime/native-world';
 const logPath = process.env.NATIVE_LOG || 'runtime/browser-native.log';
 const output = process.env.LOAD_RESULTS || 'runtime/native-load-snapshots.jsonl';
 const joinOutput = process.env.LOAD_JOIN_RESULTS || 'runtime/native-load-joins.jsonl';
+const movementOutput = process.env.LOAD_MOVEMENT_RESULTS || 'runtime/native-load-movement.json';
 const stages = [2, 4, 8, 16];
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -112,10 +113,24 @@ async function waitForPresence(expectedNames) {
   throw new Error(`Native presence did not match ${expected.length} expected characters`);
 }
 
+async function requestPositions(label) {
+  const snapshotPath = path.join(worldDir, `minemine-load-position-${label}.json`);
+  const previous = await readFile(snapshotPath, 'utf8').catch(() => '');
+  await writeFile(path.join(worldDir, `minemine-load-position-${label}.request`), 'capture\n', { mode: 0o600 });
+  const deadline = Date.now() + 60_000;
+  while (Date.now() < deadline) {
+    const raw = await readFile(snapshotPath, 'utf8').catch(() => '');
+    if (raw && raw !== previous) return JSON.parse(raw);
+    await sleep(500);
+  }
+  throw new Error(`Native ${label} position snapshot did not arrive`);
+}
+
 await writeFile(output, '');
 await writeFile(joinOutput, '');
 const browsers = [];
 const contexts = [];
+const pages = [];
 const names = new Set();
 const gameTraffic = [];
 try {
@@ -137,6 +152,7 @@ try {
       const [name, value] = cookie.split('=');
       await context.addCookies([{ name, value, url: origin, httpOnly: true, sameSite: 'Strict' }]);
       const page = await context.newPage();
+      pages.push(page);
       const markers = {};
       const traffic = { egress_payload_bytes: 0, ingress_payload_bytes: 0, egress_frames: 0, ingress_frames: 0 };
       gameTraffic.push(traffic);
@@ -179,6 +195,51 @@ try {
       console.log(`Stage ${stage}, sample ${sample + 1}: ${snapshot.online_players} online, p95 ${snapshot.step_interval_ms_p95.toFixed(1)} ms`);
     }
   }
+  const actorNames = [...names].slice(0, 8);
+  const actorPages = pages.slice(0, actorNames.length);
+  const beforePositions = await requestPositions('before');
+  assert.equal(beforePositions.count, 16, 'movement baseline needs sixteen native players');
+  const beforeTraffic = gameTrafficTotals(gameTraffic);
+  const beforeStep = await waitForOnline(16);
+  const movementKeys = ['w', 'a', 's', 'd', 'w', 'a', 's', 'd'];
+  for (const page of actorPages) {
+    await page.locator('#canvas').click({ timeout: 10_000 });
+    await page.waitForFunction(() => document.pointerLockElement?.id === 'canvas', null, { timeout: 10_000 });
+  }
+  await Promise.all(actorPages.map((page, index) => page.keyboard.down(movementKeys[index])));
+  try {
+    await sleep(8_000);
+  } finally {
+    await Promise.all(actorPages.map((page, index) => page.keyboard.up(movementKeys[index]).catch(() => {})));
+  }
+  await sleep(2_000);
+  const afterPositions = await requestPositions('after');
+  assert.equal(afterPositions.count, 16, 'movement activity lost a native player');
+  const displacements = actorNames.map((playerName, index) => {
+    const before = beforePositions.positions[playerName];
+    const after = afterPositions.positions[playerName];
+    assert.ok(before && after, `movement actor ${index + 1} missing from native position snapshots`);
+    return Math.hypot(after.x - before.x, after.z - before.z);
+  });
+  const moved = displacements.filter(distance => distance >= 0.5).length;
+  assert.ok(moved >= 2, `only ${moved} of eight browser actors moved at least half a block`);
+  let activityStep;
+  const activityDeadline = Date.now() + 45_000;
+  do {
+    activityStep = await waitForOnline(16);
+    if (activityStep.observed_at > beforeStep.observed_at) break;
+    await sleep(1000);
+  } while (Date.now() < activityDeadline);
+  assert.ok(activityStep.observed_at > beforeStep.observed_at, 'movement needs a fresh native step window');
+  const afterTraffic = gameTrafficTotals(gameTraffic);
+  const trafficDelta = Object.fromEntries(Object.keys(afterTraffic).map(key => [key, afterTraffic[key] - beforeTraffic[key]]));
+  await writeFile(movementOutput, `${JSON.stringify({ actors: actorNames.length, moved,
+    horizontal_displacement_blocks: displacements, step_interval_ms_p95: activityStep.step_interval_ms_p95,
+    online_players: activityStep.online_players, game_websocket_payload_delta: trafficDelta })}\n`);
+  await appendFile(output, `${JSON.stringify({ stage: 16, phase: 'movement',
+    captured_at: new Date().toISOString(), game_websocket_payload: afterTraffic, ...activityStep })}\n`);
+  console.log(`Movement with sixteen online: ${moved}/8 actors moved at least half a block; ` +
+    `p95 native step ${activityStep.step_interval_ms_p95.toFixed(1)} ms`);
   const observedTraffic = gameTrafficTotals(gameTraffic);
   assert.ok(observedTraffic.egress_payload_bytes > 0 && observedTraffic.ingress_payload_bytes > 0,
     'browser game WebSocket payload counters stayed empty');
@@ -189,6 +250,7 @@ try {
   await browsers.at(-1).close();
   contexts.pop();
   browsers.pop();
+  pages.pop();
   const disconnected = await waitForOnline(reconnectClient - 1);
   await waitForPresence([...names].filter(playerName => playerName !== originalName));
   await appendFile(output, `${JSON.stringify({ stage: reconnectClient, phase: 'one-disconnected',
@@ -208,6 +270,7 @@ try {
   const [name, value] = cookie.split('=');
   await context.addCookies([{ name, value, url: origin, httpOnly: true, sameSite: 'Strict' }]);
   const page = await context.newPage();
+  pages.push(page);
   const markers = {};
   page.on('response', response => {
     if (new URL(response.url()).pathname === '/api/game/ticket' && response.status() === 200)

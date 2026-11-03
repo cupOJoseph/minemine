@@ -37,14 +37,15 @@ async function signIn(wallet) {
   } };
 }
 
-async function waitForJoin(playerName, page) {
+async function waitForJoin(playerName, page, logOffset = 0) {
   const joinText = `${playerName} [`;
   const deadline = Date.now() + 180_000;
   while (Date.now() < deadline) {
     const log = await readFile(logPath, 'utf8').catch(() => '');
-    const joined = log.split('\n').find(line => line.includes(joinText) && line.includes('] joins game.'));
+    const recentLines = log.slice(logOffset).split('\n');
+    const joined = recentLines.find(line => line.includes(joinText) && line.includes('] joins game.'));
     if (joined) {
-      const connected = log.split('\n').find(line => line.includes(`New connection: "${playerName}"`));
+      const connected = recentLines.find(line => line.includes(`New connection: "${playerName}"`));
       assert.ok(connected, `native connection marker missing for ${playerName}`);
       const timestamp = line => Date.parse(`${line.slice(0, 19).replace(' ', 'T')}Z`);
       const connectedAt = timestamp(connected);
@@ -72,6 +73,20 @@ async function waitForOnline(expected) {
     await sleep(1000);
   }
   throw new Error(`Native metrics did not report ${expected} online players`);
+}
+
+async function waitForPresence(expectedNames) {
+  const deadline = Date.now() + 60_000;
+  const expected = [...expectedNames].sort();
+  while (Date.now() < deadline) {
+    const raw = await readFile(path.join(worldDir, 'minemine-player-presence.json'), 'utf8').catch(() => '');
+    if (raw) {
+      const snapshot = JSON.parse(raw);
+      if (JSON.stringify([...snapshot.players].sort()) === JSON.stringify(expected)) return;
+    }
+    await sleep(1000);
+  }
+  throw new Error(`Native presence did not match ${expected.length} expected characters`);
 }
 
 await writeFile(output, '');
@@ -140,6 +155,58 @@ try {
       console.log(`Stage ${stage}, sample ${sample + 1}: ${snapshot.online_players} online, p95 ${snapshot.step_interval_ms_p95.toFixed(1)} ms`);
     }
   }
+  const reconnectClient = stages.at(-1);
+  const originalName = [...names].at(-1);
+  await waitForPresence(names);
+  await contexts.at(-1).close();
+  await browsers.at(-1).close();
+  contexts.pop();
+  browsers.pop();
+  const disconnected = await waitForOnline(reconnectClient - 1);
+  await waitForPresence([...names].filter(playerName => playerName !== originalName));
+  await appendFile(output, `${JSON.stringify({ stage: reconnectClient, phase: 'one-disconnected',
+    captured_at: new Date().toISOString(), ...disconnected })}\n`);
+
+  const wallet = new Wallet(`0x${reconnectClient.toString(16).padStart(64, '0')}`);
+  const { session, cookie, auth } = await signIn(wallet);
+  assert.equal(session.playerName, originalName, 'reconnected wallet must keep its native character');
+  const logOffset = (await readFile(logPath, 'utf8')).length;
+  const browserStart = Date.now();
+  const browser = await chromium.launch({ headless: true, args: ['--enable-unsafe-swiftshader'] });
+  const browserLaunchMs = Date.now() - browserStart;
+  browsers.push(browser);
+  const context = await browser.newContext({ viewport: { width: 640, height: 360 } });
+  contexts.push(context);
+  const [name, value] = cookie.split('=');
+  await context.addCookies([{ name, value, url: origin, httpOnly: true, sameSite: 'Strict' }]);
+  const page = await context.newPage();
+  const markers = {};
+  page.on('response', response => {
+    if (new URL(response.url()).pathname === '/api/game/ticket' && response.status() === 200)
+      markers.ticket_at = Date.now();
+  });
+  page.on('websocket', socket => {
+    if (new URL(socket.url()).pathname === '/game-proxy' && !markers.proxy_at)
+      markers.proxy_at = Date.now();
+  });
+  const start = Date.now();
+  await page.goto(`${origin}/engine/connect.html`, { waitUntil: 'domcontentloaded' });
+  const domAt = Date.now();
+  const native = await waitForJoin(session.playerName, page, logOffset);
+  const totalMs = Date.now() - start;
+  assert.ok(markers.ticket_at && markers.proxy_at, 'reconnected browser ticket or game proxy missing');
+  const timing = { client: reconnectClient, stage: reconnectClient, reconnect: true,
+    browser_mode: 'separate-processes', browser_launch_ms: browserLaunchMs, ...auth,
+    dom_content_loaded_ms: domAt - start, ticket_response_ms: markers.ticket_at - start,
+    game_proxy_open_ms: markers.proxy_at - start, ...native, total_join_ms: totalMs };
+  await appendFile(joinOutput, `${JSON.stringify(timing)}\n`);
+  const reconnected = await waitForOnline(reconnectClient);
+  assert.ok(reconnected.observed_at > disconnected.observed_at, 'reconnect needs a fresh native snapshot');
+  await waitForPresence(names);
+  await appendFile(output, `${JSON.stringify({ stage: reconnectClient, phase: 'reconnected',
+    captured_at: new Date().toISOString(), ...reconnected })}\n`);
+  console.log(`Client ${reconnectClient} rejoined as ${session.playerName} in ${(totalMs / 1000).toFixed(1)}s; ` +
+    `${reconnected.online_players} online again`);
 } finally {
   for (const context of contexts.reverse()) await context.close().catch(() => {});
   for (const browser of browsers.reverse()) await browser.close().catch(() => {});

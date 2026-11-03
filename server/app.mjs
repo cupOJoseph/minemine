@@ -374,7 +374,12 @@ export function createApp(config) {
             throw error;
           }
         }
-        if (req.method === 'GET' && url.pathname === '/api/identity') return json(res, 200, await playerIdentity(session));
+        if (req.method === 'GET' && url.pathname === '/api/identity') {
+          const identity = await playerIdentity(session);
+          const term = names.managedNameTermForAccount(session.address.toLowerCase());
+          if (term?.status === 'active' && identity.managedEnsName !== term.name) term.status = 'unverified';
+          return json(res, 200, { ...identity, managedName: term });
+        }
         if (req.method === 'POST' && url.pathname === '/api/identity/ens') {
           const data = await body(req);
           const verified = await ensOwnership.verify(data.name, session.address);

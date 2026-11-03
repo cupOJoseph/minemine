@@ -30,6 +30,9 @@ function AccountLab({ nameCheckoutTestEnabled }) {
   const [handle, setHandle] = useState('');
   const [checkoutUrl, setCheckoutUrl] = useState('');
   const [checkoutPending, setCheckoutPending] = useState(false);
+  const [managedName, setManagedName] = useState(null);
+  const [nameLoading, setNameLoading] = useState(false);
+  const [nameError, setNameError] = useState('');
   const { address, chainId, isConnected } = useAccount();
   const { disconnectAsync } = useDisconnect();
   const { signMessageAsync, isPending: signing } = useSignMessage();
@@ -45,6 +48,36 @@ function AccountLab({ nameCheckoutTestEnabled }) {
     }).catch(() => { if (current) setSession(null); });
     return () => { current = false; };
   }, [address, isConnected]);
+
+  useEffect(() => {
+    if (!session || !isConnected || session.address?.toLowerCase() !== address?.toLowerCase()) {
+      setManagedName(null); setNameError(''); setNameLoading(false); return;
+    }
+    let current = true;
+    setNameLoading(true); setNameError('');
+    api('identity').then(identity => {
+      if (!current) return;
+      if (identity.address?.toLowerCase() !== address.toLowerCase()) throw new Error('Account changed.');
+      setManagedName(identity.managedName || null);
+      if (identity.managedName?.status === 'held') setHandle(identity.managedName.name.split('.')[0]);
+      else setCheckoutUrl('');
+    }).catch(() => { if (current) setNameError('Name status is unavailable. Try refreshing it.'); })
+      .finally(() => { if (current) setNameLoading(false); });
+    return () => { current = false; };
+  }, [session?.address, address, isConnected]);
+
+  async function refreshName() {
+    if (!session || !address || session.address?.toLowerCase() !== address.toLowerCase()) return;
+    setNameLoading(true); setNameError('');
+    try {
+      const identity = await api('identity');
+      if (identity.address?.toLowerCase() !== address.toLowerCase()) throw new Error('Account changed.');
+      setManagedName(identity.managedName || null);
+      if (identity.managedName?.status === 'held') setHandle(identity.managedName.name.split('.')[0]);
+      else setCheckoutUrl('');
+    } catch { setNameError('Name status is unavailable. Try refreshing it.'); }
+    finally { setNameLoading(false); }
+  }
 
   async function sendCode(event) {
     event.preventDefault(); setError(''); setStatus('Sending a one-time code…');
@@ -81,7 +114,7 @@ function AccountLab({ nameCheckoutTestEnabled }) {
     try {
       await api('auth/logout', {});
       await disconnectAsync();
-      setSession(null); setOtp(null); setEmail(''); setCode(''); setHandle(''); setCheckoutUrl('');
+      setSession(null); setOtp(null); setEmail(''); setCode(''); setHandle(''); setCheckoutUrl(''); setManagedName(null);
       setStatus('Signed out of MineMine and ZeroDev.');
     } catch (cause) { setError(cause.message); }
   }
@@ -99,27 +132,41 @@ function AccountLab({ nameCheckoutTestEnabled }) {
       }
       setCheckoutUrl(target.href);
       setStatus(`Test checkout prepared for ${result.handle}.minemine.eth. Continue on Stripe to use a test card.`);
+      await refreshName();
     } catch (cause) { setError(cause.message); setStatus(''); }
     finally { setCheckoutPending(false); }
   }
 
   const returnState = new URLSearchParams(window.location.search).get('name_checkout');
+  const termEnd = managedName?.expiresAt && `${new Date(managedName.expiresAt).toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'short' })} UTC`;
+  const checkoutEnd = managedName?.checkoutEndsAt && `${new Date(managedName.checkoutEndsAt).toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'short' })} UTC`;
+  const nameMessage = managedName && ({
+    held: `Test checkout window ends ${checkoutEnd}. The temporary hold remains until Stripe confirms expiry; the name is not active.`,
+    pending: 'Payment was recorded. ENS activation is pending; the one-year term starts after its address record is verified.',
+    active: `Active until ${termEnd}. Renewal checkout is not available yet.`,
+    unverified: `The name is hidden while its ENS address record cannot be verified. Its term ends ${termEnd}.`,
+    expired: `The term ended ${termEnd}. The name is hidden; your wallet account still works. Renewal checkout is not available yet.`,
+  }[managedName.status] || 'Name status is unavailable.');
 
   return <div className="account-form">
     {isConnected ? <>
       <p>ZeroDev test wallet: <strong className="account-address">{address}</strong></p>
       {session ? <>
         <p>MineMine test session: <strong>{session.playerName}</strong></p>
-        {nameCheckoutTestEnabled ? <form className="account-form account-checkout" onSubmit={prepareCheckout}>
-          <h2>Choose a MineMine username</h2>
+        {managedName && <div className="account-name-status"><h2>{managedName.name}</h2><p role="status">{nameMessage}</p></div>}
+        <button className="button button-ghost" type="button" disabled={nameLoading} onClick={refreshName}>Refresh name status</button>
+        {nameLoading && <p role="status">Checking name status…</p>}
+        {nameError && <p role="alert" className="account-error">{nameError}</p>}
+        {nameCheckoutTestEnabled && !nameLoading && !nameError && (!managedName || managedName.status === 'held') ? <form className="account-form account-checkout" onSubmit={prepareCheckout}>
+          <h2>{managedName?.status === 'held' ? 'Resume your username checkout' : 'Choose a MineMine username'}</h2>
           <label htmlFor="account-handle">Username</label>
           <input id="account-handle" type="text" autoComplete="off" pattern="[A-Za-z][A-Za-z0-9]{2,15}" maxLength={16}
-            value={handle} onChange={event => { setHandle(event.target.value); setCheckoutUrl(''); }} required />
+            value={handle} disabled={managedName?.status === 'held'} onChange={event => { setHandle(event.target.value); setCheckoutUrl(''); }} required />
           <p className="account-note">Your public name would be <strong>{handle.trim().toLowerCase() || 'username'}.minemine.eth</strong>. MineMine manages the ENS record; the name is not a transferable token. The planned single $2 USD charge covers the account and its first year, starting after verified ENS activation. Renewal is required after that year.</p>
           <p className="account-note">This lab uses Stripe test mode. It does not charge a real card or issue an ENS name.</p>
-          <button className="button button-primary" type="submit" disabled={checkoutPending || !handle.trim()}>Prepare $2 test checkout</button>
-          {checkoutUrl && <a className="button button-ghost account-checkout-link" href={checkoutUrl}>Continue to Stripe test checkout</a>}
-        </form> : <p className="account-note">Username checkout and shared-world access are not enabled in this lab.</p>}
+          <button className="button button-primary" type="submit" disabled={checkoutPending || !handle.trim()}>{managedName?.status === 'held' ? 'Reopen test checkout' : 'Prepare $2 test checkout'}</button>
+        </form> : !nameCheckoutTestEnabled && <p className="account-note">Username checkout and shared-world access are not enabled in this lab.</p>}
+        {checkoutUrl && <a className="button button-ghost account-checkout-link" href={checkoutUrl}>Continue to Stripe test checkout</a>}
       </> : <button className="button button-primary" type="button" disabled={signing} onClick={signIn}>Sign in to MineMine</button>}
       <button className="button button-ghost" type="button" onClick={signOut}>Sign out</button>
     </> : otp ? <form className="account-form" onSubmit={verifyCode}>
@@ -133,7 +180,7 @@ function AccountLab({ nameCheckoutTestEnabled }) {
       <button className="button button-primary" type="submit" disabled={sendOTP.isPending || !email.trim()}>Send one-time code</button>
     </form>}
     {status && <p role="status">{status}</p>}
-    {returnState === 'success' && <p role="status">Returned from Stripe test checkout. The server verifies payment by webhook; ENS activation is still pending.</p>}
+    {returnState === 'success' && <p role="status">Returned from Stripe test checkout. The server checks payment by webhook. Refresh name status to see whether activation is pending.</p>}
     {returnState === 'cancelled' && <p role="status">Test checkout was cancelled. The temporary username hold remains until Stripe confirms expiry.</p>}
     {error && <p role="alert" className="account-error">{error}</p>}
   </div>;

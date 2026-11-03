@@ -13,4 +13,6 @@
 .account-checkout h2 { margin: 0; font-size: 1.5rem; }
 .account-checkout .account-note { margin: 0; }
 .account-checkout-link { width: fit-content; }
+.account-name-status { border-top: 1px solid #526250; padding-top: 20px; }
+.account-name-status h2 { margin: 0 0 8px; font-size: 1.5rem; overflow-wrap: anywhere; }
 @media (max-width: 600px) { .account-card { padding: 24px 18px; } }

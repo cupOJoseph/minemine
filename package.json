@@ -40,5 +40,9 @@
     "@openzeppelin/contracts": "4.9.6",
     "playwright": "1.64.1",
     "solc": "0.8.26"
+  },
+  "overrides": {
+    "follow-redirects": "1.16.2",
+    "tmp": "0.2.7"
   }
 }

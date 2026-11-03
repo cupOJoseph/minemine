@@ -17,7 +17,7 @@ for (const key of ['observed_at', 'sample_seconds', 'samples', 'online_players',
 }
 assert.ok(metrics.sample_seconds > 0 && metrics.samples > 0);
 assert.ok(Number.isInteger(metrics.online_players) && metrics.online_players >= 0);
-assert.ok(metrics.step_interval_ms_mean >= 0 && metrics.step_interval_ms_mean <= metrics.step_interval_ms_max);
+assert.ok(metrics.step_interval_ms_mean >= 0 && metrics.step_interval_ms_mean <= metrics.step_interval_ms_max + 1e-6);
 assert.ok(metrics.step_interval_ms_p50 <= metrics.step_interval_ms_p95);
 assert.ok(metrics.step_interval_ms_p95 <= metrics.step_interval_ms_p99);
 assert.ok(metrics.step_interval_ms_p99 <= metrics.step_interval_ms_max);

@@ -45,6 +45,7 @@ export function stagePlaytest(buildSource, root = project) {
   if (template.split('%__MINERS_RELEASE__%').length !== 2) throw new Error('Playtest template release marker is missing or duplicated.');
   fs.writeFileSync(path.join(staged, 'index.html'), template.replace('%__MINERS_RELEASE__%', release));
   for (const file of ['playtest.js', 'playtest.css', 'diagnostics.css', 'session.mjs']) fs.copyFileSync(path.join(root, 'playtest', file), path.join(staged, file));
+  for (const file of ['adapter.js', 'connect.html', 'remote.js', 'remote-session.mjs']) fs.copyFileSync(path.join(root, 'playtest', file), path.join(staged, file));
   const launcherFile = path.join(staged, release, 'launcher.js');
   fs.appendFileSync(launcherFile, '\n// Miners adapter: expose inspected APIs without eval or credential URLs.\nglobalThis.MinersEngine = Object.freeze({ LuantiLauncher, LuantiArgs, onMainStarted(callback) { mtScheduler.addCondition("miners-main-started", callback, ["main_called"]); } });\n');
   const assets = {};
@@ -62,9 +63,25 @@ export function stagePlaytest(buildSource, root = project) {
   fs.mkdirSync(path.join(staged, 'notices'), { recursive: true });
   for (const file of ['LICENSE', 'THIRD_PARTY.md']) fs.copyFileSync(path.join(root, file), path.join(staged, 'notices', file));
   fs.copyFileSync(path.join(buildSource, 'build_luanti.sh'), path.join(staged, 'notices', 'build_luanti.sh.txt'));
+  for (const name of ['fetch_sources.sh', 'build_openssl.sh', 'build_curl.sh', 'openssl-3.5-wasm.patch']) {
+    fs.copyFileSync(path.join(buildSource, name), path.join(staged, 'notices', name + '.txt'));
+  }
+  fs.copyFileSync(path.join(buildSource, 'miners-patch-args.mjs'), path.join(staged, 'notices', 'startup-argument-redaction-patch.mjs.txt'));
   for (const name of ['build_libarchive.sh', 'build_libzip.sh']) fs.copyFileSync(path.join(buildSource, name), path.join(staged, 'notices', name + '.txt'));
   fs.copyFileSync(path.join(buildSource, 'LICENSE'), path.join(staged, 'notices', 'wasm-wrapper-LICENSE.txt'));
   fs.copyFileSync(path.join(root, 'vendor/native/LICENSE.txt'), path.join(staged, 'notices', 'engine-LICENSE.txt'));
+  for (const [source, target] of [
+    ['build/openssl/LICENSE.txt', 'openssl-LICENSE.txt'],
+    ['build/curl/COPYING', 'curl-COPYING.txt'],
+    ['build/libarchive/COPYING', 'libarchive-COPYING.txt'],
+    ['build/libzip/LICENSE', 'libzip-LICENSE.txt'],
+    ['sources/zstd/LICENSE', 'zstd-LICENSE.txt'],
+    ['sources/webshims/LICENSE', 'webshims-LICENSE.txt'],
+    ['sources/luanti/LICENSE.txt', 'web-engine-LICENSE.txt'],
+    ['sources/luanti/COPYING.LESSER', 'web-engine-COPYING.LESSER.txt'],
+  ]) {
+    fs.copyFileSync(path.join(buildSource, source), path.join(staged, 'notices', target));
+  }
   const game = path.join(root, 'vendor/game');
   for (const name of fs.readdirSync(game).filter(name => /^licen[cs]e/i.test(name))) {
     const target = path.join(game, name);

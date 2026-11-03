@@ -1,4 +1,4 @@
-# Launcher/auth service only. Native Luanti and its protocol proxy are separate.
+# Launcher/auth service and restricted WebSocket bridge. Native Luanti runs separately.
 FROM node:22-bookworm-slim
 WORKDIR /app
 COPY package.json package-lock.json ./

@@ -13,40 +13,41 @@ test('SIWE signature creates an address-bound session and cannot be replayed', a
   assert.match(challenge.message, /^https:\/\/miners\.example wants you to sign in/);
   assert.match(challenge.message, /Chain ID: 11155111/);
   const signature = await wallet.signMessage(challenge.message);
-  const login = auth.verify(challenge.token, signature);
+  const login = await auth.verify(challenge.token, signature);
   assert.equal(auth.get(login.token).address, wallet.address);
-  assert.match(login.session.playerName, /^w_[0-9a-f]{18}$/);
-  assert.throws(() => auth.verify(challenge.token, signature), /expired or already used/);
+  assert.match(login.session.playerName, /^w_[0-9a-f]{17}$/);
+  assert.ok(login.session.playerName.length <= 19, 'pinned browser client rejects longer player names');
+  await assert.rejects(auth.verify(challenge.token, signature), /expired or already used/);
   auth.revoke(login.token);
   assert.equal(auth.get(login.token), undefined);
 });
 test('wrong signer and modified domain are rejected and consume challenges', async () => {
   const auth = createAuth(options);
   const challenge = auth.issue(wallet.address, options.chainId);
-  assert.throws(() => auth.verify(challenge.token, other.signingKey.sign('0x' + '00'.repeat(32)).serialized), /Signature does not match|Invalid wallet signature/);
-  assert.throws(() => auth.verify(challenge.token, '0x'), /expired or already used/);
+  await assert.rejects(auth.verify(challenge.token, other.signingKey.sign('0x' + '00'.repeat(32)).serialized), /Signature does not match|Invalid wallet signature/);
+  await assert.rejects(auth.verify(challenge.token, '0x'), /expired or already used/);
   const second = auth.issue(wallet.address, options.chainId);
   const signature = await wallet.signMessage(second.message.replace('miners.example', 'attacker.example'));
-  assert.throws(() => auth.verify(second.token, signature), /does not match/);
+  await assert.rejects(auth.verify(second.token, signature), /does not match/);
 });
 test('a signature cannot be paired with another browser challenge', async () => {
   const auth = createAuth(options);
   const first = auth.issue(wallet.address, options.chainId);
   const second = auth.issue(wallet.address, options.chainId);
   const signature = await wallet.signMessage(first.message);
-  assert.throws(() => auth.verify(second.token, signature), /does not match/);
-  assert.throws(() => auth.verify(undefined, signature), /expired or already used/);
+  await assert.rejects(auth.verify(second.token, signature), /does not match/);
+  await assert.rejects(auth.verify(undefined, signature), /expired or already used/);
 });
 test('challenges and sessions expire and old challenge is replaced', async () => {
   let now = 1_800_000_000_000;
   const auth = createAuth({ ...options, now: () => now });
   const initial = auth.issue(wallet.address, options.chainId);
   const replacement = auth.issue(wallet.address, options.chainId, initial.token);
-  assert.throws(() => auth.verify(initial.token, '0x'), /expired or already used/);
+  await assert.rejects(auth.verify(initial.token, '0x'), /expired or already used/);
   now += 300_001;
-  assert.throws(() => auth.verify(replacement.token, '0x'), /expired or already used/);
+  await assert.rejects(auth.verify(replacement.token, '0x'), /expired or already used/);
   const challenge = auth.issue(wallet.address, options.chainId);
-  const session = auth.verify(challenge.token, await wallet.signMessage(challenge.message));
+  const session = await auth.verify(challenge.token, await wallet.signMessage(challenge.message));
   now += 12 * 60 * 60_000;
   assert.equal(auth.get(session.token), undefined);
 });
@@ -61,10 +62,39 @@ test('player identity is stable across address casing', () => {
   assert.equal(playerName(wallet.address), playerName(wallet.address.toLowerCase()));
   assert.notEqual(playerName(wallet.address), playerName(other.address));
 });
+test('smart-wallet verifier receives only the exact server challenge and replay is denied', async () => {
+  const calls = [];
+  const auth = createAuth({ ...options, smartVerifier: async value => {
+    calls.push(value);
+    return value.signature === '0x1234' && value.address === other.address;
+  } });
+  const challenge = auth.issue(other.address, options.chainId);
+  const login = await auth.verify(challenge.token, '0x1234');
+  assert.equal(auth.get(login.token).address, other.address);
+  assert.deepEqual(calls, [{ address: other.address, message: challenge.message, signature: '0x1234' }]);
+  await assert.rejects(auth.verify(challenge.token, '0x1234'), /expired or already used/);
+});
+test('smart-wallet RPC failure does not create a session or preserve a challenge', async () => {
+  const auth = createAuth({ ...options, smartVerifier: async () => { throw new Error('RPC unavailable'); } });
+  const challenge = auth.issue(other.address, options.chainId);
+  await assert.rejects(auth.verify(challenge.token, '0x1234'), error => error.status === 503);
+  await assert.rejects(auth.verify(challenge.token, '0x1234'), /expired or already used/);
+});
 test('configuration requires TLS for public hosts and restricts initial chains', () => {
   assert.throws(() => readConfig({ PUBLIC_ORIGIN: 'http://game.example' }), /HTTPS/);
   assert.throws(() => readConfig({ PUBLIC_ORIGIN: 'https://game.example/path' }), /without path/);
   assert.throws(() => readConfig({ CHAIN_ID: '1' }), /Sepolia/);
   assert.throws(() => readConfig({ PORT: '-1' }), /port/);
   assert.equal(readConfig({}).origin, 'http://localhost:3000');
+  assert.throws(() => readConfig({ TOWN_CONFIRMATIONS: '0' }), /six confirmation/);
+  assert.throws(() => readConfig({ TRUST_LOOPBACK_PROXY: 'true' }), /HTTPS and a loopback HOST/);
+  assert.throws(() => readConfig({ PUBLIC_ORIGIN: 'https://play.example', HOST: '0.0.0.0', TRUST_LOOPBACK_PROXY: 'true' }), /loopback HOST/);
+  assert.throws(() => readConfig({ STRIPE_TEST_SECRET_KEY: 'sk_live_bad', STRIPE_TEST_WEBHOOK_SECRET: 'whsec_test' }), /test-mode/);
+  assert.throws(() => readConfig({ STRIPE_TEST_SECRET_KEY: 'sk_test_only' }), /configured together/);
+  assert.equal(readConfig({ STRIPE_TEST_SECRET_KEY: 'sk_test_example', STRIPE_TEST_WEBHOOK_SECRET: 'whsec_example' }).stripeTestSecretKey, 'sk_test_example');
+  assert.throws(() => readConfig({ ZERODEV_TEST_SIGNUP: 'true' }), /loopback Sepolia host/);
+  assert.throws(() => readConfig({ PUBLIC_ORIGIN: 'https://play.example', ZERODEV_TEST_SIGNUP: 'true', ZERODEV_PROJECT_ID: 'test-project-123', RPC_URL: 'https://rpc.example' }), /loopback Sepolia host/);
+  assert.throws(() => readConfig({ HOST: '0.0.0.0', ZERODEV_TEST_SIGNUP: 'true', ZERODEV_PROJECT_ID: 'test-project-123', RPC_URL: 'https://rpc.example' }), /loopback Sepolia host/);
+  assert.throws(() => readConfig({ ZERODEV_TEST_SIGNUP: 'true', ZERODEV_PROJECT_ID: 'test-project-123', RPC_URL: 'https://rpc.example', GAME_ENABLED: 'true' }), /loopback Sepolia host/);
+  assert.equal(readConfig({ ZERODEV_TEST_SIGNUP: 'true', ZERODEV_PROJECT_ID: 'test-project-123', RPC_URL: 'https://rpc.example' }).zeroDevProjectId, 'test-project-123');
 });

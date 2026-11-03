@@ -12,7 +12,10 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run account:build
       - run: npm test
+      - run: bash test/backup-world.sh
       - run: npm run test:http
       - run: npm run test:evm
+      - run: npm run test:smart-auth
       - run: npm run contracts:compile

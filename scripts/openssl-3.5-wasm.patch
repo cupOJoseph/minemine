@@ -1,0 +1,12 @@
+--- a/Configurations/10-main.conf
++++ b/Configurations/10-main.conf
+@@ -701,7 +701,8 @@
+     },
+     "linux-generic64" => {
+         inherit_from     => [ "linux-generic32" ],
+-        bn_ops           => "SIXTY_FOUR_BIT_LONG RC4_CHAR",
++        bn_ops           => "SIXTY_FOUR_BIT RC4_CHAR",
++        lib_cppflags     => add("-DBN_DIV2W"),
+     },
+ 
+     "linux-ppc" => {

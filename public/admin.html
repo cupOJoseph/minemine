@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>MineMine · Admin</title>
+  <link rel="stylesheet" href="/admin.css">
+  <script type="module" src="/admin.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="MineMine home"><span class="brand-mark" aria-hidden="true">▣</span> MineMine</a>
+    <span class="topbar-label">World operations</span>
+    <a class="home-link" href="/">Back to game ↗</a>
+  </header>
+  <main>
+    <div class="intro">
+      <div><p class="eyebrow">PRIVATE OPERATIONS / BETA</p><h1>Player pulse</h1><p class="subtitle">Live presence and unique players who joined the shared world.</p></div>
+      <button id="refresh" type="button">Refresh data ↻</button>
+    </div>
+    <p id="status" class="status" role="status" aria-live="polite">Checking access…</p>
+    <section class="stats" aria-label="Player statistics">
+      <article class="card"><span>Playing now</span><strong id="current-count">—</strong><small id="current-label">Native world presence</small></article>
+      <article class="card"><span>Today</span><strong id="daily-count">—</strong><small id="daily-label">UTC day</small></article>
+      <article class="card"><span>This week</span><strong id="weekly-count">—</strong><small id="weekly-label">UTC, starts Monday</small></article>
+      <article class="card"><span>This month</span><strong id="monthly-count">—</strong><small id="monthly-label">UTC calendar month</small></article>
+    </section>
+    <section class="detail" aria-labelledby="online-heading">
+      <div class="section-heading"><div><p class="eyebrow">LIVE WORLD</p><h2 id="online-heading">Connected characters</h2></div><span id="updated">—</span></div>
+      <ul id="online-players"><li class="empty">Waiting for the native world.</li></ul>
+    </section>
+    <section class="detail" aria-labelledby="explorer-heading">
+      <div class="section-heading"><div><p class="eyebrow">RECENT CHARACTERS</p><h2 id="explorer-heading">Player explorer</h2></div><span>Accepted native joins · rolling 12 months</span></div>
+      <form id="player-search" class="explorer-tools" role="search">
+        <label for="player-query">Search character, wallet, username or ENS name</label>
+        <div><input id="player-query" name="q" maxlength="255" autocomplete="off" spellcheck="false" placeholder="w_…, 0x…, builder or builder.eth" aria-describedby="explorer-note"><button type="submit">Search</button></div>
+      </form>
+      <p id="explorer-note" class="explorer-note">Wallet addresses come from signed MineMine logins. Username and ENS searches match only a currently verified display name. Inspect a character to see its latest identity. Town membership and paid account details will follow account integration.</p>
+      <div class="table-scroll"><table><thead><tr><th scope="col">Character ID</th><th scope="col">Wallet</th><th scope="col">First join in window</th><th scope="col">Last join</th><th scope="col">Joins</th><th scope="col">Profile</th></tr></thead><tbody id="player-rows"><tr><td colspan="6">Waiting for admin access.</td></tr></tbody></table></div>
+      <div class="pager"><span id="player-page-label">—</span><div><button id="player-prev" type="button" disabled>Previous</button><button id="player-next" type="button" disabled>Next</button></div></div>
+      <div id="player-detail" class="player-detail" hidden><div class="player-detail-heading"><h3>Character profile</h3><button id="player-detail-close" type="button">Close</button></div><p id="player-detail-status" role="status" aria-live="polite"></p><dl><div><dt>Character</dt><dd id="profile-character">—</dd></div><div><dt>Signed wallet</dt><dd id="profile-wallet">—</dd></div><div><dt>Current verified ENS</dt><dd id="profile-ens">—</dd></div><div><dt>First sign-in</dt><dd id="profile-first">—</dd></div><div><dt>Last sign-in</dt><dd id="profile-last">—</dd></div><div><dt>Beta access</dt><dd id="profile-beta">—</dd></div></dl><button id="profile-beta-action" class="profile-beta-action" type="button" hidden></button></div>
+    </section>
+    <section id="name-operations" class="detail" aria-labelledby="names-heading" hidden>
+      <div class="section-heading"><div><p class="eyebrow">BETA OPERATIONS</p><h2 id="names-heading">Reserved usernames</h2></div><span>Seven-day administrative holds</span></div>
+      <form id="name-reservation" class="explorer-tools">
+        <label for="name-handle">Reserve a MineMine username</label>
+        <div><input id="name-handle" name="handle" minlength="3" maxlength="16" pattern="[A-Za-z][A-Za-z0-9]{2,15}" autocomplete="off" spellcheck="false" placeholder="username" required><button type="submit">Reserve</button></div>
+        <label for="name-intended-address">For a wallet address (optional)</label>
+        <div><input id="name-intended-address" name="intendedAddress" maxlength="42" autocomplete="off" spellcheck="false" placeholder="0x…"></div>
+      </form>
+      <p class="explorer-note">A wallet-specific hold can be claimed only by that wallet. The hold expires after seven days. Sign in again on the home page if your admin signature is more than five minutes old. This does not issue an ENS name or charge a card.</p>
+      <p id="name-status" class="name-status" role="status" aria-live="polite"></p>
+      <ul id="name-reservations" class="name-list"></ul>
+    </section>
+    <section id="beta-operations" class="detail" aria-labelledby="beta-heading" hidden>
+      <div class="section-heading"><div><p class="eyebrow">BETA OPERATIONS</p><h2 id="beta-heading">Invite codes</h2></div><span>Wallet-bound redemption</span></div>
+      <form id="beta-create" class="beta-tools">
+        <label for="beta-max-uses">Uses per code <input id="beta-max-uses" type="number" min="1" max="100" value="1" required></label>
+        <label for="beta-days">Expires after days <input id="beta-days" type="number" min="1" max="30" value="14" required></label>
+        <label for="beta-intended">Wallet address, optional <input id="beta-intended" type="text" autocomplete="off" spellcheck="false" placeholder="0x…"></label>
+        <button type="submit">Create invite</button>
+      </form>
+      <p id="beta-create-status" class="name-status" role="status" aria-live="polite"></p>
+      <p id="beta-secret" class="beta-secret" hidden></p>
+      <ul id="beta-codes" class="name-list"></ul>
+      <p class="explorer-note">The code appears once when created. Copy it before leaving this page. Revoking a code stops new redemptions; it does not remove players who already redeemed it. Invite enforcement stays off until the server enables it.</p>
+    </section>
+    <section id="audit-operations" class="detail" aria-labelledby="audit-heading" hidden>
+      <div class="section-heading"><div><p class="eyebrow">BETA OPERATIONS</p><h2 id="audit-heading">Recent activity</h2></div><span>Latest 50 username and invite events</span></div>
+      <p id="audit-status" class="explorer-note" role="status" aria-live="polite"></p>
+      <div class="table-scroll"><table><thead><tr><th scope="col">Time</th><th scope="col">Item</th><th scope="col">Action</th><th scope="col">Actor</th></tr></thead><tbody id="audit-rows"></tbody></table></div>
+    </section>
+    <p class="method">Counts use accepted Luanti joins. Reconnects count once per period; visiting the website does not count as playing. Presence is shown only while the native heartbeat and player snapshot are fresh. Times are UTC.</p>
+  </main>
+</body>
+</html>

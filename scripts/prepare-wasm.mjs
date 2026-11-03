@@ -22,6 +22,47 @@ export function patchBuildScript(source, { memoryMiB = 512, threads = 8 } = {}) 
   if (source.split(original).length !== 2) throw new Error('Pinned engine build flags have changed; review before applying the memory profile.');
   return source.replace(original, '-sPTHREAD_POOL_SIZE=' + threads + ' -s EXPORTED_RUNTIME_METHODS=ccall,cwrap -sINITIAL_MEMORY=' + (memoryMiB * 1024 * 1024) + ' -sALLOW_MEMORY_GROWTH=1 -sMAXIMUM_MEMORY=2147483648 -sDYNAMIC_EXECUTION=0');
 }
+export function patchBuildAll(source) {
+  const original = './fetch_sources.sh\n\n# Dependencies';
+  if (source.split(original).length !== 2) throw new Error('Pinned build order changed; review before patching browser source.');
+  return source.replace(original, './fetch_sources.sh\nnode miners-patch-args.mjs sources/luanti/src/mainloop.cpp\n\n# Dependencies');
+}
+
+export function patchWasmArchives(source, archives) {
+  const old = {
+    openssl: 'getsource "https://www.openssl.org/source/openssl-1.1.1n.tar.gz" 40dceb51a4f6a5275bde0e6bf20ef4b91bfc32ed57c0552e2e8e15463372b17a',
+    curl: 'getsource "https://curl.se/download/curl-7.82.0.tar.bz2" 46d9a0400a33408fd992770b04a44a7434b3036f2e8089ac28b57573d59d371f',
+    libarchive: 'getsource "https://www.libarchive.org/downloads/libarchive-3.6.1.tar.xz" 5a411aceb978f43e626f0c2d1812ddd8807b645ed892453acabd532376c148e6',
+  };
+  let patched = source;
+  for (const [name, original] of Object.entries(old)) {
+    const { url, sha256 } = archives[name] || {};
+    if (!/^https:\/\//.test(url || '') || !/^[0-9a-f]{64}$/.test(sha256 || '')) throw new Error(`Invalid ${name} archive lock.`);
+    if (patched.split(original).length !== 2) throw new Error(`Pinned ${name} source line changed; review before patching.`);
+    patched = patched.replace(original, `getsource "${url}" ${sha256}`);
+  }
+  return patched;
+}
+
+export function patchOpenSslBuildScript(source) {
+  const wrap = '"$SOURCES_DIR/webshims/src/emsocket/wrap.py" .\n\n';
+  const oldPatch = '"$BASE_DIR"/openssl.patch';
+  if (source.split(wrap).length !== 2 || source.split(oldPatch).length !== 2) {
+    throw new Error('Pinned OpenSSL build script changed; review before patching.');
+  }
+  // curl supplies the emsocket transport. OpenSSL 3.5's PEM macros token-paste
+  // "write" into function names, so globally substituting that POSIX symbol
+  // with emsocket_write corrupts the library's own C identifiers.
+  return source.replace(wrap, '').replace(oldPatch, '"$BASE_DIR"/openssl-3.5-wasm.patch');
+}
+
+export function patchCurlBuildScript(source) {
+  const option = '  -DCURL_ZLIB=ON \\\n';
+  if (source.split(option).length !== 2) throw new Error('Pinned curl build script changed; review before patching.');
+  // curl 8.23 enables libpsl by default, but this WASM sysroot has no libpsl.
+  // The browser socket shim implements accept(), but not the sysroot's accept4().
+  return source.replace(option, '  -DCURL_USE_LIBPSL=OFF \\\n  -DHAVE_ACCEPT4=0 \\\n' + option);
+}
 
 export function prepareWasm(root = project, env = process.env) {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'upstream.sources.json'), 'utf8'));
@@ -34,12 +75,21 @@ export function prepareWasm(root = project, env = process.env) {
   const threads = Number(env.WASM_PTHREAD_POOL_SIZE || 8);
   const patched = patchBuildScript(fs.readFileSync(path.join(source, 'build_luanti.sh'), 'utf8'), { memoryMiB, threads });
   const dependencies = patchDependencyScripts(fs.readFileSync(path.join(source, 'build_libarchive.sh'), 'utf8'), fs.readFileSync(path.join(source, 'build_libzip.sh'), 'utf8'));
-  const scripts = { 'build_luanti.sh': patched, ...dependencies };
+  const opensslPatchName = 'openssl-3.5-wasm.patch';
+  const scripts = {
+    'build_luanti.sh': patched,
+    'build_all.sh': patchBuildAll(fs.readFileSync(path.join(source, 'build_all.sh'), 'utf8')),
+    'fetch_sources.sh': patchWasmArchives(fs.readFileSync(path.join(source, 'fetch_sources.sh'), 'utf8'), manifest.wasmArchives),
+    'build_openssl.sh': patchOpenSslBuildScript(fs.readFileSync(path.join(source, 'build_openssl.sh'), 'utf8')),
+    'build_curl.sh': patchCurlBuildScript(fs.readFileSync(path.join(source, 'build_curl.sh'), 'utf8')),
+    [opensslPatchName]: fs.readFileSync(path.join(root, 'scripts', opensslPatchName), 'utf8'),
+    'miners-patch-args.mjs': fs.readFileSync(path.join(root, 'scripts/patch-wasm-args.mjs'), 'utf8'),
+    ...dependencies,
+  };
   const scriptHashes = Object.fromEntries(Object.entries(scripts).map(([name, text]) => [name, createHash('sha256').update(text).digest('hex')]));
-  const profile = { schema: 2, wrapperCommit: expected, memoryMiB, threads, patchHash: scriptHashes['build_luanti.sh'], scriptHashes };
-  // Compiler placement stays stable across dependency-script corrections so
-  // the runner can reuse its SDK; the full profile is still checked below.
-  const profileId = createHash('sha256').update(JSON.stringify({ schema: 2, wrapperCommit: expected, memoryMiB, threads, patchHash: profile.patchHash })).digest('hex').slice(0, 16);
+  const profile = { schema: 3, wrapperCommit: expected, memoryMiB, threads, patchHash: scriptHashes['build_luanti.sh'], scriptHashes };
+  // The source patch changes the compiled binary, so it gets a distinct build profile.
+  const profileId = createHash('sha256').update(JSON.stringify({ schema: 3, wrapperCommit: expected, memoryMiB, threads, scriptHashes })).digest('hex').slice(0, 16);
   const buildSource = path.join(root, 'runtime', 'wasm-' + profileId);
   const stamp = path.join(buildSource, 'miners-build-profile.json');
   if (fs.existsSync(stamp)) {
@@ -54,6 +104,9 @@ export function prepareWasm(root = project, env = process.env) {
     const parts = path.relative(source, file).split(path.sep);
     return !parts.includes('.git') && !['emsdk', 'www'].includes(parts[0]) && !/^build(?:-|$)/.test(parts[0]);
   } });
+  for (const name of ['openssl-1.1.1n.tar.gz', 'curl-7.82.0.tar.bz2', 'libarchive-3.6.1.tar.xz']) {
+    fs.rmSync(path.join(buildSource, 'sources', name));
+  }
   for (const [name, text] of Object.entries(scripts)) fs.writeFileSync(path.join(buildSource, name), text);
   fs.writeFileSync(stamp, JSON.stringify(profile, null, 2) + '\n');
   return buildSource;

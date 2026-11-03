@@ -22,6 +22,7 @@ test('real TCP listener serves MineMine landing and accepts a wallet signature o
   assert.equal(rejectedHost.status, 400);
   const page = await send(url, { headers });
   assert.equal(page.status, 200);
+  assert.match(page.text, /MineMine/);
   assert.match(page.text, /A little world/);
   assert.match(page.text, /Play now/);
   const wallet = new Wallet('0x' + '11'.repeat(32));

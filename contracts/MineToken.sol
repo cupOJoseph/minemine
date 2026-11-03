@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 contract MineToken is ERC20, ERC20Burnable {
     uint256 public constant INITIAL_SUPPLY = 1_000_000 * 10 ** 18;
 
-    constructor(address treasury) ERC20("Miners Credit", "MINE") {
+    constructor(address treasury) ERC20("MineMine Credit", "MINE") {
         require(treasury != address(0), "Treasury is zero");
         _mint(treasury, INITIAL_SUPPLY);
     }

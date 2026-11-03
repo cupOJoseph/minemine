@@ -10,13 +10,45 @@ export function readConfig(env = process.env) {
   const port = Number(env.PORT || 3000);
   const gamePort = Number(env.GAME_PORT || 30000);
   if (![port, gamePort].every(p => Number.isInteger(p) && p > 0 && p < 65536)) throw new Error('Invalid port.');
+  if (env.GAME_ENABLED === 'true' && env.GAME_ADDRESS && env.GAME_ADDRESS !== '10.0.0.1') throw new Error('The restricted game proxy requires GAME_ADDRESS=10.0.0.1.');
+  const townConfirmations = Number(env.TOWN_CONFIRMATIONS ?? (chainId === 31337 ? 0 : 6));
+  if (!Number.isInteger(townConfirmations) || townConfirmations < 0 || townConfirmations > 64) throw new Error('Invalid town confirmation depth.');
+  if (chainId === 11155111 && townConfirmations < 6) throw new Error('Sepolia town credits require at least six confirmation blocks.');
+  if (env.TOWN_CONTRACT_ADDRESS && (!env.TOKEN_ADDRESS || !env.RPC_URL)) throw new Error('Town contract requires TOKEN_ADDRESS and RPC_URL.');
+  const trustedLoopbackProxy = env.TRUST_LOOPBACK_PROXY === 'true';
+  if (trustedLoopbackProxy && (origin.protocol !== 'https:' || !['127.0.0.1', '::1'].includes(env.HOST || '127.0.0.1'))) {
+    throw new Error('TRUST_LOOPBACK_PROXY requires HTTPS and a loopback HOST.');
+  }
+  const adminWalletAddresses = (env.ADMIN_WALLET_ADDRESSES || '').split(',').map(value => value.trim()).filter(Boolean).map(getAddress);
+  if (new Set(adminWalletAddresses.map(value => value.toLowerCase())).size !== adminWalletAddresses.length) throw new Error('Duplicate admin wallet address.');
+  if (Boolean(env.STRIPE_TEST_SECRET_KEY) !== Boolean(env.STRIPE_TEST_WEBHOOK_SECRET)) throw new Error('Stripe test key and webhook secret must be configured together.');
+  if (env.STRIPE_TEST_SECRET_KEY && (!env.STRIPE_TEST_SECRET_KEY.startsWith('sk_test_') || !env.STRIPE_TEST_WEBHOOK_SECRET.startsWith('whsec_'))) {
+    throw new Error('Only Stripe test-mode checkout credentials are accepted.');
+  }
+  const zeroDevTestSignup = env.ZERODEV_TEST_SIGNUP === 'true';
+  if (zeroDevTestSignup && (
+    !['localhost', '127.0.0.1', '[::1]'].includes(origin.hostname) ||
+    !['127.0.0.1', '::1'].includes(env.HOST || '127.0.0.1') || chainId !== 11155111 ||
+    !env.RPC_URL || env.GAME_ENABLED === 'true' ||
+    !/^[a-zA-Z0-9-]{8,128}$/.test(env.ZERODEV_PROJECT_ID || '')
+  )) throw new Error('ZeroDev test signup requires a loopback Sepolia host and origin, RPC_URL, and project ID.');
   return {
     origin: origin.origin, host: env.HOST || '127.0.0.1', port, chainId,
     secure: origin.protocol === 'https:',
+    trustedLoopbackProxy,
     worldDir: path.resolve(env.WORLD_DIR || './runtime/world'),
     gameEnabled: env.GAME_ENABLED === 'true', adapterReady: env.ENGINE_ADAPTER_READY === 'true',
-    gameAddress: env.GAME_ADDRESS || '127.0.0.1', gamePort,
+    betaInvitesEnabled: env.BETA_INVITES_ENABLED === 'true',
+    gameAddress: env.GAME_ADDRESS || '10.0.0.1', gamePort,
     tokenAddress: env.TOKEN_ADDRESS ? getAddress(env.TOKEN_ADDRESS) : null,
     rpcUrl: env.RPC_URL || null,
+    ensRpcUrl: env.ENS_RPC_URL || null,
+    stripeTestSecretKey: env.STRIPE_TEST_SECRET_KEY || null,
+    stripeWebhookSecret: env.STRIPE_TEST_WEBHOOK_SECRET || null,
+    zeroDevTestSignup,
+    zeroDevProjectId: zeroDevTestSignup ? env.ZERODEV_PROJECT_ID : null,
+    adminWalletAddresses,
+    townContractAddress: env.TOWN_CONTRACT_ADDRESS ? getAddress(env.TOWN_CONTRACT_ADDRESS) : null,
+    townConfirmations,
   };
 }

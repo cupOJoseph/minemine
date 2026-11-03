@@ -124,6 +124,8 @@ The one-time purchase protects x/z columns through all heights. Contract price a
 
 The [account and admin plan](ACCOUNTS_ADMIN.md) records the identity, billing, privacy and authorization boundaries. These features are not in the current public game.
 
+O03/O04 update on this feature branch: an allowlisted admin with a fresh wallet signature can suspend or restore a redeemed wallet's beta admission from its player profile. A suspended wallet cannot redeem another code, receive a new native ticket, or open a new game proxy connection. The action closes its existing proxy links and removes its native grant so the wallet-auth mod kicks it on its next two-second check. The admission and wallet-targeted audit event persist across restarts; restoration reuses the original admission. Local database, handler and loopback WebSocket tests pass. Desktop/mobile Chromium and native-world checks are release gates for this branch; a deployed-world test remains before enabling the gate publicly.
+
 ## Resume order
 
 1. Keep the working solo playtest available at https://cupojoseph.github.io/minemine/. Core gameplay and persisted edits passed; do not rebuild just to resume QA.

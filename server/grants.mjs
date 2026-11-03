@@ -37,6 +37,11 @@ export function createGrants(worldDir, now = Date.now) {
       const record = read(session.playerName);
       if (record?.session_hash === digest(sessionToken)) rmSync(path.join(dir, `${session.playerName}.json`), { force: true });
     },
+    revokeAddress(address) {
+      const name = playerName(address);
+      const record = read(name);
+      if (record?.address?.toLowerCase() === address.toLowerCase()) rmSync(path.join(dir, `${name}.json`), { force: true });
+    },
     // A restart invalidates browser sessions and outstanding join credentials.
     clear() {
       for (const name of readdirSync(dir)) if (/^w_[0-9a-f]{17}\.json(?:\.[0-9a-f]+\.tmp)?$/.test(name)) rmSync(path.join(dir, name), { force: true });

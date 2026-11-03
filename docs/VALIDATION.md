@@ -20,7 +20,11 @@ The first clean Chromium context immediately after the second deployment still f
 
 [Foundation run 41389696211](https://github.com/cupOJoseph/minemine/actions/runs/41389696211) passed a local-Anvil HTTP integration for the new chain-bound smart-signature verifier. An EOA still signed in; a deployed ERC-1271 wallet and a counterfactual ERC-6492 wallet each signed the exact server-generated SIWE challenge and received sessions for their own address. The verifier checked the RPC chain before contract verification. A wrong signer returned 401, a reused challenge returned 401, and a contract signature against an RPC on the wrong chain returned 503. The counterfactual wallet had no code before or after verification, so the check did not deploy it. A local rerun additionally returned 401 for a forged ERC-6492 wrapper and left the wallet undeployed. Existing HTTP/game-proxy and MINE/town local-EVM suites passed after auth became asynchronous.
 
-This is a disposable mock contract and local EVM proof, not a ZeroDev account. The browser signup UI, passkey/email recovery, ERC-4337 provider billing, real testnet transfer and paid claim, and native smart-account reconnect remain unverified. `npm audit --omit=dev` reported zero production advisories on the pinned dependency tree; the full audit still reports advisories in the pre-existing development compiler dependencies.
+This is a disposable mock contract and local EVM proof, not a ZeroDev account. The browser signup UI, passkey/email recovery, ERC-4337 provider billing, real testnet transfer and paid claim, and native smart-account reconnect remain unverified. The npm dependency audit is recorded below.
+
+## npm dependency audit — 2026-11-03 UTC
+
+The original full locked-tree audit reported three findings, all through development-only `solc@0.8.26` dependencies: `follow-redirects@1.16.0` and `tmp@0.0.33`. The production-only audit reported zero. Pinning transitive `follow-redirects@1.16.2` and `tmp@0.2.7` through npm overrides preserves the exact Solidity compiler used by the contracts. After a clean `npm ci`, both `npm audit --json` and `npm audit --omit=dev --json` reported zero advisories. `npm ls` resolved the patched versions; both contracts compiled with solc 0.8.26, its `tmp.fileSync` use worked, 66 unit/handler tests passed with two source-dependent skips, and all ten local-EVM test cases passed. This covers the npm lockfile at audit time, not the separately bundled WASM/native dependencies or future advisories.
 
 ## Local solo browser engines — 2026-10-23 EDT
 

@@ -1,0 +1,18 @@
+.account-shell { min-height: 100vh; max-width: 760px; margin: auto; padding: 32px 24px; }
+.account-card { margin-top: 48px; padding: 36px; border: 1px solid #526250; background: #1a281f; color: #f1f0df; }
+.account-card h1 { font-size: clamp(2rem, 5vw, 3.5rem); line-height: 1.06; margin: 12px 0; }
+.account-card p { max-width: 58ch; }
+.account-form { display: grid; gap: 14px; margin-top: 30px; }
+.account-form label { font-weight: 700; }
+.account-form input { width: 100%; max-width: 480px; min-height: 46px; padding: 10px 12px; border: 1px solid #71836e; border-radius: 4px; background: #f5f4e9; color: #18221a; }
+.account-form button { width: fit-content; min-height: 44px; }
+.account-error { color: #ffb1a5; }
+.account-note { font-size: .9rem; opacity: .8; }
+.account-address { overflow-wrap: anywhere; }
+.account-checkout { border-top: 1px solid #526250; padding-top: 20px; }
+.account-checkout h2 { margin: 0; font-size: 1.5rem; }
+.account-checkout .account-note { margin: 0; }
+.account-checkout-link { width: fit-content; }
+.account-name-status { border-top: 1px solid #526250; padding-top: 20px; }
+.account-name-status h2 { margin: 0 0 8px; font-size: 1.5rem; overflow-wrap: anywhere; }
+@media (max-width: 600px) { .account-card { padding: 24px 18px; } }

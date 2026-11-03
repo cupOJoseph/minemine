@@ -37,6 +37,7 @@ function renderSession() {
     $('managed-name-label').textContent = managedName.name;
     const end = managedName.expiresAt && `${new Date(managedName.expiresAt).toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'short' })} UTC`;
     $('managed-name-status').textContent = {
+      held: `Checkout is open or awaiting Stripe expiry confirmation. Its 45-minute window ends ${new Date(managedName.checkoutEndsAt).toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'short' })} UTC. The name is not active yet.`,
       pending: 'Payment recorded; ENS activation is pending. Your one-year term starts after the address record is verified.',
       active: `Active until ${end}. Renewal checkout is not available yet. Your wallet account remains usable after this name expires.`,
       unverified: `Name hidden while its ENS address record cannot be verified. The current term ends ${end}.`,

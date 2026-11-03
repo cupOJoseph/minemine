@@ -24,7 +24,6 @@ let target = wallet.address;
 const names = createNameRegistry(worldDir, () => now);
 const accountId = wallet.address.toLowerCase();
 names.beginCheckout('builder', accountId, 'order-1');
-names.markPaid('builder', accountId, 'order-1', 'payment-1');
 const config = readConfig({ PUBLIC_ORIGIN: origin, PORT: String(port), CHAIN_ID: '31337', WORLD_DIR: worldDir });
 config.now = () => now;
 config.ensOwnership = { async verify(name, address) {
@@ -59,6 +58,10 @@ try {
   });
   await page.goto(origin, { waitUntil: 'domcontentloaded' });
   await page.locator('#connect').click();
+  await page.getByText('Checkout is open or awaiting Stripe expiry confirmation.', { exact: false }).waitFor();
+  assert.notEqual(await page.locator('#player').textContent(), 'builder.minemine.eth', 'a hold does not grant the name');
+  names.markPaid('builder', accountId, 'order-1', 'payment-1');
+  await page.reload({ waitUntil: 'domcontentloaded' });
   await page.getByText('Payment recorded; ENS activation is pending.', { exact: false }).waitFor();
   assert.equal(await page.locator('#player').textContent(), (await page.evaluate(async () => (await (await fetch('/api/session')).json()))).playerName);
   await page.locator('#ens-name').fill('other.eth');
@@ -92,7 +95,7 @@ try {
   mkdirSync('runtime', { recursive: true });
   await page.screenshot({ path: 'runtime/managed-name-expired-mobile.png', fullPage: true });
   assert.deepEqual(pageErrors, []);
-  console.log('PASS managed-name pending, active, unverified and expired states in signed wallet browser session.');
+  console.log('PASS managed-name held, pending, active, unverified and expired states in signed wallet browser session.');
 } finally {
   await browser?.close();
   if (app.listening) await new Promise(resolve => app.close(resolve));

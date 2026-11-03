@@ -542,6 +542,10 @@ test('signed loopback checkout reuses a durable hold and rejects unavailable nam
   assert.equal(result.handle, 'builder');
   assert.equal(calls[0].params.metadata.account_id, first.address.toLowerCase(), 'body cannot select the billed account');
   assert.equal(names.lookup('builder').state, 'checkout_held');
+  const heldIdentity = await (await request('/api/identity', undefined, firstCookie)).json();
+  assert.equal(heldIdentity.managedName.status, 'held');
+  assert.equal(heldIdentity.managedName.name, 'builder.minemine.eth');
+  assert.equal(heldIdentity.ensName, null, 'a checkout hold is never a public ENS name');
   const retried = await request('/api/names/checkout', { handle: 'builder' }, firstCookie);
   assert.equal(retried.status, 200);
   assert.equal((await retried.json()).orderId, result.orderId);

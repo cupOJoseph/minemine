@@ -171,9 +171,13 @@ export function createNameRegistry(worldDir, now = Date.now) {
     },
     managedNameTermForAccount(accountId) {
       identifier(accountId, 'account');
-      const row = db.prepare("SELECT handle, state, expires_at FROM names WHERE account_id = ? AND state IN ('paid_pending_ens', 'paid_active')")
+      const row = db.prepare("SELECT handle, state, expires_at, updated_at FROM names WHERE account_id = ? AND state IN ('checkout_held', 'paid_pending_ens', 'paid_active')")
         .get(accountId);
       if (!row) return null;
+      if (row.state === 'checkout_held') return {
+        name: `${row.handle}.minemine.eth`, status: 'held', expiresAt: null,
+        checkoutEndsAt: new Date(row.updated_at + 45 * 60_000).toISOString(),
+      };
       return {
         name: `${row.handle}.minemine.eth`,
         status: row.state === 'paid_pending_ens' ? 'pending' : row.expires_at > now() ? 'active' : 'expired',

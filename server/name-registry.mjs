@@ -32,6 +32,17 @@ function identifier(value, label) {
   return value;
 }
 
+function oneYearAfter(timestamp) {
+  const date = new Date(timestamp);
+  if (!Number.isSafeInteger(timestamp) || Number.isNaN(date.getTime())) throw new Error('Invalid activation time.');
+  const day = date.getUTCDate();
+  date.setUTCDate(1);
+  date.setUTCFullYear(date.getUTCFullYear() + 1);
+  const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
+  date.setUTCDate(Math.min(day, lastDay));
+  return date.getTime();
+}
+
 export function createNameRegistry(worldDir, now = Date.now) {
   mkdirSync(worldDir, { recursive: true, mode: 0o700 });
   const directory = path.join(worldDir, 'name_registry');
@@ -154,7 +165,8 @@ export function createNameRegistry(worldDir, now = Date.now) {
     lookup(input) { return current(normalizeHandle(input)); },
     managedNameForAccount(accountId) {
       identifier(accountId, 'account');
-      return db.prepare("SELECT ens_name FROM names WHERE account_id = ? AND state = 'paid_active'").get(accountId)?.ens_name || null;
+      return db.prepare("SELECT ens_name FROM names WHERE account_id = ? AND state = 'paid_active' AND expires_at > ?")
+        .get(accountId, now())?.ens_name || null;
     },
     accountForPublicName(input) {
       if (typeof input !== 'string' || input.length > 255 || input !== input.trim()) {
@@ -164,13 +176,19 @@ export function createNameRegistry(worldDir, now = Date.now) {
         let handle;
         try { handle = normalizeHandle(input); }
         catch { return null; }
-        return db.prepare("SELECT account_id FROM names WHERE handle = ? AND state = 'paid_active'").get(handle)?.account_id || null;
+        return db.prepare("SELECT account_id FROM names WHERE handle = ? AND state = 'paid_active' AND expires_at > ?")
+          .get(handle, now())?.account_id || null;
       }
       let ensName;
       try { ensName = ensNormalize(input); }
       catch { throw new NameRegistryError('Invalid ENS name.', 'invalid_input'); }
       if (ensName.length > 255 || !ensName.split('.').every(Boolean)) throw new NameRegistryError('Invalid ENS name.', 'invalid_input');
-      const managed = db.prepare("SELECT account_id FROM names WHERE ens_name = ? AND state = 'paid_active'").get(ensName)?.account_id;
+      const managed = db.prepare("SELECT account_id FROM names WHERE ens_name = ? AND state = 'paid_active' AND expires_at > ?")
+        .get(ensName, now())?.account_id;
+      let handle;
+      try { handle = managedHandle(ensName); }
+      catch { handle = null; }
+      if (handle && current(handle)?.state === 'paid_active') return managed || null;
       return managed || db.prepare('SELECT account_id FROM ens_selections WHERE ens_name = ?').get(ensName)?.account_id || null;
     },
     adminReservations() {
@@ -217,6 +235,7 @@ export function createNameRegistry(worldDir, now = Date.now) {
       catch { return false; }
       if (!handle) return true;
       const row = current(handle);
+      if (row?.state === 'paid_active' && (!Number.isSafeInteger(row.expires_at) || row.expires_at <= now())) return false;
       return !row || row.account_id === accountId ||
         (row.state === 'admin_reserved' && row.intended_account_id === accountId);
     },
@@ -331,9 +350,10 @@ export function createNameRegistry(worldDir, now = Date.now) {
         if (!row || row.account_id !== accountId || row.order_id !== orderId || row.payment_id !== paymentId ||
             !['paid_pending_ens', 'paid_active'].includes(row.state)) conflict();
         if (row.state === 'paid_active') return row;
-        db.prepare("UPDATE names SET state = 'paid_active', ens_name = ?, updated_at = ? WHERE handle = ?")
-          .run(ensName, now(), handle);
-        addAudit.run(handle, 'paid_active', accountId, now());
+        const activatedAt = now();
+        db.prepare("UPDATE names SET state = 'paid_active', ens_name = ?, expires_at = ?, updated_at = ? WHERE handle = ?")
+          .run(ensName, oneYearAfter(activatedAt), activatedAt, handle);
+        addAudit.run(handle, 'paid_active', accountId, activatedAt);
         return current(handle);
       });
     },

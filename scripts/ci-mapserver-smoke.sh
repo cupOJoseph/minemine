@@ -41,7 +41,7 @@ EOF
 
 (
   cd runtime/mapserver-world
-  ../mapserver-download/mapserver > ../mapserver-console.log 2>&1
+  exec ../mapserver-download/mapserver > ../mapserver-console.log 2>&1
 ) &
 mapper_pid=$!
 native_pid=''
@@ -244,6 +244,68 @@ if [ "${MAPSERVER_LIVE_EDIT_PROOF:-false}" = true ]; then
   native_pid=''
   rm -r runtime/mapserver-world/worldmods/map_edit_probe
   sed -i '/^load_mod_map_edit_probe = true$/d' runtime/mapserver-world/world.mt
+fi
+if [ "${MAPSERVER_SEQUENCE_RESTART_PROOF:-false}" = true ]; then
+  if [ "${MAPSERVER_LIVE_EDIT_PROOF:-false}" != true ]; then
+    echo 'Sequence restart proof requires the live edit target.'
+    exit 1
+  fi
+  settings_db=runtime/mapserver-world/mapserver.sqlite
+  world_db=runtime/mapserver-world/map.sqlite
+  test -s "$settings_db"
+  cursor_before=$(sqlite3 "$settings_db" "select json_extract(value, '$.seq') from settings where key='incremental_cursor_v2'")
+  test "${cursor_before:-0}" -gt 0
+  counter_before=$(sqlite3 "$world_db" 'select seq from mapserver_change_counter where id=1')
+  test "$counter_before" -ge "$cursor_before"
+  kill -TERM "$mapper_pid" 2>/dev/null || true
+  wait "$mapper_pid" 2>/dev/null || true
+  (
+    cd runtime/mapserver-world
+    exec ../mapserver-download/mapserver > ../mapserver-restart-console.log 2>&1
+  ) &
+  mapper_pid=$!
+  restart_ready=0
+  for attempt in {1..30}; do
+    if kill -0 "$mapper_pid" 2>/dev/null &&
+       curl --fail --silent --show-error http://127.0.0.1:18080/ -o /dev/null 2>/dev/null; then
+      restart_ready=1
+      break
+    fi
+    if ! kill -0 "$mapper_pid" 2>/dev/null; then break; fi
+    sleep 1
+  done
+  if [ "$restart_ready" -ne 1 ]; then
+    tail -60 runtime/mapserver-restart-console.log
+    echo 'Patched mapserver did not restart on the copied world.'
+    exit 1
+  fi
+  cursor_restarted=$(sqlite3 "$settings_db" "select json_extract(value, '$.seq') from settings where key='incremental_cursor_v2'")
+  test "$cursor_restarted" -ge "$cursor_before"
+  # A data update after restart must receive a newer world transaction
+  # sequence and advance the renderer's durable cursor on its next poll.
+  sqlite3 "$world_db" "update blocks set data=data where x=$block_x and y=$block_y and z=$block_z"
+  counter_after=$(sqlite3 "$world_db" 'select seq from mapserver_change_counter where id=1')
+  test "$counter_after" -gt "$counter_before"
+  resumed=0
+  for attempt in {1..30}; do
+    if ! kill -0 "$mapper_pid" 2>/dev/null; then break; fi
+    cursor_after=$(sqlite3 "$settings_db" "select json_extract(value, '$.seq') from settings where key='incremental_cursor_v2'")
+    if [ "${cursor_after:-0}" -ge "$counter_after" ]; then
+      resumed=1
+      break
+    fi
+    sleep 1
+  done
+  if [ "$resumed" -ne 1 ]; then
+    tail -60 runtime/mapserver-restart-console.log
+    echo 'Patched mapserver did not advance its durable cursor after restart.'
+    exit 1
+  fi
+  dirty_count=$(sqlite3 "$world_db" 'select count(*) from mapserver_dirty')
+  world_count=$(sqlite3 "$world_db" 'select count(*) from blocks')
+  test "$dirty_count" -le "$world_count"
+  printf 'Mapserver restarted with cursor %s and processed post-restart sequence %s; dirty rows %s / world blocks %s; world SQLite bytes %s.\n' \
+    "$cursor_restarted" "$cursor_after" "$dirty_count" "$world_count" "$(stat -c %s "$world_db")"
 fi
 if [ -n "$api_pid" ]; then
   curl --fail --silent --show-error http://127.0.0.1:18082/api/health -o runtime/mapserver-api-health.json

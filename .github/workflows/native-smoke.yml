@@ -286,7 +286,7 @@ jobs:
         with:
           go-version: '1.24.12'
           cache: false
-      - name: Build and test pinned mapserver cursor patch
+      - name: Build and test pinned mapserver sequence patch
         run: bash scripts/ci-build-patched-mapserver.sh
       - name: Rehearse native world, API, and patched live map within 768 MiB
         run: |
@@ -296,6 +296,7 @@ jobs:
           sudo systemd-run --quiet --scope --unit=minemine-map-ci-rehearsal --slice=minemine-map-ci.slice --uid="$USER" --same-dir \
             /usr/bin/env GITHUB_WORKSPACE="$GITHUB_WORKSPACE" \
             MAPSERVER_BINARY="$GITHUB_WORKSPACE/runtime/mapserver-patched" \
+            MAPSERVER_SEQUENCE_RESTART_PROOF=true \
             MAPSERVER_BURST_PROOF=true MAPSERVER_LIVE_EDIT_PROOF=true MAPSERVER_CAPACITY_PROOF=true \
             NODE_BINARY="$(command -v node)" \
             /usr/bin/bash scripts/ci-mapserver-smoke.sh
@@ -396,6 +397,7 @@ jobs:
             runtime/native-world/town-packet-removed-place-result.txt
             runtime/browser-artifacts/
             runtime/mapserver-console.log
+            runtime/mapserver-restart-console.log
             runtime/mapserver-api-console.log
             runtime/mapserver-api-health.json
             runtime/mapserver-cgroup-peak-bytes.txt

@@ -14,6 +14,7 @@ on:
       - 'test/integration/beta-player-ui.mjs'
       - 'test/integration/managed-name-ui.mjs'
       - 'test/integration/map-ui.mjs'
+      - 'test/integration/pages-landing.mjs'
       - 'test/integration/account-ui.mjs'
       - 'test/integration/town_probe/**'
       - 'package.json'
@@ -138,6 +139,10 @@ jobs:
         run: |
           cp -a runtime/downloaded-build/public/engine public/engine
           npm run adapter:install
+      - name: Exercise Pages landing in Chromium
+        run: |
+          PAGES_SITE_DIR="$GITHUB_WORKSPACE/runtime/pages-smoke" node scripts/prepare-pages-playtest.mjs
+          PAGES_SITE_DIR="$GITHUB_WORKSPACE/runtime/pages-smoke" node test/integration/pages-landing.mjs
       - name: Build pinned world mapper for host archive
         run: bash scripts/build-minetestmapper.sh
       - name: Package and test relocated host runtime

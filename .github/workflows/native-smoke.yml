@@ -41,9 +41,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Verify shared 1 GiB service memory limit
+      - name: Verify shared 1 GiB and one-vCPU service limits
         run: |
-          sudo systemctl set-property --runtime minemine-ci.slice MemoryAccounting=yes MemoryMax=1G MemorySwapMax=0
+          sudo systemctl set-property --runtime minemine-ci.slice MemoryAccounting=yes MemoryMax=1G MemorySwapMax=0 CPUAccounting=yes CPUQuota=100%
           test "$(systemctl show -P MemoryMax minemine-ci.slice)" = '1073741824'
           test "$(systemctl show -P MemorySwapMax minemine-ci.slice)" = '0'
           sudo systemd-run --quiet --unit=minemine-ci-probe --slice=minemine-ci.slice --uid="$USER" --property=Type=exec /usr/bin/sleep 10
@@ -51,6 +51,7 @@ jobs:
           cgroup=$(systemctl show -P ControlGroup minemine-ci.slice)
           test "$(cat "/sys/fs/cgroup$cgroup/memory.max")" = '1073741824'
           test "$(cat "/sys/fs/cgroup$cgroup/memory.swap.max")" = '0'
+          awk '{ if ($1 != $2) exit 1 }' "/sys/fs/cgroup$cgroup/cpu.max"
           sudo systemctl stop minemine-ci-probe.service
       - name: Install dependencies from the pinned Luanti Linux guide
         run: |
@@ -163,8 +164,8 @@ jobs:
           set -euo pipefail
           cp -a test/integration/town_probe runtime/native-world/worldmods/town_probe
           printf '\nload_mod_town_probe = true\n' >> runtime/native-world/world.mt
-          sed 's/^max_users = 2$/max_users = 8/' game/minetest.conf > runtime/ci-minetest.conf
-          grep -Fxq 'max_users = 8' runtime/ci-minetest.conf
+          sed 's/^max_users = 2$/max_users = 16/' game/minetest.conf > runtime/ci-minetest.conf
+          grep -Fxq 'max_users = 16' runtime/ci-minetest.conf
           world_dir="$GITHUB_WORKSPACE/runtime/native-world"
           node_binary=$(command -v node)
           start_stack() {
@@ -197,6 +198,8 @@ jobs:
             if [ -n "$cgroup" ] && [ -f "/sys/fs/cgroup$cgroup/memory.peak" ]; then
               cat "/sys/fs/cgroup$cgroup/memory.peak" > "runtime/server-cgroup-$phase-peak-bytes.txt"
               cat "/sys/fs/cgroup$cgroup/memory.events" > "runtime/server-cgroup-$phase-events.txt"
+              cat "/sys/fs/cgroup$cgroup/cpu.stat" > "runtime/server-cgroup-$phase-cpu-stat.txt"
+              cat "/sys/fs/cgroup$cgroup/cpu.max" > "runtime/server-cgroup-$phase-cpu-max.txt"
             fi
           }
           cleanup() {
@@ -238,6 +241,7 @@ jobs:
           test -n "$cgroup"
           test "$(cat "/sys/fs/cgroup$cgroup/memory.max")" = '1073741824'
           test "$(cat "/sys/fs/cgroup$cgroup/memory.swap.max")" = '0'
+          awk '{ if ($1 != $2) exit 1 }' "/sys/fs/cgroup$cgroup/cpu.max"
           native_pid=$(systemctl show -P MainPID minemine-ci-native-first.service)
           api_pid=$(systemctl show -P MainPID minemine-ci-api-first.service)
           test "$native_pid" -gt 1
@@ -338,8 +342,12 @@ jobs:
             runtime/beta-player-admitted.png
             runtime/server-cgroup-first-peak-bytes.txt
             runtime/server-cgroup-first-events.txt
+            runtime/server-cgroup-first-cpu-stat.txt
+            runtime/server-cgroup-first-cpu-max.txt
             runtime/server-cgroup-restart-peak-bytes.txt
             runtime/server-cgroup-restart-events.txt
+            runtime/server-cgroup-restart-cpu-stat.txt
+            runtime/server-cgroup-restart-cpu-max.txt
             runtime/server-cgroup-summary.txt
             runtime/native-world/town-probe-result.txt
             runtime/native-world/town-probe-state.json

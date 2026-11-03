@@ -9,7 +9,7 @@ const checks = {
   'Offscreen canvas': typeof OffscreenCanvas === 'function',
   'Web workers': typeof Worker === 'function',
 };
-gl?.getExtension('WEBGL_lose_context')?.loseContext();
+// Do not force context loss after probing; Firefox can lose the later game context.
 for (const [label, pass] of Object.entries(checks)) {
   const item = document.createElement('li');
   item.textContent = label + ': ' + (pass ? 'PASS' : 'UNAVAILABLE');

@@ -26,7 +26,7 @@ function checkBrowser() {
   const canvas = document.createElement('canvas');
   const gl = canvas.getContext('webgl2');
   if (!gl) throw new Error('WebGL 2 is unavailable. Enable hardware acceleration or try another browser.');
-  gl.getExtension('WEBGL_lose_context')?.loseContext();
+  // Let the disposable probe context be collected; forcing loss blackens Firefox gameplay.
 }
 function loadLauncher() {
   return new Promise((resolve, reject) => {

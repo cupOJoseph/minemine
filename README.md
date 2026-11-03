@@ -1,6 +1,6 @@
 # MineMine
 
-MineMine is a browser-first voxel crafting MMO project built on Luanti (formerly Minetest). The [current solo browser playtest](https://cupojoseph.github.io/minemine/) runs the compiled engine and Minetest Game; movement, mining, placement, inventory, crafting, and browser save/reload have been verified in Chromium. The new MineMine landing page is in this branch. The public shared world is **not online yet**.
+MineMine is a browser-first voxel crafting MMO project built on Luanti (formerly Minetest). The [public landing](https://cupojoseph.github.io/minemine/) links to a [solo browser playtest](https://cupojoseph.github.io/minemine/play/) running the compiled engine and Minetest Game; movement, mining, placement, inventory, crafting, and browser save/reload have been verified in Chromium. The public shared world is **not online yet**.
 
 ## Current feature state
 
@@ -8,7 +8,7 @@ MineMine is a browser-first voxel crafting MMO project built on Luanti (formerly
 | --- | --- |
 | Solo browser game | Playable in desktop Chromium; local Playwright WebKit 27.2 rendered the world and inventory. Shipping Safari, Firefox gameplay, storage and stability checks remain. |
 | Public shared server | Two distinct wallet characters joined the same native world in headless Chromium; the town denied an outsider's browser dig/place packets and allowed the owner's browser dig/place. A clean Luanti and Node restart preserved a test inventory stack, separate owner-placed node, and town protection. Production backup recovery and a public host remain. |
-| Wallet identity | EOA Sign-In with Ethereum and short-lived native grants passed browser reconnect in CI. The backend now also verifies deployed ERC-1271 and undeployed ERC-6492 smart-wallet signatures against its configured chain; local Anvil and clean-runner checks passed. ZeroDev signup UI and a real provider account remain. |
+| Wallet identity | EOA Sign-In with Ethereum and short-lived native grants passed browser reconnect in CI. The backend also verifies deployed ERC-1271 and undeployed ERC-6492 smart-wallet signatures against its configured chain. A local-only ZeroDev email-code UI builds and renders; a real provider account and the paid signup flow remain. |
 | ENS | Live mainnet lookup and ownership proof passed; a wallet can select a full verified ENS display name locally. Configure `ENS_RPC_URL` and verify a real owner's native nametag |
 | MINE ERC-20 | Fixed-supply source and local-EVM transfers tested; no public token deployed |
 | In-game MINE balance | Wallet-panel refresh makes a fresh authenticated chain read; `/wallet balance` displays its short-lived private snapshot with chain and block. This observed balance cannot be spent as town credit. The native command passed CI with a synthetic snapshot; live testnet QA remains. |
@@ -34,7 +34,9 @@ npm start
 
 Open the origin in `PUBLIC_ORIGIN` (default `http://localhost:3000`). `npm test` and Solidity compilation do not open sockets. The HTTP and EVM suites use local sockets. The ignored `public/engine/` bundle must be staged separately for local Play Now; on a fresh checkout the button points to the published playtest. Run `npm run adapter:install` after staging a verified engine bundle to add the remote-client frame; it requests a fresh wallet game ticket only after engine and content-pack loading.
 
-Wallet login requests a message signature, not a transaction. MINE sends and town purchases **do** request testnet transactions and gas. The app never asks for a wallet private key. The browser signup UI currently supports externally owned wallets. The server also accepts contract-wallet signatures when a matching chain RPC is configured; ZeroDev signup has not been wired. The prototype supports Sepolia or local chain 31337 and an optional mainnet ENS RPC. See [deployment](docs/DEPLOYMENT.md) and [town protocol](docs/TOWNS.md).
+Wallet login requests a message signature, not a transaction. MINE sends and town purchases **do** request testnet transactions and gas. The app never asks for a wallet private key. The public browser signup UI currently supports externally owned wallets. The server also accepts contract-wallet signatures when a matching chain RPC is configured; a local-only ZeroDev email-code lab exists, but a real provider account and paid signup remain unverified. The prototype supports Sepolia or local chain 31337 and an optional mainnet ENS RPC. See [deployment](docs/DEPLOYMENT.md) and [town protocol](docs/TOWNS.md).
+
+For the isolated ZeroDev email-code lab, run `npm run account:build` before `npm start`, set `ZERODEV_TEST_SIGNUP=true`, `ZERODEV_PROJECT_ID`, and a Sepolia `RPC_URL` in the ignored `.env`, then visit `/account/` on the exact local origin allowed in the ZeroDev dashboard. The lab cannot be enabled on a public origin or with shared-world launch. It has no payment, reserved username, or real-provider QA yet; see the [account plan](docs/ACCOUNTS_ADMIN.md).
 
 ## Build and publish the browser playtest
 

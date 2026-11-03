@@ -26,8 +26,8 @@ function validateSession(session, expectedId = null) {
     orderId: session.client_reference_id };
 }
 
-// Internal service only. The ZeroDev signup path must bind its authenticated
-// smart-wallet address before it can call create; no player route exists yet.
+// The signed-player route exposes this only in a loopback Stripe test lab.
+// A production signup still needs proof that this wallet came from ZeroDev.
 export function createNameCheckout({ stripe, names, origin, webhookSecret, preflight }) {
   if (!stripe?.checkout?.sessions || !stripe?.webhooks || !webhookSecret?.startsWith('whsec_')) {
     throw new Error('Stripe test checkout is not configured.');

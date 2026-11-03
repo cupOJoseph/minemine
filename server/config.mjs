@@ -25,6 +25,10 @@ export function readConfig(env = process.env) {
   if (env.STRIPE_TEST_SECRET_KEY && (!env.STRIPE_TEST_SECRET_KEY.startsWith('sk_test_') || !env.STRIPE_TEST_WEBHOOK_SECRET.startsWith('whsec_'))) {
     throw new Error('Only Stripe test-mode checkout credentials are accepted.');
   }
+  if (Boolean(env.ENS_EXPECTED_OWNER) !== Boolean(env.ENS_NAME_WRITER_ADDRESS)) {
+    throw new Error('ENS expected owner and name writer must be configured together.');
+  }
+  if (env.ENS_EXPECTED_OWNER && !env.ENS_RPC_URL) throw new Error('ENS sale preflight requires a mainnet RPC.');
   const zeroDevTestSignup = env.ZERODEV_TEST_SIGNUP === 'true';
   if (zeroDevTestSignup && (
     !['localhost', '127.0.0.1', '[::1]'].includes(origin.hostname) ||
@@ -43,6 +47,8 @@ export function readConfig(env = process.env) {
     tokenAddress: env.TOKEN_ADDRESS ? getAddress(env.TOKEN_ADDRESS) : null,
     rpcUrl: env.RPC_URL || null,
     ensRpcUrl: env.ENS_RPC_URL || null,
+    ensExpectedOwner: env.ENS_EXPECTED_OWNER ? getAddress(env.ENS_EXPECTED_OWNER) : null,
+    ensNameWriterAddress: env.ENS_NAME_WRITER_ADDRESS ? getAddress(env.ENS_NAME_WRITER_ADDRESS) : null,
     stripeTestSecretKey: env.STRIPE_TEST_SECRET_KEY || null,
     stripeWebhookSecret: env.STRIPE_TEST_WEBHOOK_SECRET || null,
     zeroDevTestSignup,

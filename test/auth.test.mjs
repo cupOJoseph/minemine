@@ -92,6 +92,10 @@ test('configuration requires TLS for public hosts and restricts initial chains',
   assert.throws(() => readConfig({ STRIPE_TEST_SECRET_KEY: 'sk_live_bad', STRIPE_TEST_WEBHOOK_SECRET: 'whsec_test' }), /test-mode/);
   assert.throws(() => readConfig({ STRIPE_TEST_SECRET_KEY: 'sk_test_only' }), /configured together/);
   assert.equal(readConfig({ STRIPE_TEST_SECRET_KEY: 'sk_test_example', STRIPE_TEST_WEBHOOK_SECRET: 'whsec_example' }).stripeTestSecretKey, 'sk_test_example');
+  assert.throws(() => readConfig({ ENS_EXPECTED_OWNER: wallet.address }), /configured together/);
+  assert.throws(() => readConfig({ ENS_EXPECTED_OWNER: wallet.address, ENS_NAME_WRITER_ADDRESS: other.address }), /mainnet RPC/);
+  assert.equal(readConfig({ ENS_EXPECTED_OWNER: wallet.address, ENS_NAME_WRITER_ADDRESS: other.address,
+    ENS_RPC_URL: 'https://rpc.example' }).ensNameWriterAddress, other.address);
   assert.throws(() => readConfig({ ZERODEV_TEST_SIGNUP: 'true' }), /loopback Sepolia host/);
   assert.throws(() => readConfig({ PUBLIC_ORIGIN: 'https://play.example', ZERODEV_TEST_SIGNUP: 'true', ZERODEV_PROJECT_ID: 'test-project-123', RPC_URL: 'https://rpc.example' }), /loopback Sepolia host/);
   assert.throws(() => readConfig({ HOST: '0.0.0.0', ZERODEV_TEST_SIGNUP: 'true', ZERODEV_PROJECT_ID: 'test-project-123', RPC_URL: 'https://rpc.example' }), /loopback Sepolia host/);

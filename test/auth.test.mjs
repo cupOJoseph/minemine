@@ -92,4 +92,9 @@ test('configuration requires TLS for public hosts and restricts initial chains',
   assert.throws(() => readConfig({ STRIPE_TEST_SECRET_KEY: 'sk_live_bad', STRIPE_TEST_WEBHOOK_SECRET: 'whsec_test' }), /test-mode/);
   assert.throws(() => readConfig({ STRIPE_TEST_SECRET_KEY: 'sk_test_only' }), /configured together/);
   assert.equal(readConfig({ STRIPE_TEST_SECRET_KEY: 'sk_test_example', STRIPE_TEST_WEBHOOK_SECRET: 'whsec_example' }).stripeTestSecretKey, 'sk_test_example');
+  assert.throws(() => readConfig({ ZERODEV_TEST_SIGNUP: 'true' }), /loopback Sepolia host/);
+  assert.throws(() => readConfig({ PUBLIC_ORIGIN: 'https://play.example', ZERODEV_TEST_SIGNUP: 'true', ZERODEV_PROJECT_ID: 'test-project-123', RPC_URL: 'https://rpc.example' }), /loopback Sepolia host/);
+  assert.throws(() => readConfig({ HOST: '0.0.0.0', ZERODEV_TEST_SIGNUP: 'true', ZERODEV_PROJECT_ID: 'test-project-123', RPC_URL: 'https://rpc.example' }), /loopback Sepolia host/);
+  assert.throws(() => readConfig({ ZERODEV_TEST_SIGNUP: 'true', ZERODEV_PROJECT_ID: 'test-project-123', RPC_URL: 'https://rpc.example', GAME_ENABLED: 'true' }), /loopback Sepolia host/);
+  assert.equal(readConfig({ ZERODEV_TEST_SIGNUP: 'true', ZERODEV_PROJECT_ID: 'test-project-123', RPC_URL: 'https://rpc.example' }).zeroDevProjectId, 'test-project-123');
 });

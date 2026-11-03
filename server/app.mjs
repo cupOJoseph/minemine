@@ -168,9 +168,11 @@ export function createApp(config) {
     // Upstream engine builds its own runtime styles and menu event attributes.
     // Keep those permissions scoped to the engine; wallet pages retain strict CSP.
     const enginePage = req.url?.startsWith('/engine/');
+    const accountPage = req.url?.startsWith('/account/');
     const wsOrigin = config.origin.replace(/^http/, 'ws');
     const frameAncestors = req.url === '/engine/connect.html' ? "'self'" : "'none'";
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; " + (enginePage ? "script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " : "style-src 'self'; ") + "img-src 'self' data:; connect-src 'self' " + wsOrigin + "; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors " + frameAncestors);
+    const accountConnect = accountPage ? ' https://kms.zerodev.app https://authproxy.turnkey.com https://api.turnkey.com https://rpc.zerodev.app https://ethereum-sepolia-rpc.publicnode.com' : '';
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; " + (enginePage ? "script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " : "style-src 'self'; ") + "img-src 'self' data:; connect-src 'self' " + wsOrigin + accountConnect + "; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors " + frameAncestors);
     if (config.secure) res.setHeader('Strict-Transport-Security', 'max-age=31536000');
     try {
       if (req.headers.host !== new URL(config.origin).host) throw new AuthError('Unexpected host.', 400);
@@ -204,7 +206,7 @@ export function createApp(config) {
         const jar = cookies(req);
         const sessionToken = jar[sessionCookie];
         const session = auth.get(sessionToken);
-        if (req.method === 'GET' && url.pathname === '/api/config') return json(res, 200, { chainId: config.chainId, tokenAddress: config.tokenAddress, townContractAddress: config.townContractAddress, currencySymbol: 'MINE', gameReady: available(), soloPlaytestAvailable: soloAvailable(), enginePresent: existsSync(path.join(publicRoot, 'engine/index.html')), ensAvailable: Boolean(config.ensRpcUrl || config.ensOwnership), betaInvitesEnabled: Boolean(config.betaInvitesEnabled), milestone: 'solo-playtest', walletSupport: 'EOA' });
+        if (req.method === 'GET' && url.pathname === '/api/config') return json(res, 200, { chainId: config.chainId, tokenAddress: config.tokenAddress, townContractAddress: config.townContractAddress, currencySymbol: 'MINE', gameReady: available(), soloPlaytestAvailable: soloAvailable(), enginePresent: existsSync(path.join(publicRoot, 'engine/index.html')), ensAvailable: Boolean(config.ensRpcUrl || config.ensOwnership), betaInvitesEnabled: Boolean(config.betaInvitesEnabled), zeroDevTestProjectId: config.zeroDevTestSignup ? config.zeroDevProjectId : null, milestone: 'solo-playtest', walletSupport: 'EOA' });
         if (req.method === 'GET' && url.pathname === '/api/health') return json(res, 200, { ok: true, nativeReady: nativeReady(), gameReady: available(), currencyConfigured: Boolean(config.tokenAddress && config.rpcUrl) });
         if (req.method === 'POST' && url.pathname === '/api/auth/challenge') {
           const data = await body(req);
@@ -424,6 +426,11 @@ export function createApp(config) {
       }
       if (url.pathname === '/map' || url.pathname === '/map/') {
         res.writeHead(302, { Location: '/map/index.html' });
+        res.end();
+        return;
+      }
+      if (url.pathname === '/account' || url.pathname === '/account/') {
+        res.writeHead(302, { Location: '/account/index.html' });
         res.end();
         return;
       }

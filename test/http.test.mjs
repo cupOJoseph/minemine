@@ -9,7 +9,7 @@ import Stripe from 'stripe';
 import { createApp } from '../server/app.mjs';
 import { AuthError, playerName } from '../server/auth.mjs';
 import { readConfig } from '../server/config.mjs';
-import { createNameRegistry } from '../server/name-registry.mjs';
+import { createNameRegistry, NameRegistryError } from '../server/name-registry.mjs';
 
 async function fixture(t, env = {}, clock, overrides = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), 'miners-http-'));
@@ -64,6 +64,7 @@ test('HTTP wallet flow: challenge, real signature, cookie session, gated game, l
   assert.match(cookieHeader, /HttpOnly; SameSite=Strict; Path=\//);
   const sessionCookie = cookieHeader.split(';')[0];
   assert.equal((await request('/api/session', undefined, sessionCookie)).status, 200);
+  assert.equal((await request('/api/names/checkout', { handle: 'builder' }, sessionCookie)).status, 503);
   assert.deepEqual(await (await request('/api/currency/recipient?input=' + wallet.address, undefined, sessionCookie)).json(), { address: wallet.address, ensName: null });
   assert.equal((await (await request('/api/identity', undefined, sessionCookie)).json()).ensName, null);
   assert.equal((await request('/api/currency/recipient?input=builder.eth', undefined, sessionCookie)).status, 503);
@@ -455,6 +456,64 @@ test('paid managed name displays only while ENS resolves to its signed account w
   offline = false;
   target = wallet.address;
   assert.equal((await (await request('/api/identity', undefined, cookie)).json()).ensName, 'builder.minemine.eth');
+});
+
+test('signed loopback checkout reuses a durable hold and rejects unavailable names', async t => {
+  const stripeSdk = new Stripe('sk_test_minemine_http');
+  const calls = [];
+  let ready = false;
+  const stripeClient = { webhooks: stripeSdk.webhooks, checkout: { sessions: {
+    async create(params, options) {
+      calls.push({ params, options });
+      return { id: 'cs_test_player_name', object: 'checkout.session', livemode: false,
+        mode: 'payment', currency: 'usd', amount_total: 200, status: 'open',
+        client_reference_id: params.client_reference_id, metadata: params.metadata,
+        expires_at: params.expires_at, url: 'https://checkout.stripe.com/c/pay/cs_test_player_name' };
+    },
+  } } };
+  const { request, worldDir } = await fixture(t, {}, null, {
+    stripeClient, stripeWebhookSecret: 'whsec_minemine_http', nameCheckoutTestEnabled: true,
+    namePreflight: async () => {
+      if (!ready) throw new NameRegistryError('MineMine ENS resolver is not ready.', 'ens_sale_unavailable');
+    },
+  });
+  const names = createNameRegistry(worldDir);
+  t.after(() => names.close());
+  const signIn = async wallet => {
+    const challengeResponse = await request('/api/auth/challenge', { address: wallet.address, chainId: 11155111 });
+    const challengeCookie = challengeResponse.headers.getSetCookie()[0].split(';')[0];
+    const signature = await wallet.signMessage((await challengeResponse.json()).message);
+    const response = await request('/api/auth/verify', { signature }, challengeCookie);
+    assert.equal(response.status, 200);
+    return response.headers.getSetCookie()[0].split(';')[0];
+  };
+  assert.equal((await (await request('/api/config')).json()).nameCheckoutTestEnabled, true);
+  assert.equal((await request('/api/names/checkout', { handle: 'builder' })).status, 401);
+  const first = new Wallet('0x' + 'a5'.repeat(32));
+  const firstCookie = await signIn(first);
+  assert.equal((await request('/api/names/checkout', { handle: 'b' }, firstCookie)).status, 400);
+  const unavailable = await request('/api/names/checkout', { handle: 'builder' }, firstCookie);
+  assert.equal(unavailable.status, 503);
+  assert.equal(names.lookup('builder'), null, 'preflight failure creates no local hold');
+  assert.equal(calls.length, 0, 'preflight failure never contacts Stripe');
+  ready = true;
+  const created = await request('/api/names/checkout', { handle: 'BUILDER',
+    accountId: new Wallet('0x' + 'b5'.repeat(32)).address }, firstCookie);
+  assert.equal(created.status, 200);
+  const result = await created.json();
+  assert.equal(result.testMode, true);
+  assert.match(result.orderId, /^[a-f0-9-]{36}$/);
+  assert.equal(result.handle, 'builder');
+  assert.equal(calls[0].params.metadata.account_id, first.address.toLowerCase(), 'body cannot select the billed account');
+  assert.equal(names.lookup('builder').state, 'checkout_held');
+  const retried = await request('/api/names/checkout', { handle: 'builder' }, firstCookie);
+  assert.equal(retried.status, 200);
+  assert.equal((await retried.json()).orderId, result.orderId);
+  assert.deepEqual(calls[1], calls[0], 'retry uses the same Stripe idempotency key and parameters');
+  assert.equal((await request('/api/names/checkout', { handle: 'another' }, firstCookie)).status, 409);
+  const secondCookie = await signIn(new Wallet('0x' + 'b5'.repeat(32)));
+  assert.equal((await request('/api/names/checkout', { handle: 'builder' }, secondCookie)).status, 409);
+  assert.equal(calls.length, 2, 'collisions never create another Checkout Session');
 });
 
 test('Stripe test webhook needs a raw valid signature and a matching paid session', async t => {

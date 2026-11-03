@@ -25,6 +25,12 @@ export function readConfig(env = process.env) {
   if (env.STRIPE_TEST_SECRET_KEY && (!env.STRIPE_TEST_SECRET_KEY.startsWith('sk_test_') || !env.STRIPE_TEST_WEBHOOK_SECRET.startsWith('whsec_'))) {
     throw new Error('Only Stripe test-mode checkout credentials are accepted.');
   }
+  if (env.NAME_CHECKOUT_TEST_ENABLED === 'true' &&
+      (!['localhost', '127.0.0.1', '[::1]'].includes(origin.hostname) ||
+       !['localhost', '127.0.0.1', '::1'].includes(env.HOST || '127.0.0.1') ||
+       !env.STRIPE_TEST_SECRET_KEY)) {
+    throw new Error('Player name checkout is restricted to a loopback Stripe test lab.');
+  }
   if (Boolean(env.ENS_EXPECTED_OWNER) !== Boolean(env.ENS_NAME_WRITER_ADDRESS)) {
     throw new Error('ENS expected owner and name writer must be configured together.');
   }
@@ -44,6 +50,7 @@ export function readConfig(env = process.env) {
     ensNameWriterAddress: env.ENS_NAME_WRITER_ADDRESS ? getAddress(env.ENS_NAME_WRITER_ADDRESS) : null,
     stripeTestSecretKey: env.STRIPE_TEST_SECRET_KEY || null,
     stripeWebhookSecret: env.STRIPE_TEST_WEBHOOK_SECRET || null,
+    nameCheckoutTestEnabled: env.NAME_CHECKOUT_TEST_ENABLED === 'true',
     adminWalletAddresses,
     townContractAddress: env.TOWN_CONTRACT_ADDRESS ? getAddress(env.TOWN_CONTRACT_ADDRESS) : null,
     townConfirmations,

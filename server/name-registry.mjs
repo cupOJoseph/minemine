@@ -160,6 +160,10 @@ export function createNameRegistry(worldDir, now = Date.now) {
   return {
     file,
     lookup(input) { return current(normalizeHandle(input)); },
+    checkoutForAccount(accountId) {
+      identifier(accountId, 'account');
+      return db.prepare('SELECT handle, state, order_id FROM names WHERE account_id = ?').get(accountId) || null;
+    },
     managedNameForAccount(accountId) {
       identifier(accountId, 'account');
       return db.prepare("SELECT ens_name FROM names WHERE account_id = ? AND state = 'paid_active' AND expires_at > ?")

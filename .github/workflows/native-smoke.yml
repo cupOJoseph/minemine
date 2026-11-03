@@ -163,7 +163,8 @@ jobs:
         run: |
           set -euo pipefail
           cp -a test/integration/town_probe runtime/native-world/worldmods/town_probe
-          printf '\nload_mod_town_probe = true\n' >> runtime/native-world/world.mt
+          cp -a test/integration/load_probe runtime/native-world/worldmods/load_probe
+          printf '\nload_mod_town_probe = true\nload_mod_load_probe = true\n' >> runtime/native-world/world.mt
           sed 's/^max_users = 2$/max_users = 16/' game/minetest.conf > runtime/ci-minetest.conf
           grep -Fxq 'max_users = 16' runtime/ci-minetest.conf
           world_dir="$GITHUB_WORKSPACE/runtime/native-world"
@@ -336,6 +337,9 @@ jobs:
             runtime/server-memory-summary.txt
             runtime/native-load-snapshots.jsonl
             runtime/native-load-joins.jsonl
+            runtime/native-load-movement.json
+            runtime/native-world/minemine-load-position-before.json
+            runtime/native-world/minemine-load-position-after.json
             runtime/native-world/minemine-native-metrics.json
             runtime/admin-beta-desktop.png
             runtime/admin-beta-mobile.png

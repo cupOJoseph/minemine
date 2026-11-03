@@ -88,6 +88,7 @@ jobs:
             echo 'Native server logged an error while starting the world.'
             exit 1
           fi
+          WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" node scripts/check-native-metrics.mjs
       - name: Restore a stopped-world backup and restart
         run: |
           tar -C runtime -czf runtime/native-world-backup.tar.gz native-world

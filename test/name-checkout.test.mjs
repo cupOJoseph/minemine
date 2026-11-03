@@ -38,7 +38,7 @@ function fixture(t) {
         assert.equal(params.line_items[0].price_data.unit_amount, 200);
         assert.equal(params.line_items[0].price_data.currency, 'usd');
         assert.equal(params.line_items[0].price_data.product_data.name,
-          'MineMine signup and builder.minemine.eth reservation');
+          'MineMine signup and first year of builder.minemine.eth');
         assert.deepEqual(params.payment_method_types, ['card']);
         assert.equal(params.metadata.account_id, accountId);
         assert.equal(params.metadata.handle, 'builder');

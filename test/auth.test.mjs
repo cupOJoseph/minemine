@@ -96,4 +96,9 @@ test('configuration requires TLS for public hosts and restricts initial chains',
   assert.throws(() => readConfig({ ENS_EXPECTED_OWNER: wallet.address, ENS_NAME_WRITER_ADDRESS: other.address }), /mainnet RPC/);
   assert.equal(readConfig({ ENS_EXPECTED_OWNER: wallet.address, ENS_NAME_WRITER_ADDRESS: other.address,
     ENS_RPC_URL: 'https://rpc.example' }).ensNameWriterAddress, other.address);
+  assert.throws(() => readConfig({ ZERODEV_TEST_SIGNUP: 'true' }), /loopback Sepolia host/);
+  assert.throws(() => readConfig({ PUBLIC_ORIGIN: 'https://play.example', ZERODEV_TEST_SIGNUP: 'true', ZERODEV_PROJECT_ID: 'test-project-123', RPC_URL: 'https://rpc.example' }), /loopback Sepolia host/);
+  assert.throws(() => readConfig({ HOST: '0.0.0.0', ZERODEV_TEST_SIGNUP: 'true', ZERODEV_PROJECT_ID: 'test-project-123', RPC_URL: 'https://rpc.example' }), /loopback Sepolia host/);
+  assert.throws(() => readConfig({ ZERODEV_TEST_SIGNUP: 'true', ZERODEV_PROJECT_ID: 'test-project-123', RPC_URL: 'https://rpc.example', GAME_ENABLED: 'true' }), /loopback Sepolia host/);
+  assert.equal(readConfig({ ZERODEV_TEST_SIGNUP: 'true', ZERODEV_PROJECT_ID: 'test-project-123', RPC_URL: 'https://rpc.example' }).zeroDevProjectId, 'test-project-123');
 });

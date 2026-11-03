@@ -17,6 +17,9 @@ stage=$(mktemp -d "${TMPDIR:-/tmp}/minemine-host-bundle.XXXXXX")
 trap 'rm -rf "$stage"' EXIT
 
 cd "$repo_dir"
+npm run account:build
+test -s public/account/account.js
+test -s public/account/account.js.LEGAL.txt
 test -x vendor/native/bin/luantiserver
 test -f vendor/native/games/minetest/game.conf
 test -f public/engine/build.json

@@ -17,6 +17,7 @@ try {
       let reservations = [];
       let codes = [];
       let events = [];
+      let admissionRevokedAt = null;
       window.fetch = async (input, options = {}) => {
         const pathname = String(input).split('?')[0];
         let result;
@@ -29,6 +30,7 @@ try {
         else if (pathname === '/api/admin/players/' + 'w_' + 'a'.repeat(17)) result = {
           playerName: 'w_' + 'a'.repeat(17), address: '0x' + '12'.repeat(20), ensName: 'builder.eth',
           firstSignedInAt: '2026-11-01T09:00:00Z', lastSignedInAt: '2026-11-01T11:00:00Z',
+          betaGateEnabled: true, betaAdmission: { admittedAt: '2026-11-01T10:00:00Z', revokedAt: admissionRevokedAt },
         };
         else if (pathname === '/api/admin/audit') result = { events };
         else if (pathname === '/api/admin/names' && !options.method) result = { reservations };
@@ -44,6 +46,10 @@ try {
           reservations = reservations.filter(item => item.handle !== handle);
           events = [{ source: 'username', target: handle, action: 'admin_released', actor: '0xadmin', at: '2026-11-01T12:01:00Z' }, ...events];
           result = { released: true };
+        } else if (pathname === '/api/admin/beta/admissions/revoke' || pathname === '/api/admin/beta/admissions/restore') {
+          admissionRevokedAt = pathname.endsWith('/revoke') ? '2026-11-01T12:03:00Z' : null;
+          events = [{ source: 'beta admission', target: '0x' + '12'.repeat(20), action: admissionRevokedAt ? 'admission_revoked' : 'admission_restored', actor: '0xadmin', at: '2026-11-01T12:03:00Z' }, ...events];
+          result = admissionRevokedAt ? { revoked: true } : { restored: true };
         } else if (pathname === '/api/admin/beta/codes' && !options.method) result = { codes };
         else if (pathname === '/api/admin/beta/codes/create') {
           const payload = JSON.parse(options.body);
@@ -70,6 +76,12 @@ try {
     await page.getByRole('button', { name: 'Inspect w_' + 'a'.repeat(17) }).click();
     await page.getByText('builder.eth', { exact: true }).waitFor();
     assert.equal(await page.locator('#profile-wallet').textContent(), '0x' + '12'.repeat(20));
+    await page.getByRole('button', { name: 'Suspend beta access' }).click();
+    await page.getByRole('button', { name: 'Restore beta access' }).waitFor();
+    assert.match(await page.locator('#profile-beta').textContent(), /Suspended/);
+    await page.getByRole('button', { name: 'Restore beta access' }).click();
+    await page.getByRole('button', { name: 'Suspend beta access' }).waitFor();
+    assert.match(await page.locator('#profile-beta').textContent(), /Admitted/);
     await page.locator('#name-handle').fill('DemoUser');
     await page.locator('#name-intended-address').fill('0x' + '12'.repeat(20));
     await page.getByRole('button', { name: 'Reserve', exact: true }).click();
@@ -87,7 +99,7 @@ try {
     await page.getByRole('button', { name: 'Revoke beta code aaaaaaaa' }).click();
     await page.locator('#beta-codes').getByText('revoked', { exact: false }).waitFor();
     await page.locator('#audit-rows').getByText('admin released').waitFor();
-    await page.locator('#audit-rows').getByText('revoked').waitFor();
+    await page.locator('#audit-rows').getByRole('cell', { name: 'revoked', exact: true }).waitFor();
     assert.deepEqual(errors, [], `${viewport.label} page errors`);
     await page.close();
   }

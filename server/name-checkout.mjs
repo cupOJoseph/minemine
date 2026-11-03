@@ -48,7 +48,7 @@ export function createNameCheckout({ stripe, names, origin, webhookSecret, prefl
         mode: 'payment',
         payment_method_types: ['card'],
         line_items: [{ price_data: { currency: 'usd', unit_amount: PRICE_CENTS,
-          product_data: { name: `MineMine signup and ${handle}.minemine.eth reservation` } }, quantity: 1 }],
+          product_data: { name: `MineMine signup and first year of ${handle}.minemine.eth` } }, quantity: 1 }],
         client_reference_id: orderId,
         metadata: { order_id: orderId, account_id: accountId, handle },
         success_url: `${origin}/?name_checkout=success`,

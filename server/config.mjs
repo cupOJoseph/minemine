@@ -29,6 +29,13 @@ export function readConfig(env = process.env) {
     throw new Error('ENS expected owner and name writer must be configured together.');
   }
   if (env.ENS_EXPECTED_OWNER && !env.ENS_RPC_URL) throw new Error('ENS sale preflight requires a mainnet RPC.');
+  const zeroDevTestSignup = env.ZERODEV_TEST_SIGNUP === 'true';
+  if (zeroDevTestSignup && (
+    !['localhost', '127.0.0.1', '[::1]'].includes(origin.hostname) ||
+    !['127.0.0.1', '::1'].includes(env.HOST || '127.0.0.1') || chainId !== 11155111 ||
+    !env.RPC_URL || env.GAME_ENABLED === 'true' ||
+    !/^[a-zA-Z0-9-]{8,128}$/.test(env.ZERODEV_PROJECT_ID || '')
+  )) throw new Error('ZeroDev test signup requires a loopback Sepolia host and origin, RPC_URL, and project ID.');
   return {
     origin: origin.origin, host: env.HOST || '127.0.0.1', port, chainId,
     secure: origin.protocol === 'https:',
@@ -44,6 +51,8 @@ export function readConfig(env = process.env) {
     ensNameWriterAddress: env.ENS_NAME_WRITER_ADDRESS ? getAddress(env.ENS_NAME_WRITER_ADDRESS) : null,
     stripeTestSecretKey: env.STRIPE_TEST_SECRET_KEY || null,
     stripeWebhookSecret: env.STRIPE_TEST_WEBHOOK_SECRET || null,
+    zeroDevTestSignup,
+    zeroDevProjectId: zeroDevTestSignup ? env.ZERODEV_PROJECT_ID : null,
     adminWalletAddresses,
     townContractAddress: env.TOWN_CONTRACT_ADDRESS ? getAddress(env.TOWN_CONTRACT_ADDRESS) : null,
     townConfirmations,

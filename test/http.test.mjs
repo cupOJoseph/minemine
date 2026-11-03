@@ -106,8 +106,17 @@ test('static files supply isolation headers; private paths and invalid bodies ar
   assert.ok(remoteFrame.headers.get('Content-Security-Policy').includes("frame-ancestors 'self'"));
   const config = await request('/api/config');
   assert.equal(config.headers.get('Cache-Control'), 'no-store');
-  const { soloPlaytestAvailable } = await config.json();
+  const { soloPlaytestAvailable, zeroDevTestProjectId } = await config.json();
   assert.equal(typeof soloPlaytestAvailable, 'boolean');
+  assert.equal(zeroDevTestProjectId, null);
+  const account = await request('/account/');
+  assert.equal(account.status, 302);
+  assert.equal(account.headers.get('Location'), '/account/index.html');
+  const accountPage = await request('/account/index.html');
+  assert.equal(accountPage.status, 200);
+  assert.match(await accountPage.text(), /Create a MineMine account/);
+  assert.ok(accountPage.headers.get('Content-Security-Policy').includes('https://kms.zerodev.app'));
+  assert.ok(!page.headers.get('Content-Security-Policy').includes('https://kms.zerodev.app'));
   const play = await request('/play/');
   assert.equal(play.status, 302);
   assert.equal(play.headers.get('Location'), soloPlaytestAvailable ? '/engine/index.html' : 'https://cupojoseph.github.io/minemine/play/');
@@ -126,6 +135,16 @@ test('rate limiting bounds anonymous authentication attempts', async t => {
   let response;
   for (let n = 0; n < 121; n++) response = await request('/api/config');
   assert.equal(response.status, 429);
+});
+test('local ZeroDev lab exposes only its public project ID and keeps the game closed', async t => {
+  const { request } = await fixture(t, {
+    ZERODEV_TEST_SIGNUP: 'true', ZERODEV_PROJECT_ID: 'test-project-123',
+    RPC_URL: 'https://ethereum-sepolia-rpc.publicnode.com',
+  });
+  const configuration = await (await request('/api/config')).json();
+  assert.equal(configuration.zeroDevTestProjectId, 'test-project-123');
+  assert.equal(configuration.gameReady, false);
+  assert.equal((await request('/api/game/ticket', {})).status, 401);
 });
 test('trusted local Caddy gives visitors separate limits and cannot be spoofed by a remote peer', async t => {
   const { request } = await fixture(t, { PUBLIC_ORIGIN: 'https://play.example', TRUST_LOOPBACK_PROXY: 'true' });
@@ -375,8 +394,21 @@ test('beta invitations are hashed, wallet bound, and gate shared-world tickets',
   assert.equal(audit.events[1].actor, player.address.toLowerCase());
   assert.equal(JSON.stringify(audit).includes(code), false, 'audit never exposes the beta secret');
   assert.equal((await request('/api/game/ticket', {}, playerCookie)).status, 503, 'revoking a code does not erase an existing admission');
+  const profile = await (await request(`/api/admin/players/${(await (await request('/api/session', undefined, playerCookie)).json()).playerName}`, undefined, adminCookie)).json();
+  assert.equal(profile.betaAdmission.revokedAt, null);
+  assert.equal(profile.betaGateEnabled, true);
+  assert.equal((await request('/api/admin/beta/admissions/revoke', { address: player.address }, playerCookie)).status, 403);
+  assert.equal((await request('/api/admin/beta/admissions/revoke', { address: admin.address }, adminCookie)).status, 400);
+  assert.deepEqual(await (await request('/api/admin/beta/admissions/revoke', { address: player.address }, adminCookie)).json(), { revoked: true });
+  assert.deepEqual(await (await request('/api/beta/status', undefined, playerCookie)).json(), { enabled: true, admitted: false });
+  assert.equal((await request('/api/game/ticket', {}, playerCookie)).status, 403);
+  assert.equal((await request('/api/beta/redeem', { code }, playerCookie)).status, 400);
+  assert.deepEqual(await (await request('/api/admin/beta/admissions/revoke', { address: player.address }, adminCookie)).json(), { revoked: false });
+  assert.deepEqual(await (await request('/api/admin/beta/admissions/restore', { address: player.address }, adminCookie)).json(), { restored: true });
+  assert.equal((await request('/api/game/ticket', {}, playerCookie)).status, 503);
   now += 5 * 60_000;
   assert.equal((await request('/api/admin/beta/codes/create', {}, adminCookie)).status, 403);
+  assert.equal((await request('/api/admin/beta/admissions/revoke', { address: player.address }, adminCookie)).status, 403);
 });
 
 test('selected ENS identity is wallet-bound, rechecked, and removed after ownership transfers', async t => {

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 import os from 'node:os';
 import path from 'node:path';
 import { createBetaCodes } from '../server/beta-codes.mjs';
@@ -58,4 +59,56 @@ test('targeted invites reject other accounts and expiry or revocation blocks new
     codes.close();
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('admission suspension survives restart and cannot be bypassed with another code', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'minemine-beta-'));
+  let clock = 1000;
+  let codes = createBetaCodes(dir, () => clock);
+  try {
+    const first = codes.create({ actor: admin, expiresAt: 3000 });
+    const spare = codes.create({ actor: admin, expiresAt: 3000 });
+    codes.redeem(first.code, alice);
+    clock = 1100;
+    assert.equal(codes.revokeAdmission(alice, admin), true);
+    assert.equal(codes.revokeAdmission(alice, admin), false);
+    assert.equal(codes.isAdmitted(alice), false);
+    assert.equal(codes.admission(alice).revoked_at, clock);
+    assert.throws(() => codes.redeem(spare.code, alice), { code: 'revoked' });
+    assert.equal(codes.list().find(row => row.id === spare.id).uses, 0);
+    codes.close();
+    codes = createBetaCodes(dir, () => clock);
+    assert.equal(codes.isAdmitted(alice), false);
+    assert.equal(codes.restoreAdmission(alice, admin), true);
+    assert.equal(codes.restoreAdmission(alice, admin), false);
+    assert.equal(codes.isAdmitted(alice), true);
+    assert.deepEqual(codes.recentAudit().slice(0, 2).map(event => [event.action, event.account_id]), [
+      ['admission_restored', alice], ['admission_revoked', alice],
+    ]);
+    assert.throws(() => codes.revokeAdmission(bob, admin), { code: 'not_found' });
+  } finally {
+    codes.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('existing beta databases gain admission and audit fields without losing players', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'minemine-beta-'));
+  const initial = createBetaCodes(dir, () => 1000);
+  const created = initial.create({ actor: admin, expiresAt: 3000 });
+  initial.redeem(created.code, alice);
+  const file = initial.file;
+  initial.close();
+  const legacy = new DatabaseSync(file);
+  legacy.exec(`ALTER TABLE beta_admissions DROP COLUMN revoked_at;
+    ALTER TABLE beta_audit DROP COLUMN account_id;`);
+  legacy.close();
+  try {
+    const upgraded = createBetaCodes(dir, () => 1100);
+    try {
+      assert.equal(upgraded.isAdmitted(alice), true);
+      assert.equal(upgraded.revokeAdmission(alice, admin), true);
+      assert.equal(upgraded.isAdmitted(alice), false);
+    } finally { upgraded.close(); }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });

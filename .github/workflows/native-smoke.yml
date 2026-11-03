@@ -8,6 +8,7 @@ on:
       - 'server/**'
       - 'playtest/**'
       - 'test/integration/browser-native.mjs'
+      - 'test/integration/browser-native-load.mjs'
       - 'test/integration/browser-native-restart.mjs'
       - 'test/integration/wallet-ui-evm.mjs'
       - 'test/integration/admin-beta-ui.mjs'
@@ -162,6 +163,8 @@ jobs:
           set -euo pipefail
           cp -a test/integration/town_probe runtime/native-world/worldmods/town_probe
           printf '\nload_mod_town_probe = true\n' >> runtime/native-world/world.mt
+          sed 's/^max_users = 2$/max_users = 4/' game/minetest.conf > runtime/ci-minetest.conf
+          grep -Fxq 'max_users = 4' runtime/ci-minetest.conf
           world_dir="$GITHUB_WORKSPACE/runtime/native-world"
           node_binary=$(command -v node)
           start_stack() {
@@ -170,7 +173,7 @@ jobs:
             local native_log=$3
             local api_log=$4
             sudo systemd-run --quiet --unit="minemine-ci-native-$phase" --slice=minemine-ci.slice --uid="$USER" --same-dir --property=Type=exec \
-              /usr/bin/bash "$GITHUB_WORKSPACE/scripts/ci-native-service.sh" "$world_dir" "$GITHUB_WORKSPACE/runtime/$engine_log" "$GITHUB_WORKSPACE/runtime/$native_log"
+              /usr/bin/bash "$GITHUB_WORKSPACE/scripts/ci-native-service.sh" "$world_dir" "$GITHUB_WORKSPACE/runtime/$engine_log" "$GITHUB_WORKSPACE/runtime/$native_log" "$GITHUB_WORKSPACE/runtime/ci-minetest.conf"
             sudo systemd-run --quiet --unit="minemine-ci-api-$phase" --slice=minemine-ci.slice --uid="$USER" --same-dir --property=Type=exec \
               /usr/bin/bash "$GITHUB_WORKSPACE/scripts/ci-api-service.sh" "$world_dir" "$GITHUB_WORKSPACE/runtime/$api_log" "$node_binary" "$GITHUB_WORKSPACE/runtime/ci-economy.env"
             test "$(systemctl show -P Slice "minemine-ci-native-$phase.service")" = 'minemine-ci.slice'
@@ -242,6 +245,7 @@ jobs:
           bash scripts/sample-stack-memory.sh "$native_pid" "$api_pid" runtime/server-memory-first.csv runtime/server-memory-first.stop &
           sampler_pid=$!
           WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" NATIVE_LOG=runtime/browser-native.log node test/integration/browser-native.mjs
+          WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" NATIVE_LOG=runtime/browser-native.log node test/integration/browser-native-load.mjs
           touch runtime/server-memory-first.stop
           wait "$sampler_pid"
           capture_cgroup first
@@ -326,6 +330,8 @@ jobs:
             runtime/server-memory-first.csv
             runtime/server-memory-restart.csv
             runtime/server-memory-summary.txt
+            runtime/native-load-snapshots.jsonl
+            runtime/native-world/minemine-native-metrics.json
             runtime/admin-beta-desktop.png
             runtime/admin-beta-mobile.png
             runtime/beta-player-admitted.png

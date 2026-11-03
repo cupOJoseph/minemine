@@ -505,8 +505,11 @@ try {
   const mapProjection = JSON.parse(await readFile(path.join(worldDir, 'town-map-claims.json'), 'utf8'));
   assert.equal(mapProjection.version, 1);
   assert.deepEqual(Object.keys(mapProjection).sort(), ['claims', 'version']);
+  const negativeCenter = JSON.parse(await readFile(path.join(worldDir, 'town-probe-state.json'), 'utf8')).negative_center;
+  assert.ok(Number.isInteger(negativeCenter) && negativeCenter < 0, 'native negative claim center is missing');
   assert.deepEqual(mapProjection.claims.find(claim => claim.town === 'West Hollow'),
-    { town: 'West Hollow', x1: -65, x2: -63, z1: -65, z2: -63 });
+    { town: 'West Hollow', x1: negativeCenter - 1, x2: negativeCenter + 1,
+      z1: negativeCenter - 1, z2: negativeCenter + 1 });
   assert.equal(mapProjection.claims.length, 2, 'removed negative claim leaked into the map projection');
 
   await page.evaluate(() => { if (document.pointerLockElement) document.exitPointerLock(); });

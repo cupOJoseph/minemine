@@ -131,11 +131,18 @@ export function createApp(config) {
     }
     return { ...session, ensName: primary, selectedEnsName: null };
   }
+  const betaAdmissionCache = new Map();
+  const isBetaAdmitted = address => {
+    const entry = betaAdmissionCache.get(address);
+    if (entry && entry.expiresAt > Date.now()) return entry.admitted;
+    const admitted = betaCodes.isAdmitted(address);
+    if (betaAdmissionCache.size >= 10_000) betaAdmissionCache.clear();
+    betaAdmissionCache.set(address, { admitted, expiresAt: Date.now() + 1000 });
+    return admitted;
+  };
   const betaAdmitted = session => {
     if (!session) return false;
-    if (!config.betaInvitesEnabled || adminWallets.has(session.address.toLowerCase()) || session.betaAdmitted) return true;
-    if (betaCodes.isAdmitted(session.address.toLowerCase())) { session.betaAdmitted = true; return true; }
-    return false;
+    return !config.betaInvitesEnabled || adminWallets.has(session.address.toLowerCase()) || isBetaAdmitted(session.address.toLowerCase());
   };
   const balances = new Map();
   async function balance(address, fresh = false) {
@@ -161,9 +168,11 @@ export function createApp(config) {
     // Upstream engine builds its own runtime styles and menu event attributes.
     // Keep those permissions scoped to the engine; wallet pages retain strict CSP.
     const enginePage = req.url?.startsWith('/engine/');
+    const accountPage = req.url?.startsWith('/account/');
     const wsOrigin = config.origin.replace(/^http/, 'ws');
     const frameAncestors = req.url === '/engine/connect.html' ? "'self'" : "'none'";
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; " + (enginePage ? "script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " : "style-src 'self'; ") + "img-src 'self' data:; connect-src 'self' " + wsOrigin + "; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors " + frameAncestors);
+    const accountConnect = accountPage ? ' https://kms.zerodev.app https://authproxy.turnkey.com https://api.turnkey.com https://rpc.zerodev.app https://ethereum-sepolia-rpc.publicnode.com' : '';
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; " + (enginePage ? "script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " : "style-src 'self'; ") + "img-src 'self' data:; connect-src 'self' " + wsOrigin + accountConnect + "; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors " + frameAncestors);
     if (config.secure) res.setHeader('Strict-Transport-Security', 'max-age=31536000');
     try {
       if (req.headers.host !== new URL(config.origin).host) throw new AuthError('Unexpected host.', 400);
@@ -197,7 +206,7 @@ export function createApp(config) {
         const jar = cookies(req);
         const sessionToken = jar[sessionCookie];
         const session = auth.get(sessionToken);
-        if (req.method === 'GET' && url.pathname === '/api/config') return json(res, 200, { chainId: config.chainId, tokenAddress: config.tokenAddress, townContractAddress: config.townContractAddress, currencySymbol: 'MINE', gameReady: available(), soloPlaytestAvailable: soloAvailable(), enginePresent: existsSync(path.join(publicRoot, 'engine/index.html')), ensAvailable: Boolean(config.ensRpcUrl || config.ensOwnership), betaInvitesEnabled: Boolean(config.betaInvitesEnabled), milestone: 'solo-playtest', walletSupport: 'EOA' });
+        if (req.method === 'GET' && url.pathname === '/api/config') return json(res, 200, { chainId: config.chainId, tokenAddress: config.tokenAddress, townContractAddress: config.townContractAddress, currencySymbol: 'MINE', gameReady: available(), soloPlaytestAvailable: soloAvailable(), enginePresent: existsSync(path.join(publicRoot, 'engine/index.html')), ensAvailable: Boolean(config.ensRpcUrl || config.ensOwnership), betaInvitesEnabled: Boolean(config.betaInvitesEnabled), zeroDevTestProjectId: config.zeroDevTestSignup ? config.zeroDevProjectId : null, milestone: 'solo-playtest', walletSupport: 'EOA' });
         if (req.method === 'GET' && url.pathname === '/api/health') return json(res, 200, { ok: true, nativeReady: nativeReady(), gameReady: available(), currencyConfigured: Boolean(config.tokenAddress && config.rpcUrl) });
         if (req.method === 'POST' && url.pathname === '/api/auth/challenge') {
           const data = await body(req);
@@ -269,7 +278,11 @@ export function createApp(config) {
             const profile = names.walletProfile(name);
             if (!profile) throw new AuthError('Player profile not found.', 404);
             const identity = await playerIdentity({ address: profile.address, playerName: name });
-            return json(res, 200, { ...profile, ensName: identity.ensName });
+            const admission = betaCodes.admission(profile.address.toLowerCase());
+            return json(res, 200, { ...profile, ensName: identity.ensName, betaGateEnabled: Boolean(config.betaInvitesEnabled), betaAdmission: admission && {
+              admittedAt: new Date(admission.admitted_at).toISOString(),
+              revokedAt: admission.revoked_at === null ? null : new Date(admission.revoked_at).toISOString(),
+            } });
           }
           if (req.method === 'GET' && url.pathname === '/api/admin/names') {
             return json(res, 200, { reservations: names.adminReservations().map(row => ({
@@ -283,7 +296,7 @@ export function createApp(config) {
           if (req.method === 'GET' && url.pathname === '/api/admin/audit') {
             const events = [
               ...names.recentAudit().map(row => ({ source: 'username', target: row.handle, action: row.action, actor: row.actor, at: row.at, id: row.id })),
-              ...betaCodes.recentAudit().map(row => ({ source: 'beta code', target: row.code_id, action: row.action, actor: row.actor, at: row.at, id: row.id })),
+              ...betaCodes.recentAudit().map(row => ({ source: row.account_id ? 'beta admission' : 'beta code', target: row.account_id || row.code_id, action: row.action, actor: row.actor, at: row.at, id: row.id })),
             ].sort((a, b) => b.at - a.at || b.id - a.id || a.source.localeCompare(b.source)).slice(0, 50);
             return json(res, 200, { events: events.map(({ id, ...event }) => ({ ...event, at: new Date(event.at).toISOString() })) });
           }
@@ -303,6 +316,31 @@ export function createApp(config) {
                 return json(res, 201, { ...created, expiresAt: new Date(created.expiresAt).toISOString() });
               }
               return json(res, 200, { revoked: betaCodes.revoke(data.id, session.address.toLowerCase()) });
+            } catch (error) {
+              if (error instanceof BetaCodeError) throw new AuthError(error.message, error.code === 'not_found' ? 404 : 400);
+              throw error;
+            }
+          }
+          if (req.method === 'POST' && ['/api/admin/beta/admissions/revoke', '/api/admin/beta/admissions/restore'].includes(url.pathname)) {
+            if (!adminWriteFresh(session)) throw new AuthError('Sign in with your admin wallet again before changing beta access.', 403);
+            const data = await body(req);
+            let address;
+            try { address = getAddress(data.address).toLowerCase(); }
+            catch { throw new AuthError('Enter a valid wallet address.', 400); }
+            if (adminWallets.has(address)) throw new AuthError('Admin wallets bypass the beta gate.', 400);
+            try {
+              if (url.pathname.endsWith('/revoke')) {
+                const revoked = betaCodes.revokeAdmission(address, session.address.toLowerCase());
+                betaAdmissionCache.delete(address);
+                if (config.betaInvitesEnabled) {
+                  grants.revokeAddress(address);
+                  gameProxy.revokeWhere(token => auth.get(token)?.address?.toLowerCase() === address);
+                }
+                return json(res, 200, { revoked });
+              }
+              const restored = betaCodes.restoreAdmission(address, session.address.toLowerCase());
+              betaAdmissionCache.delete(address);
+              return json(res, 200, { restored });
             } catch (error) {
               if (error instanceof BetaCodeError) throw new AuthError(error.message, error.code === 'not_found' ? 404 : 400);
               throw error;
@@ -333,12 +371,12 @@ export function createApp(config) {
           throw new AuthError('Unknown admin route.', 404);
         }
         if (req.method === 'GET' && url.pathname === '/api/session') return json(res, 200, session);
-        if (req.method === 'GET' && url.pathname === '/api/beta/status') return json(res, 200, { enabled: Boolean(config.betaInvitesEnabled), admitted: adminWallets.has(session.address.toLowerCase()) || betaCodes.isAdmitted(session.address.toLowerCase()) });
+        if (req.method === 'GET' && url.pathname === '/api/beta/status') return json(res, 200, { enabled: Boolean(config.betaInvitesEnabled), admitted: adminWallets.has(session.address.toLowerCase()) || isBetaAdmitted(session.address.toLowerCase()) });
         if (req.method === 'POST' && url.pathname === '/api/beta/redeem') {
           const data = await body(req);
           try {
             const result = betaCodes.redeem(data.code, session.address.toLowerCase());
-            session.betaAdmitted = true;
+            betaAdmissionCache.delete(session.address.toLowerCase());
             return json(res, 200, result);
           } catch (error) {
             if (error instanceof BetaCodeError) throw new AuthError(error.message, 400);
@@ -375,6 +413,7 @@ export function createApp(config) {
           if (!betaAdmitted(session)) throw new AuthError('Redeem a beta invite before joining the shared world.', 403);
           if (!available()) throw new AuthError('The Luanti engine and server adapter are not ready yet. See the roadmap.', 503);
           const identity = await playerIdentity(session);
+          if (!betaAdmitted(session)) throw new AuthError('Redeem a beta invite before joining the shared world.', 403);
           return json(res, 200, { ...grants.issue(session, sessionToken, identity.ensName), address: config.gameAddress, port: config.gamePort });
         }
         throw new AuthError('Unknown API route.', 404);
@@ -387,6 +426,11 @@ export function createApp(config) {
       }
       if (url.pathname === '/map' || url.pathname === '/map/') {
         res.writeHead(302, { Location: '/map/index.html' });
+        res.end();
+        return;
+      }
+      if (url.pathname === '/account' || url.pathname === '/account/') {
+        res.writeHead(302, { Location: '/account/index.html' });
         res.end();
         return;
       }

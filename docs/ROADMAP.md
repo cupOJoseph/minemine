@@ -66,6 +66,8 @@ A14 sale preflight: the test-mode Checkout creator refuses to create a hold or c
 
 Stripe **test-mode-only** service creates server-priced $2 hosted Checkout Sessions with an account-bound 45-minute hold and idempotency key. `/api/stripe/webhook` verifies the raw signed payload, retrieves the current session, requires paid status and the exact USD amount/line item, then records `paid_pending_ens` once; a verified terminal unpaid expiry releases its hold. A new signed `POST /api/names/checkout` route is opt-in for a loopback test origin, derives its wallet from the session, and reuses the durable order ID and exactly matching Stripe parameters on retry. Local tests cover wrong signatures, price, unpaid completion, duplicate delivery, collision, late payment after release, route authorization and retry. It does not verify ZeroDev provenance; a provider-bound account flow, Stripe account test and ENS issuance worker remain. Live Stripe credentials are rejected by configuration; parent-control proof, renewal price and checkout, real test checkout, refund/dispute policy and onchain write/readback remain gates.
 
+The signed-in identity API and wallet panel show a managed name's pending activation, verified active term and UTC end, temporarily unverified record, or expired term. Expiry removes the public display name while the wallet account remains usable. A local Chromium test signs in against the real Node service and moves the fixture through all four states, including a new sign-in after expiration. The account lab still needs an equivalent status view. Renewal price and checkout are open work.
+
 ## Milestone 4 — ERC-20 in-game economy
 
 | ID | Status | Task and acceptance criteria | Depends on |

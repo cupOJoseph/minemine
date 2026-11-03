@@ -441,6 +441,7 @@ test('selected ENS identity is wallet-bound, rechecked, and removed after owners
 test('paid managed name displays only while ENS resolves to its signed account wallet', async t => {
   const wallet = new Wallet('0x' + 'd1'.repeat(32));
   const other = new Wallet('0x' + 'd2'.repeat(32));
+  let now = Date.UTC(2026, 10, 2, 12);
   let target = wallet.address;
   let offline = false;
   const ensResolver = {
@@ -452,29 +453,45 @@ test('paid managed name displays only while ENS resolves to its signed account w
     },
     close() {},
   };
-  const { request, worldDir } = await fixture(t, {}, null, { ensResolver });
+  const { request, worldDir } = await fixture(t, {}, () => now, { ensResolver });
   const challenge = await request('/api/auth/challenge', { address: wallet.address, chainId: 11155111 });
   const signature = await wallet.signMessage((await challenge.json()).message);
   const verified = await request('/api/auth/verify', { signature }, challenge.headers.getSetCookie()[0].split(';')[0]);
   const cookie = verified.headers.getSetCookie()[0].split(';')[0];
-  const names = createNameRegistry(worldDir);
+  const names = createNameRegistry(worldDir, () => now);
   t.after(() => names.close());
   const accountId = wallet.address.toLowerCase();
   names.beginCheckout('builder', accountId, 'order-1');
   names.markPaid('builder', accountId, 'order-1', 'payment-1');
-  assert.equal((await (await request('/api/identity', undefined, cookie)).json()).ensName, null, 'payment alone is not issuance');
+  const pending = await (await request('/api/identity', undefined, cookie)).json();
+  assert.equal(pending.ensName, null, 'payment alone is not issuance');
+  assert.deepEqual(pending.managedName, { name: 'builder.minemine.eth', status: 'pending', expiresAt: null });
   await names.activateManagedName('builder', accountId, 'order-1', 'payment-1', async name => (await ensResolver.recipient(name)).address);
   const active = await (await request('/api/identity', undefined, cookie)).json();
+  const expiresAt = names.lookup('builder').expires_at;
+  assert.deepEqual(active.managedName, { name: 'builder.minemine.eth', status: 'active', expiresAt: new Date(expiresAt).toISOString() });
   assert.equal(active.ensName, 'builder.minemine.eth');
   assert.equal(active.managedEnsName, 'builder.minemine.eth');
   assert.equal(active.playerName, playerName(wallet.address), 'display names do not change native identity');
   target = other.address;
-  assert.equal((await (await request('/api/identity', undefined, cookie)).json()).ensName, null, 'a changed record is hidden');
+  const changed = await (await request('/api/identity', undefined, cookie)).json();
+  assert.equal(changed.ensName, null, 'a changed record is hidden');
+  assert.equal(changed.managedName.status, 'unverified');
   offline = true;
-  assert.equal((await (await request('/api/identity', undefined, cookie)).json()).ensName, null, 'an ENS outage is hidden');
+  const unavailable = await (await request('/api/identity', undefined, cookie)).json();
+  assert.equal(unavailable.ensName, null, 'an ENS outage is hidden');
+  assert.equal(unavailable.managedName.status, 'unverified');
   offline = false;
   target = wallet.address;
   assert.equal((await (await request('/api/identity', undefined, cookie)).json()).ensName, 'builder.minemine.eth');
+  now = expiresAt;
+  const laterChallenge = await request('/api/auth/challenge', { address: wallet.address, chainId: 11155111 });
+  const laterSignature = await wallet.signMessage((await laterChallenge.json()).message);
+  const laterVerified = await request('/api/auth/verify', { signature: laterSignature }, laterChallenge.headers.getSetCookie()[0].split(';')[0]);
+  const laterCookie = laterVerified.headers.getSetCookie()[0].split(';')[0];
+  const expired = await (await request('/api/identity', undefined, laterCookie)).json();
+  assert.equal(expired.ensName, null);
+  assert.deepEqual(expired.managedName, { name: 'builder.minemine.eth', status: 'expired', expiresAt: new Date(expiresAt).toISOString() });
 });
 
 test('signed loopback checkout reuses a durable hold and rejects unavailable names', async t => {

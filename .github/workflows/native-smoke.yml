@@ -12,6 +12,7 @@ on:
       - 'test/integration/wallet-ui-evm.mjs'
       - 'test/integration/admin-beta-ui.mjs'
       - 'test/integration/beta-player-ui.mjs'
+      - 'test/integration/managed-name-ui.mjs'
       - 'test/integration/map-ui.mjs'
       - 'test/integration/account-ui.mjs'
       - 'test/integration/town_probe/**'
@@ -30,6 +31,9 @@ on:
       - 'scripts/ci-mapserver-smoke.sh'
       - 'scripts/ci-static-map-snapshot.sh'
       - 'public/map/**'
+      - 'public/app.js'
+      - 'public/index.html'
+      - 'public/style.css'
       - 'deploy/vps/**'
       - 'upstream.sources.json'
 permissions:
@@ -121,6 +125,8 @@ jobs:
           node test/integration/account-ui.mjs
       - name: Exercise player beta redemption in Chromium
         run: npm run test:beta-player-ui
+      - name: Exercise managed-name term in Chromium
+        run: npm run test:managed-name-ui
       - uses: actions/download-artifact@v4
         with:
           name: miners-solo-playtest

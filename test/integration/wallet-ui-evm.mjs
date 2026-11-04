@@ -155,10 +155,11 @@ try {
   await page.locator('#recipient').fill(recipientAddress);
   await page.locator('#amount').fill('5');
   await page.locator('#send').click();
-  await until(async () => (await page.locator('#transfer-status').textContent()).includes('Transaction submitted'),
-    'wallet transfer submission');
+  await until(async () => (await page.locator('#transfer-status').textContent()).includes('Transfer mined'),
+    'wallet transfer receipt');
   await until(async () => (await token.balanceOf(recipientAddress)) === unit(5), 'recipient MINE transfer');
   assert.equal(await token.balanceOf(walletAddress), unit(95));
+  await until(async () => (await page.locator('#balance').textContent()).includes('95'), 'refreshed sender balance');
 
   await page.locator('#town-blocks').fill('9');
   await page.locator('#buy-town-blocks').click();

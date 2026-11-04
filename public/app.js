@@ -202,8 +202,11 @@ $('send-form').addEventListener('submit', async event => {
     transferStatus('Approve the token transfer in your wallet.');
     const hash = await walletProvider.request({ method: 'eth_sendTransaction', params: [{ from: session.address, to: config.tokenAddress, data: encodeTransfer(recipient.address, amount) }] });
     if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) throw new Error('Wallet returned an invalid transaction hash.');
-    transferStatus('Transaction submitted: ' + hash + '. Check your wallet for confirmation, then refresh your balance.');
+    transferStatus('Transaction submitted: ' + hash + '. Waiting for its onchain receipt.');
+    await waitForTransaction(hash);
+    transferStatus('Transfer mined: ' + hash + '.');
     $('amount').value = '';
+    await refreshBalance().catch(error => { $('currency-status').textContent = 'Balance refresh failed: ' + error.message; });
   } catch (error) { transferStatus(error.code === 4001 ? 'Wallet transaction cancelled.' : error.message, true); }
   finally { busy = false; renderSession(); }
 });

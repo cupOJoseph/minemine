@@ -29,6 +29,7 @@
     "test:managed-name-ui": "node test/integration/managed-name-ui.mjs",
     "test:map-ui": "node test/integration/map-ui.mjs",
     "test:firefox-opfs": "node scripts/qa-firefox-opfs.mjs",
+    "test:storage-lock": "node scripts/qa-storage-lock.mjs",
     "test:ens-live": "node --env-file-if-exists=.env test/integration/ens-live.mjs",
     "account:build": "node scripts/build-account.mjs"
   },

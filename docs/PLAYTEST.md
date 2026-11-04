@@ -34,6 +34,8 @@ Visit http://localhost:3000/engine/index.html. The main launcher also reveals a 
 
 With the staged bundle served by `npm start`, `npm run test:firefox-opfs` runs a local headless Firefox check in a disposable browser profile. It opts into `?storage=auto`, places a dirt block, exits through the game menu, opens a fresh Firefox process, and requires a dig event for the same block. The command needs Playwright's Firefox browser installed and is not part of the default unit suite or proof of a public Firefox release.
 
+`npm run test:storage-lock` checks saved-world tab contention in local headless Chromium; `BROWSER=firefox npm run test:storage-lock` checks Firefox with its OPFS opt-in. Each command starts one world tab, requires the second tab's busy dialog without a second join, then verifies the lock is released after both a clean game exit and closing a tab. Use a staged engine bundle and `npm start` first. These are local browser checks, not a guarantee against browser crashes or public-host storage behavior.
+
 Use an up-to-date desktop browser that passes the runtime WebGL 2, SharedArrayBuffer/cross-origin-isolation, and JSPI checks. The local upgraded solo bundle rendered a world and opened inventory in Playwright WebKit 27.2 on macOS; that is a WebKit test, not validation of a shipping Safari release or persistent storage. The published Firefox 157 bundle entered the solo world but showed a black viewport. A staged local fix removed the disposable WebGL context probe and rendered terrain, inventory and movement in headless Firefox; public Firefox gameplay still needs verification. The pinned engine starts Firefox in temporary memory mode by default. Its `?storage=auto` option mounted OPFS in a local Firefox test and retained both a moved player's position and a placed dirt block across a clean exit and fresh browser process. Some intermediate frames were black while the game continued to log actions, so longer-session performance still needs proof. See [VALIDATION.md](VALIDATION.md) for the exact result. The Node service supplies the required COOP/COEP headers, streams large binaries, and permits the engine's dynamic styling/menu handlers only under /engine/. Wallet pages retain their stricter CSP.
 
 A public host needs HTTPS, application/wasm for the binary, COOP same-origin, and COEP require-corp. Do not use an arbitrary static host without checking those headers and asset-size limits.
@@ -53,7 +55,7 @@ GitHub Pages is the other authorized host. The manual Publish Miners solo playte
 - Record hardware, browser version, cold/warm start duration, real game frame times, and memory.
 - Publish to HTTPS and repeat the core smoke test at the final URL.
 
-The core gameplay smoke test above passed at the public URL. Unsupported-browser behavior, second-tab/storage-lock contention, performance measurements and extended stability remain additional QA. The artifact records browserVerified: false because packaging cannot establish browser behavior; consult VALIDATION.md for runtime results tied to a specific launcher revision.
+The core gameplay smoke test above passed at the public URL. Local second-tab/storage-lock contention passed in Chromium and Firefox with OPFS; public-origin and crash recovery remain. Unsupported-browser behavior, performance measurements and extended stability remain additional QA. The artifact records browserVerified: false because packaging cannot establish browser behavior; consult VALIDATION.md for runtime results tied to a specific launcher revision.
 
 ## Current build status
 

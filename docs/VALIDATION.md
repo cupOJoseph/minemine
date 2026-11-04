@@ -46,6 +46,8 @@ A third check used a fresh disposable OPFS profile and waited for the actual sin
 
 The repeatable `npm run test:firefox-opfs` command then passed twice on separate fresh profiles against the same staged local bundle. It found a placed and subsequently dug `default:dirt` at the same coordinate within each run (`0,11,1` and `0,7,129` respectively), across a clean exit and fresh Firefox process. The second run exited without a cleanup warning. The first run left only a disposable Firefox home directory after macOS denied removal of its `Downloads` metadata; the script now keeps that cache separately from the temporary game profile.
 
+The staged `21f97a29c16b` bundle also passed `npm run test:storage-lock` in headless Chromium 156 and `BROWSER=firefox npm run test:storage-lock` in headless Firefox 157 on the local Node origin. Both tests used `?storage=auto` and one browser context with three tabs. While the first tab held the OPFS lock, the second showed the upstream busy dialog and did not log a game join. After the first tab used **Exit to Menu**, the second joined. A third tab was blocked while the second ran; closing the second tab without using the menu released the lock, and **Try Again** let the third join. This verifies local ordinary tab-close recovery, not a renderer crash, OS kill, or storage behavior at the public Pages origin.
+
 No public Safari/Firefox deployment was tested. The current public Pages bundle is older than this local candidate. Browser coverage still needs a normal interactive Firefox run, shipping Safari testing, longer persistence and storage-lock checks before general release.
 
 ## Live Ethereum-mainnet ENS resolution — 2026-10-23 EDT

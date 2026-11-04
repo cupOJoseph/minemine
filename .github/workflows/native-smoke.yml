@@ -13,7 +13,10 @@ on:
       - 'test/integration/wallet-ui-evm.mjs'
       - 'test/integration/admin-beta-ui.mjs'
       - 'test/integration/beta-player-ui.mjs'
+      - 'test/integration/managed-name-ui.mjs'
       - 'test/integration/map-ui.mjs'
+      - 'test/integration/pages-landing.mjs'
+      - 'test/integration/account-ui.mjs'
       - 'test/integration/town_probe/**'
       - 'test/integration/load_probe/**'
       - 'package.json'
@@ -23,11 +26,17 @@ on:
       - 'scripts/ci-api-service.sh'
       - 'scripts/ci-deploy-economy.mjs'
       - 'scripts/package-host-runtime.sh'
+      - 'scripts/build-account.mjs'
+      - 'client/account.jsx'
+      - 'public/account/**'
       - 'scripts/build-minetestmapper.sh'
       - 'scripts/publish-map-from-backup.mjs'
       - 'scripts/ci-mapserver-smoke.sh'
       - 'scripts/ci-static-map-snapshot.sh'
       - 'public/map/**'
+      - 'public/app.js'
+      - 'public/index.html'
+      - 'public/style.css'
       - 'deploy/vps/**'
       - 'upstream.sources.json'
 permissions:
@@ -115,8 +124,14 @@ jobs:
         run: npm run test:wallet-ui
       - name: Exercise beta admin controls in Chromium
         run: npm run test:admin-ui
+      - name: Exercise local ZeroDev account lab in Chromium
+        run: |
+          npm run account:build
+          node test/integration/account-ui.mjs
       - name: Exercise player beta redemption in Chromium
         run: npm run test:beta-player-ui
+      - name: Exercise managed-name term in Chromium
+        run: npm run test:managed-name-ui
       - uses: actions/download-artifact@v4
         with:
           name: miners-solo-playtest
@@ -127,6 +142,10 @@ jobs:
         run: |
           cp -a runtime/downloaded-build/public/engine public/engine
           npm run adapter:install
+      - name: Exercise Pages landing in Chromium
+        run: |
+          PAGES_SITE_DIR="$GITHUB_WORKSPACE/runtime/pages-smoke" node scripts/prepare-pages-playtest.mjs
+          PAGES_SITE_DIR="$GITHUB_WORKSPACE/runtime/pages-smoke" node test/integration/pages-landing.mjs
       - name: Build pinned world mapper for host archive
         run: bash scripts/build-minetestmapper.sh
       - name: Package and test relocated host runtime
@@ -137,6 +156,8 @@ jobs:
           tar -C runtime/host-bundle-check -xzf runtime/minemine-host-runtime-ubuntu22-x64.tar.gz
           test -x runtime/host-bundle-check/vendor/native/bin/luantiserver
           test -f runtime/host-bundle-check/.env.example
+          test -f runtime/host-bundle-check/public/account/account.js
+          test -f runtime/host-bundle-check/public/account/account.js.LEGAL.txt
           test -f runtime/host-bundle-check/public/engine/adapter.js
           test -f runtime/host-bundle-check/deploy/vps/backup-world.sh
           test -x runtime/host-bundle-check/vendor/mapper/minetestmapper

@@ -291,7 +291,16 @@ jobs:
           rm -f runtime/client-runner.stop
           bash scripts/sample-client-runner.sh runtime/client-runner.csv runtime/client-runner.stop &
           client_sampler_pid=$!
-          WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" NATIVE_LOG=runtime/browser-native.log node test/integration/browser-native-load.mjs
+          if [ "$LOAD_MAX_CLIENTS" = 32 ]; then
+            # Finish this optional rehearsal before the 50-minute job limit so
+            # the EXIT trap and always-run artifact upload retain partial data.
+            timeout --signal=TERM --kill-after=15s 25m \
+              env WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" NATIVE_LOG=runtime/browser-native.log \
+              node test/integration/browser-native-load.mjs
+          else
+            WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" NATIVE_LOG=runtime/browser-native.log \
+              node test/integration/browser-native-load.mjs
+          fi
           touch runtime/client-runner.stop
           wait "$client_sampler_pid"
           touch runtime/server-memory-first.stop

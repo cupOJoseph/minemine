@@ -6,6 +6,8 @@ This is the **next phase**, not part of the currently playable game. The present
 
 The first opt-in 32-browser CI rehearsal [stopped at the 16th join](https://github.com/cupOJoseph/minemine/actions/runs/41894150488). Fifteen joined, but the remaining clients and a 32-online metrics window were never reached. The Luanti/Node service slice had no OOM events; browser resource use outside it was not captured. A corrected separate-pad [16-client run](https://github.com/cupOJoseph/minemine/actions/runs/41903857277) passed eight directed movements and reconnect. These results warrant independent-client and whole-VM measurements before assigning the join bottleneck to Luanti or designing a SpacetimeDB authority migration around it.
 
+A [second opt-in 32-browser run](https://github.com/cupOJoseph/minemine/actions/runs/41911907967) was cancelled at the 50-minute workflow limit without retained logs or artifacts. It supplies no additional capacity evidence. An earlier step deadline has been added to preserve partial data on the next opt-in attempt; it has not yet been verified in CI.
+
 ## A safe first integration
 
 1. Start with a server-only integration. Keep the existing SIWE wallet proof at the web edge, add verified ZeroDev account binding before that signup path goes live, and let only a trusted Node/Luanti bridge call the first SpacetimeDB module using its own OIDC service credential. Never send that credential to a browser. SpacetimeDB's [authentication guide](https://spacetimedb.com/docs/core-concepts/authentication/) documents service credentials; its [FAQ](https://spacetimedb.com/docs/intro/faq/) says database-issued development identities have no recovery if their token is lost. The existing Node in-memory session token is not an OIDC token.

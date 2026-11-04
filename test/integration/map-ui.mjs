@@ -86,8 +86,9 @@ try {
   assert.equal(await page.locator('#map-source').textContent(),
     process.env.EXPECTED_MAP_WORLD || 'MineMine native CI test world');
   await page.getByRole('button', { name: 'West Hollow · 9 columns' }).click();
+  const selectedTown = claims.find(claim => claim.town === 'West Hollow');
   assert.equal(await page.locator('#center-coordinates').textContent(),
-    metadata.townClaims.some(claim => claim.town === 'West Hollow') ? 'X -64, Z -64' : 'X -29, Z -29');
+    `X ${Math.floor((selectedTown.x1 + selectedTown.x2) / 2)}, Z ${Math.floor((selectedTown.z1 + selectedTown.z2) / 2)}`);
   assert.equal(await page.locator('#pointer-town').textContent(), 'West Hollow');
   assert.equal(await page.locator('#spawn-location').textContent(), 'X 17, Z -19');
   await page.locator('#locate-spawn').click();

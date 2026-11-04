@@ -4,6 +4,8 @@ node_modules/
 !.env.example
 vendor/
 public/engine/
+public/account/account.js
+public/account/account.js.LEGAL.txt
 runtime/
 artifacts/
 coverage/

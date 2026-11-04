@@ -1,0 +1,30 @@
+name: Diagnose public Firefox solo gameplay
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  firefox:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install pinned dependencies and Firefox on the remote runner
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx playwright install --with-deps firefox
+      - name: Exercise public solo gameplay and browser storage
+        env:
+          MINEMINE_QA_URL: https://cupojoseph.github.io/minemine/play/?storage=auto
+          MINEMINE_QA_ARTIFACT_DIR: runtime/firefox-qa
+        run: npm run test:firefox-opfs
+      - name: Retain Firefox environment and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-public-solo-qa
+          path: runtime/firefox-qa
+          if-no-files-found: warn

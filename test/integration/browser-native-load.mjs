@@ -12,6 +12,29 @@ const joinOutput = process.env.LOAD_JOIN_RESULTS || 'runtime/native-load-joins.j
 const stages = [2, 4, 8, 16];
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+function watchGameSocket(page, markers, traffic) {
+  // Counts game frame payload only; HTTP assets, WebSocket framing and TLS are excluded.
+  page.on('websocket', socket => {
+    if (new URL(socket.url()).pathname !== '/game-proxy') return;
+    if (!markers.proxy_at) markers.proxy_at = Date.now();
+    socket.on('framereceived', ({ payload }) => {
+      traffic.egress_payload_bytes += Buffer.byteLength(payload);
+      traffic.egress_frames++;
+    });
+    socket.on('framesent', ({ payload }) => {
+      traffic.ingress_payload_bytes += Buffer.byteLength(payload);
+      traffic.ingress_frames++;
+    });
+  });
+}
+
+function gameTrafficTotals(records) {
+  return records.reduce((total, record) => {
+    for (const key of Object.keys(total)) total[key] += record[key];
+    return total;
+  }, { egress_payload_bytes: 0, ingress_payload_bytes: 0, egress_frames: 0, ingress_frames: 0 });
+}
+
 async function signIn(wallet) {
   const started = Date.now();
   const headers = { Origin: origin, 'Content-Type': 'application/json' };
@@ -94,6 +117,7 @@ await writeFile(joinOutput, '');
 const browsers = [];
 const contexts = [];
 const names = new Set();
+const gameTraffic = [];
 try {
   await waitForOnline(0);
   for (const stage of stages) {
@@ -114,14 +138,13 @@ try {
       await context.addCookies([{ name, value, url: origin, httpOnly: true, sameSite: 'Strict' }]);
       const page = await context.newPage();
       const markers = {};
+      const traffic = { egress_payload_bytes: 0, ingress_payload_bytes: 0, egress_frames: 0, ingress_frames: 0 };
+      gameTraffic.push(traffic);
       page.on('response', response => {
         if (new URL(response.url()).pathname === '/api/game/ticket' && response.status() === 200)
           markers.ticket_at = Date.now();
       });
-      page.on('websocket', socket => {
-        if (new URL(socket.url()).pathname === '/game-proxy' && !markers.proxy_at)
-          markers.proxy_at = Date.now();
-      });
+      watchGameSocket(page, markers, traffic);
       const start = Date.now();
       await page.goto(`${origin}/engine/connect.html`, { waitUntil: 'domcontentloaded' });
       const domAt = Date.now();
@@ -151,10 +174,14 @@ try {
       } while (Date.now() < deadline);
       assert.ok(snapshot.observed_at > lastObserved, `stage ${stage} lacked a fresh second snapshot`);
       lastObserved = snapshot.observed_at;
-      await appendFile(output, `${JSON.stringify({ stage, captured_at: new Date().toISOString(), ...snapshot })}\n`);
+      await appendFile(output, `${JSON.stringify({ stage, captured_at: new Date().toISOString(),
+        game_websocket_payload: gameTrafficTotals(gameTraffic), ...snapshot })}\n`);
       console.log(`Stage ${stage}, sample ${sample + 1}: ${snapshot.online_players} online, p95 ${snapshot.step_interval_ms_p95.toFixed(1)} ms`);
     }
   }
+  const observedTraffic = gameTrafficTotals(gameTraffic);
+  assert.ok(observedTraffic.egress_payload_bytes > 0 && observedTraffic.ingress_payload_bytes > 0,
+    'browser game WebSocket payload counters stayed empty');
   const reconnectClient = stages.at(-1);
   const originalName = [...names].at(-1);
   await waitForPresence(names);
@@ -165,7 +192,8 @@ try {
   const disconnected = await waitForOnline(reconnectClient - 1);
   await waitForPresence([...names].filter(playerName => playerName !== originalName));
   await appendFile(output, `${JSON.stringify({ stage: reconnectClient, phase: 'one-disconnected',
-    captured_at: new Date().toISOString(), ...disconnected })}\n`);
+    captured_at: new Date().toISOString(), game_websocket_payload: gameTrafficTotals(gameTraffic),
+    ...disconnected })}\n`);
 
   const wallet = new Wallet(`0x${reconnectClient.toString(16).padStart(64, '0')}`);
   const { session, cookie, auth } = await signIn(wallet);
@@ -185,10 +213,7 @@ try {
     if (new URL(response.url()).pathname === '/api/game/ticket' && response.status() === 200)
       markers.ticket_at = Date.now();
   });
-  page.on('websocket', socket => {
-    if (new URL(socket.url()).pathname === '/game-proxy' && !markers.proxy_at)
-      markers.proxy_at = Date.now();
-  });
+  watchGameSocket(page, markers, gameTraffic.at(-1));
   const start = Date.now();
   await page.goto(`${origin}/engine/connect.html`, { waitUntil: 'domcontentloaded' });
   const domAt = Date.now();
@@ -204,7 +229,8 @@ try {
   assert.ok(reconnected.observed_at > disconnected.observed_at, 'reconnect needs a fresh native snapshot');
   await waitForPresence(names);
   await appendFile(output, `${JSON.stringify({ stage: reconnectClient, phase: 'reconnected',
-    captured_at: new Date().toISOString(), ...reconnected })}\n`);
+    captured_at: new Date().toISOString(), game_websocket_payload: gameTrafficTotals(gameTraffic),
+    ...reconnected })}\n`);
   console.log(`Client ${reconnectClient} rejoined as ${session.playerName} in ${(totalMs / 1000).toFixed(1)}s; ` +
     `${reconnected.online_players} online again`);
 } finally {

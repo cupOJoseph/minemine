@@ -6,6 +6,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { syncPendingProfiles } from '../../server/spacetime-profile-sync.mjs';
 
 const cli = process.env.SPACETIME_CLI || 'spacetime';
 const moduleDir = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -86,6 +87,21 @@ try {
     body: JSON.stringify(args),
   });
   assert.equal(anonymous.status, 403, 'anonymous caller must not write');
+  const projected = { accountId: '0x3333333333333333333333333333333333333333',
+    displayName: 'w_33333333333333333', revision: 1 };
+  let acknowledged = false;
+  assert.equal(await syncPendingProfiles({
+    registry: {
+      pendingProfileProjections: () => [projected],
+      acknowledgeProfileProjection: (accountId, revision) => {
+        assert.equal(accountId, projected.accountId);
+        assert.equal(revision, 1);
+        acknowledged = true;
+      },
+    },
+    databaseOrigin: origin, databaseName: database, token: bridge.token, allowLoopback: true,
+  }), 1);
+  assert.ok(acknowledged, 'network-confirmed bridge write is acknowledged');
   const sql = await fetch(`${origin}/v1/database/${database}/sql`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${bridge.token}`, 'Content-Type': 'text/plain' },
@@ -93,11 +109,13 @@ try {
   });
   const sqlText = await sql.text();
   assert.equal(sql.status, 200, sqlText);
-  const rows = JSON.parse(sqlText)[0]?.rows;
-  assert.equal(rows?.length, 1, 'only the authorized row is stored');
+  const rows = JSON.parse(sqlText)[0]?.rows?.sort((a, b) => a[0].localeCompare(b[0]));
+  assert.equal(rows?.length, 2, 'only authorized rows are stored');
   assert.equal(rows[0][0], account);
   assert.equal(rows[0][1], 'alice');
-  console.log('SpacetimeDB 2.14.1 loopback profile smoke passed: write, replay, rejection, one row.');
+  assert.equal(rows[1][0], projected.accountId);
+  assert.equal(rows[1][1], projected.displayName);
+  console.log('SpacetimeDB 2.14.1 loopback profile smoke passed: write, replay, rejection, bridge, two rows.');
 } finally {
   if (host && host.exitCode === null && host.signalCode === null) {
     host.kill('SIGINT');

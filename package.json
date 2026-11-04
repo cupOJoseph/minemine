@@ -16,6 +16,7 @@
     "contracts:deploy": "node --env-file-if-exists=.env scripts/deploy-token.mjs",
     "towns:deploy": "node --env-file-if-exists=.env scripts/deploy-towns.mjs",
     "doctor": "node scripts/doctor.mjs",
+    "profiles:sync": "node --env-file-if-exists=.env scripts/sync-spacetime-profiles.mjs",
     "metrics:native": "node scripts/check-native-metrics.mjs",
     "adapter:install": "node scripts/install-remote-adapter.mjs",
     "upstream:fetch": "node scripts/fetch-upstream.mjs",

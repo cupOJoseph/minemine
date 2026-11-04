@@ -703,6 +703,36 @@ core.register_globalstep(function()
         local info_ok, info = town.func(guest_name, "info")
         check(info_ok and info:find("protected 0/9 columns", 1, true),
             "denied overlapping claims consumed paid land credits")
+        local owner_x = math.floor(claim_pos.x)
+        local adjacent_x = owner_x + 3
+        guest:set_pos({ x = adjacent_x, y = claim_pos.y, z = claim_pos.z })
+        local adjacent_pos = guest:get_pos()
+        check(math.floor(adjacent_pos.x) == adjacent_x and
+            math.floor(adjacent_pos.z) == math.floor(claim_pos.z),
+            "guest did not reach the adjacent claim position")
+        local adjacent_ok, adjacent_message = town.func(guest_name, "claim 1")
+        check(adjacent_ok, "adjacent paid claim failed: " .. tostring(adjacent_message))
+        local adjacent = find_claim(map_claims(owner_name, guest_name), "West Hollow")
+        check(adjacent and adjacent.x1 == owner_x + 2 and adjacent.x2 == owner_x + 4 and
+            adjacent.z1 == math.floor(claim_pos.z) - 1 and
+            adjacent.z2 == math.floor(claim_pos.z) + 1,
+            "adjacent paid claim projection is wrong")
+        check(admin_town(guest_name).claims == 1,
+            "adjacent paid claim was missing from the private roster")
+        check(core.is_protected({ x = owner_x + 1, y = claim_pos.y, z = claim_pos.z }, guest_name),
+            "guest can edit the owner's side of the adjacent boundary")
+        check(core.is_protected({ x = owner_x + 2, y = claim_pos.y, z = claim_pos.z }, owner_name),
+            "owner can edit the guest's side of the adjacent boundary")
+        local adjacent_removed, adjacent_remove_message = town.func(guest_name, "unclaim")
+        check(adjacent_removed, "adjacent unclaim failed: " .. tostring(adjacent_remove_message))
+        check(find_claim(map_claims(owner_name, guest_name), "West Hollow") == nil and
+            admin_town(guest_name).claims == 0,
+            "removed adjacent claim remained in a public or private projection")
+        check(not core.is_protected({ x = owner_x + 2, y = claim_pos.y, z = claim_pos.z }, owner_name),
+            "removed adjacent claim still protects the former guest boundary")
+        info_ok, info = town.func(guest_name, "info")
+        check(info_ok and info:find("protected 0/9 columns", 1, true),
+            "adjacent unclaim did not free purchased columns")
         local first_center = free_negative_center({ -48, -80, -112, -144 },
             map_claims(owner_name, guest_name))
         guest:set_pos({ x = first_center, y = claim_pos.y, z = first_center })
@@ -739,7 +769,7 @@ core.register_globalstep(function()
         state.negative_center = center
         check(core.safe_file_write(world .. "/town-probe-state.json", assert(core.write_json(state))),
             "negative claim center was not saved for restart and map checks")
-        return "PASS cross-town overlap denial, paid negative claim creation, protection, removal, movement and public projection"
+        return "PASS cross-town overlap denial, adjacent paid boundary, negative claim creation, protection, removal, movement and public projection"
     end)
     write_result("town-negative-claim-result.txt", ok and result or "FAIL " .. tostring(result), ok)
 end)

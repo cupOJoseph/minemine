@@ -10,6 +10,7 @@ This source snapshot does not include a downloaded Luanti engine, WASM binary, o
 | OpenZeppelin Contracts 4.9.6 | Prototype ERC-20 implementation | MIT; older pinned line chosen from available cache, review before release |
 | solc 0.8.26 | Local Solidity compiler | Compiler package and bundled compiler notices retained in installation; review exact distribution licenses |
 | @foundry-rs/anvil 1.7.1 | Development-only local Ethereum test node | MIT OR Apache-2.0; platform packages/integrities are pinned in package-lock.json; excluded from production dependencies |
+| ZeroDev Wallet 0.0.10 and its pinned SDK, React 19.3.1, Wagmi 3.7.9, and build dependencies | Local-only email-code wallet lab | Browser build source and exact transitive versions are pinned in package-lock.json; generated `public/account/account.js.LEGAL.txt` is retained in the host archive. Complete transitive license review remains a release gate. |
 | paradust7/luanti-wasm | Candidate build wrapper | Repository reports MIT for wrapper; bundled dependencies have separate licenses |
 | OpenSSL 3.5.9 | Browser TLS/crypto build dependency | Apache-2.0; upstream `LICENSE.txt` is copied into the staged browser notices. |
 | curl 8.23.0 | Browser HTTP transport | curl license; upstream `COPYING` is copied into the staged browser notices. |

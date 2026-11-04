@@ -155,6 +155,47 @@ test('signed wallet profile binds one stable character across logins and registr
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
+test('profile projection backfills and acknowledges only the durable source revision', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'minemine-profile-outbox-'));
+  const wallet = new Wallet('0x' + 'ae'.repeat(32));
+  const name = playerName(wallet.address);
+  const accountId = wallet.address.toLowerCase();
+  const first = createNameRegistry(dir);
+  try {
+    first.recordWalletSignIn({ address: wallet.address, playerName: name });
+    first.recordWalletSignIn({ address: wallet.address, playerName: name });
+    assert.deepEqual(first.pendingProfileProjections(), [{ accountId, displayName: name, revision: 1 }]);
+    assert.equal(first.acknowledgeProfileProjection(accountId, 2), false);
+    assert.deepEqual(first.pendingProfileProjections(), [{ accountId, displayName: name, revision: 1 }]);
+    first.close();
+    const second = createNameRegistry(dir);
+    try {
+      assert.equal(second.acknowledgeProfileProjection(accountId, 1), true);
+      assert.equal(second.acknowledgeProfileProjection(accountId, 1), false);
+      assert.deepEqual(second.pendingProfileProjections(), []);
+      assert.throws(() => second.pendingProfileProjections(0), { code: 'invalid_input' });
+      assert.throws(() => second.acknowledgeProfileProjection('invalid', 1), { code: 'invalid_input' });
+      second.close();
+    } finally { /* The database was closed above. */ }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('profile projection backfills a wallet profile created by an older world', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'minemine-profile-backfill-'));
+  const wallet = new Wallet('0x' + 'af'.repeat(32));
+  const name = playerName(wallet.address);
+  const first = createNameRegistry(dir);
+  try { first.close(); }
+  finally {
+    const db = new DatabaseSync(path.join(dir, 'name_registry', 'registry.sqlite'));
+    db.prepare('INSERT INTO wallet_profiles VALUES (?, ?, 1000, 1000)').run(name, wallet.address.toLowerCase());
+    db.close();
+  }
+  const second = createNameRegistry(dir);
+  try { assert.deepEqual(second.pendingProfileProjections(), [{ accountId: wallet.address.toLowerCase(), displayName: name, revision: 1 }]); }
+  finally { second.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
 test('legacy paid records migrate and activate only after a matching ENS address readback', async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'minemine-paid-name-'));
   const wallet = new Wallet('0x' + 'c4'.repeat(32));

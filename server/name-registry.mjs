@@ -85,7 +85,17 @@ export function createNameRegistry(worldDir, now = Date.now) {
       account_id TEXT NOT NULL UNIQUE,
       first_signed_in_at INTEGER NOT NULL,
       last_signed_in_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS profile_projection (
+      account_id TEXT PRIMARY KEY,
+      display_name TEXT NOT NULL,
+      revision INTEGER NOT NULL CHECK (revision > 0),
+      ack_revision INTEGER NOT NULL DEFAULT 0 CHECK (ack_revision >= 0 AND ack_revision <= revision)
     );`);
+  // Backfill older worlds. The stable native character is the only display
+  // value here until a separately verified public-name sync is implemented.
+  db.exec(`INSERT OR IGNORE INTO profile_projection(account_id, display_name, revision)
+    SELECT account_id, player_name, 1 FROM wallet_profiles;`);
   // Earlier worlds used a CHECK constraint without paid_active. Rebuild that
   // one table atomically so existing holds, payments, and audit history survive.
   const namesSchema = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'names'").get().sql;
@@ -230,8 +240,24 @@ export function createNameRegistry(worldDir, now = Date.now) {
         db.prepare(`INSERT INTO wallet_profiles(player_name, account_id, first_signed_in_at, last_signed_in_at)
           VALUES (?, ?, ?, ?) ON CONFLICT(player_name) DO UPDATE SET last_signed_in_at = excluded.last_signed_in_at`)
           .run(session.playerName, accountId, at, at);
+        db.prepare(`INSERT OR IGNORE INTO profile_projection(account_id, display_name, revision)
+          VALUES (?, ?, 1)`).run(accountId, session.playerName);
         return this.walletProfile(session.playerName);
       });
+    },
+    pendingProfileProjections(limit = 100) {
+      if (!Number.isInteger(limit) || limit < 1 || limit > 1000) throw new NameRegistryError('Invalid projection batch size.', 'invalid_input');
+      return db.prepare(`SELECT account_id AS accountId, display_name AS displayName, revision
+        FROM profile_projection WHERE ack_revision < revision ORDER BY account_id LIMIT ?`)
+        .all(limit).map(row => ({ ...row }));
+    },
+    acknowledgeProfileProjection(accountId, revision) {
+      let address;
+      try { address = getAddress(accountId).toLowerCase(); }
+      catch { throw new NameRegistryError('Invalid profile account.', 'invalid_input'); }
+      if (!Number.isSafeInteger(revision) || revision < 1) throw new NameRegistryError('Invalid profile revision.', 'invalid_input');
+      return db.prepare(`UPDATE profile_projection SET ack_revision = ?
+        WHERE account_id = ? AND revision = ? AND ack_revision < ?`).run(revision, address, revision, revision).changes === 1;
     },
     walletProfile(name) {
       if (typeof name !== 'string' || !/^w_[a-f0-9]{17}$/.test(name)) {

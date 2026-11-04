@@ -352,6 +352,7 @@ jobs:
             runtime/server-memory-restart.csv
             runtime/server-memory-summary.txt
             runtime/native-load-snapshots.jsonl
+            runtime/native-load-joins.jsonl
             runtime/native-world/minemine-native-metrics.json
             runtime/admin-beta-desktop.png
             runtime/admin-beta-mobile.png
@@ -362,6 +363,7 @@ jobs:
             runtime/server-cgroup-restart-events.txt
             runtime/server-cgroup-summary.txt
             runtime/native-world/town-probe-result.txt
+            runtime/native-world/town-probe-state.json
             runtime/native-world/town-negative-claim-result.txt
             runtime/native-world/town-probe-reconnect-result.txt
             runtime/native-world/town-expired-grant-check-result.txt

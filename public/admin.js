@@ -8,6 +8,7 @@ const playerPrev = document.getElementById('player-prev');
 const playerNext = document.getElementById('player-next');
 const playerDetail = document.getElementById('player-detail');
 const playerDetailStatus = document.getElementById('player-detail-status');
+const profileBetaAction = document.getElementById('profile-beta-action');
 const nameOperations = document.getElementById('name-operations');
 const nameForm = document.getElementById('name-reservation');
 const nameHandle = document.getElementById('name-handle');
@@ -31,6 +32,7 @@ const dateLabel = value => new Date(value).toLocaleString('en-US', { timeZone: '
 function clear() {
   playerRequest++;
   playerDetailRequest++;
+  profileBetaAction.hidden = true;
   playerDetail.hidden = true;
   for (const id of ['current-count', 'daily-count', 'weekly-count', 'monthly-count']) number(id, '—');
   online.replaceChildren();
@@ -60,6 +62,7 @@ async function inspectPlayer(name) {
   const request = ++playerDetailRequest;
   playerDetail.hidden = false;
   playerDetailStatus.textContent = 'Checking current ENS ownership…';
+  profileBetaAction.hidden = true;
   for (const id of ['profile-character', 'profile-wallet', 'profile-ens', 'profile-first', 'profile-last']) label(id, '—');
   try {
     const response = await fetch(`/api/admin/players/${encodeURIComponent(name)}`, {
@@ -73,6 +76,22 @@ async function inspectPlayer(name) {
     label('profile-ens', profile.ensName || 'No currently verified ENS name');
     label('profile-first', dateLabel(profile.firstSignedInAt));
     label('profile-last', dateLabel(profile.lastSignedInAt));
+    const admission = profile.betaAdmission;
+    label('profile-beta', admission ? `${admission.revokedAt ? `Suspended ${dateLabel(admission.revokedAt)}` : `Admitted ${dateLabel(admission.admittedAt)}`}${profile.betaGateEnabled ? '' : ' · invite gate off'}` : 'No redeemed invite');
+    if (admission) {
+      profileBetaAction.hidden = false;
+      profileBetaAction.textContent = admission.revokedAt ? 'Restore beta access' : 'Suspend beta access';
+      profileBetaAction.onclick = async () => {
+        profileBetaAction.disabled = true;
+        playerDetailStatus.textContent = 'Updating beta access…';
+        try {
+          await betaPost(`/api/admin/beta/admissions/${admission.revokedAt ? 'restore' : 'revoke'}`, { address: profile.address });
+          await inspectPlayer(name);
+          await refreshAudit();
+        } catch (error) { playerDetailStatus.textContent = error.message; }
+        finally { profileBetaAction.disabled = false; }
+      };
+    }
     playerDetailStatus.textContent = 'Signed wallet profile loaded.';
   } catch (error) {
     if (request === playerDetailRequest) playerDetailStatus.textContent = error.message;
@@ -99,7 +118,7 @@ async function refreshAudit() {
 async function betaPost(route, payload) {
   const response = await fetch(route, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: AbortSignal.timeout(8000) });
   const result = await response.json();
-  if (!response.ok) throw new Error(result.error || 'Could not change beta codes.');
+  if (!response.ok) throw new Error(result.error || 'Could not change beta access.');
   return result;
 }
 

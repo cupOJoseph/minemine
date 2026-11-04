@@ -5,6 +5,7 @@ local storage = core.get_mod_storage()
 local dir = core.get_worldpath() .. "/wallet_grants/"
 local balance_dir = core.get_worldpath() .. "/wallet_balances/"
 local heartbeat_path = core.get_worldpath() .. "/minemine-server-heartbeat"
+local metrics_path = core.get_worldpath() .. "/minemine-native-metrics.json"
 local presence_path = core.get_worldpath() .. "/minemine-player-presence.json"
 local joins_prefix = core.get_worldpath() .. "/minemine-player-joins-"
 local identities = {}
@@ -16,6 +17,9 @@ local expired_password_hash = "AAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
 local heartbeat_elapsed = 0
 local heartbeat_error_logged = false
+local metrics_error_logged = false
+local metrics_elapsed = 0
+local metrics_samples = {}
 local presence_error_logged = false
 local function write_presence()
     local names = {}
@@ -48,12 +52,50 @@ local function write_heartbeat()
         heartbeat_error_logged = true
     end
 end
+local function write_metrics()
+    table.sort(metrics_samples)
+    local count = #metrics_samples
+    if count == 0 then return end
+    local sum = 0
+    for _, value in ipairs(metrics_samples) do sum = sum + value end
+    local function percentile(ratio)
+        return metrics_samples[math.max(1, math.ceil(count * ratio))]
+    end
+    local max_lag = core.get_server_max_lag()
+    local snapshot = core.write_json({
+        schema = 1,
+        observed_at = os.time(),
+        sample_seconds = metrics_elapsed,
+        samples = count,
+        online_players = #core.get_connected_players(),
+        step_interval_ms_mean = sum / count,
+        step_interval_ms_p50 = percentile(0.50),
+        step_interval_ms_p95 = percentile(0.95),
+        step_interval_ms_p99 = percentile(0.99),
+        step_interval_ms_max = metrics_samples[count],
+        server_max_lag_ms = max_lag and max_lag * 1000 or nil,
+    })
+    if snapshot and core.safe_file_write(metrics_path, snapshot .. "\n") then
+        metrics_error_logged = false
+    elseif not metrics_error_logged then
+        core.log("error", "MineMine cannot write the native step metrics snapshot")
+        metrics_error_logged = true
+    end
+end
 core.register_globalstep(function(dtime)
+    metrics_elapsed = metrics_elapsed + dtime
+    metrics_samples[#metrics_samples + 1] = dtime * 1000
     heartbeat_elapsed = heartbeat_elapsed + dtime
-    if heartbeat_elapsed < 2 then return end
-    heartbeat_elapsed = 0
-    write_heartbeat()
-    write_presence()
+    if heartbeat_elapsed >= 2 then
+        heartbeat_elapsed = 0
+        write_heartbeat()
+        write_presence()
+    end
+    if metrics_elapsed >= 10 then
+        write_metrics()
+        metrics_elapsed = 0
+        metrics_samples = {}
+    end
 end)
 
 local function grant(name, allow_expired)

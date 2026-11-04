@@ -37,7 +37,8 @@ function waitForConsole(page, pattern, timeoutMs = 180_000) {
 
 async function session(action, expectedPosition) {
   const context = await firefox.launchPersistentContext(profile, {
-    headless: true, viewport: { width: 1280, height: 800 },
+    headless: process.env.MINEMINE_QA_HEADED !== '1',
+    viewport: { width: 1280, height: 800 },
     env: { ...process.env, CFFIXED_USER_HOME: home },
   });
   try {

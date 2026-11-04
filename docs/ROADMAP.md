@@ -100,7 +100,7 @@ The signed-in identity API and wallet panel show a checkout hold, pending activa
 
 The one-time purchase protects x/z columns through all heights. Contract price and treasury are deployment-time choices, not settled economy design. See [town protocol](TOWNS.md) for commands, trust boundaries, and launch gates.
 
-Town manager: `/town` now opens an in-game form for town creation, paid land claims, member invitations/removal and member acceptance/leaving. Form submissions call the existing server-side command handler; the native two-wallet probe drives form actions and checks protection and the private roster. Visual confirmation of the form on browser and native clients remains. Direct chat commands remain available.
+Town manager: `/town` now opens an in-game form for town creation, paid land claims, member invitations/removal and member acceptance/leaving. Form submissions call the existing server-side command handler; the native two-wallet probe drives form actions and checks protection and the private roster. [Native run 41544653777](https://github.com/cupOJoseph/minemine/actions/runs/41544653777) rendered readable owner panels in two connected Chromium clients and clicked **Claim here** after all nine paid columns were used. The server returned the insufficient-credit denial, kept the claim unchanged, and the screenshot showed the message. Browser clicks for creation and membership, native-client visuals and other-mod interactions remain. Direct chat commands remain available.
 
 ## Milestone 5 — MineMine landing and scale plan
 

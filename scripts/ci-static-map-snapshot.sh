@@ -47,7 +47,7 @@ const allClaims = validateClaims(sourceClaims.claims);
 const probe = JSON.parse(readFileSync('runtime/static-map-world/town-probe-state.json', 'utf8'));
 const expectedX = Math.floor(probe.pos.x), expectedZ = Math.floor(probe.pos.z);
 const negativeCenter = probe.negative_center;
-if (!Number.isInteger(negativeCenter) || negativeCenter >= 0) throw new Error('Native negative claim center is missing.');
+if (!Number.isInteger(negativeCenter) || negativeCenter >= 0) throw new Error('Missing native negative claim center.');
 const paid = allClaims.find(claim => claim.town === 'Probe Town');
 const negative = allClaims.find(claim => claim.town === 'West Hollow');
 if (allClaims.length !== 2 || !paid ||

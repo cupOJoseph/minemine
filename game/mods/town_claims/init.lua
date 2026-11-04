@@ -189,7 +189,7 @@ local function show_manager(name, message)
         parts[#parts + 1] = "label[0.5,5.2;Members (copy an ID into the field above to remove):]"
         parts[#parts + 1] = "textlist[0.5,5.6;8.5,1.1;members_list;" ..
             (#member_ids > 0 and table.concat(member_ids, ",") or "No members") .. ";0;false]"
-        parts[#parts + 1] = "label[0.5,6.7;9,0.6;Stand inside a claim to unclaim it. Wallet credit sync is on the website.]"
+        parts[#parts + 1] = "label[0.5,6.7;Unclaim inside land. Sync credits on the website.]"
     else
         parts[#parts + 1] = "label[0.5,1.2;Member of " .. core.formspec_escape(town.name) .. "]"
         parts[#parts + 1] = "label[0.5,1.7;Owner: " .. core.formspec_escape(owner) .. "]"

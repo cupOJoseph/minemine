@@ -115,6 +115,36 @@ async function signalProbe(signal, marker, label) {
   await writeFile(path.join(worldDir, signal), 'ready\n', { mode: 0o600 });
   return waitForProbe(marker, label);
 }
+async function centralPixelChange(gamePage, before, after) {
+  return gamePage.evaluate(async ({ first, second }) => {
+    const pixels = async encoded => {
+      const bytes = Uint8Array.from(atob(encoded), character => character.charCodeAt(0));
+      const image = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+      const canvas = document.createElement('canvas');
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const context = canvas.getContext('2d');
+      context.drawImage(image, 0, 0);
+      return { width: image.width, height: image.height, data: context.getImageData(0, 0, image.width, image.height).data };
+    };
+    const a = await pixels(first);
+    const b = await pixels(second);
+    if (a.width !== b.width || a.height !== b.height) throw new Error('Town screenshots changed dimensions.');
+    let changed = 0;
+    let sampled = 0;
+    for (let y = Math.floor(a.height * 0.2); y < a.height * 0.8; y += 3) {
+      for (let x = Math.floor(a.width * 0.2); x < a.width * 0.8; x += 3) {
+        const offset = (y * a.width + x) * 4;
+        const delta = Math.abs(a.data[offset] - b.data[offset]) +
+          Math.abs(a.data[offset + 1] - b.data[offset + 1]) +
+          Math.abs(a.data[offset + 2] - b.data[offset + 2]);
+        if (delta > 90) changed++;
+        sampled++;
+      }
+    }
+    return changed / sampled;
+  }, { first: before.toString('base64'), second: after.toString('base64') });
+}
 async function waitForGuestMap(playerName, logOffset) {
   const pattern = new RegExp(`Server: Player ${playerName},[^\\n]*full map send \\(d=\\d+\\) completed`);
   const deadline = Date.now() + 60_000;
@@ -482,6 +512,28 @@ try {
     { town: 'West Hollow', x1: negativeCenter - 1, x2: negativeCenter + 1,
       z1: negativeCenter - 1, z2: negativeCenter + 1 });
   assert.equal(mapProjection.claims.length, 2, 'removed negative claim leaked into the map projection');
+
+  await page.evaluate(() => { if (document.pointerLockElement) document.exitPointerLock(); });
+  await secondPage.evaluate(() => { if (document.pointerLockElement) document.exitPointerLock(); });
+  await sleep(500);
+  const ownerBeforeTown = await page.screenshot({ path: artifacts + '/town-owner-before.png' });
+  const guestBeforeTown = await secondPage.screenshot({ path: artifacts + '/town-guest-before.png' });
+  await signalProbe('town-manager-visual-arm.txt', 'town-manager-visual-result.txt',
+    'browser town manager form delivery');
+  let ownerChange = 0;
+  let guestChange = 0;
+  for (let attempt = 0; attempt < 10 && (ownerChange <= 0.08 || guestChange <= 0.08); attempt++) {
+    await sleep(500);
+    const ownerTownScreenshot = await page.screenshot({ path: artifacts + '/town-owner-manager.png' });
+    const guestTownScreenshot = await secondPage.screenshot({ path: artifacts + '/town-guest-manager.png' });
+    ownerChange = await centralPixelChange(page, ownerBeforeTown, ownerTownScreenshot);
+    guestChange = await centralPixelChange(secondPage, guestBeforeTown, guestTownScreenshot);
+  }
+  assert.ok(ownerChange > 0.08 && guestChange > 0.08,
+    `Town forms did not substantially change the browser view: owner ${ownerChange}, guest ${guestChange}`);
+  await page.mouse.click(627, 293);
+  await waitForProbe('town-manager-browser-claim-result.txt', 'browser Claim here paid quota denial');
+  await page.screenshot({ path: artifacts + '/town-owner-claim-denied.png' });
 
   await page.close();
   let disconnected = false;

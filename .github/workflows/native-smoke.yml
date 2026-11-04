@@ -437,6 +437,8 @@ jobs:
             runtime/server-cgroup-restart-cpu-max.txt
             runtime/server-cgroup-summary.txt
             runtime/native-world/town-probe-result.txt
+            runtime/native-world/town-manager-visual-result.txt
+            runtime/native-world/town-manager-browser-claim-result.txt
             runtime/native-world/town-probe-state.json
             runtime/native-world/town-negative-claim-result.txt
             runtime/native-world/town-probe-reconnect-result.txt

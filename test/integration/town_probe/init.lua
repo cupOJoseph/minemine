@@ -14,6 +14,7 @@ local member_dig_ready, member_dig_aimed, member_dig_reaimed, member_dig_done
 local removed_place_ready, removed_place_aimed, removed_place_done
 local expired_grant_checked = false
 local negative_claim_checked = false
+local manager_visual_opened = false
 
 local function write_result(filename, status, ok)
     local file = assert(io.open(world .. "/" .. filename, "w"))
@@ -79,21 +80,19 @@ local function find_claim(claims, town_name)
     end
 end
 
-local function clear_negative_center(start, claims)
-    local center = start
-    for _ = 1, 16 do
-        local available = true
+local function free_negative_center(candidates, claims, excluded)
+    for _, center in ipairs(candidates) do
+        local clear = center ~= excluded
         for _, claim in ipairs(claims) do
             if center - 1 <= claim.x2 and center + 1 >= claim.x1 and
-                center - 1 <= claim.z2 and center + 1 >= claim.z1 then
-                available = false
+                    center - 1 <= claim.z2 and center + 1 >= claim.z1 then
+                clear = false
                 break
             end
         end
-        if available then return center end
-        center = center - 32
+        if clear then return center end
     end
-    error("no clear negative test claim center")
+    error("no free negative claim center in the test world")
 end
 
 local function run(config)
@@ -248,10 +247,10 @@ local function run_restart(config)
     check(town and type(town.func) == "function", "town command missing after restart")
     local ok, message = town.func(state.owner, "info")
     check(ok and message:find("protected 9/9 columns", 1, true), "town credit or claim count changed after restart")
-    local negative = find_claim(map_claims(state.owner, state.guest), "West Hollow")
     local center = state.negative_center
-    check(type(center) == "number" and center < 0 and center % 1 == 0,
-        "negative claim center was not persisted")
+    check(type(center) == "number" and center % 1 == 0 and center < 0,
+        "saved negative claim center is missing")
+    local negative = find_claim(map_claims(state.owner, state.guest), "West Hollow")
     check(negative and negative.x1 == center - 1 and negative.x2 == center + 1 and
         negative.z1 == center - 1 and negative.z2 == center + 1,
         "negative paid claim was not projected after native restart")
@@ -685,7 +684,8 @@ core.register_globalstep(function()
         local town = core.registered_chatcommands.town
         local created, message = town.func(guest_name, "create West Hollow")
         check(created, "guest town creation failed: " .. tostring(message))
-        local first_center = clear_negative_center(-48, map_claims(owner_name, guest_name))
+        local first_center = free_negative_center({ -48, -80, -112, -144 },
+            map_claims(owner_name, guest_name))
         guest:set_pos({ x = first_center, y = claim_pos.y, z = first_center })
         local first_pos = guest:get_pos()
         check(math.floor(first_pos.x) == first_center and math.floor(first_pos.z) == first_center,
@@ -702,27 +702,63 @@ core.register_globalstep(function()
         check(removed, "negative unclaim failed: " .. tostring(removed_message))
         check(find_claim(map_claims(owner_name, guest_name), "West Hollow") == nil,
             "removed negative claim remains in public projection")
-        local moved_center = clear_negative_center(first_center - 16, map_claims(owner_name, guest_name))
-        check(moved_center < 0 and moved_center ~= first_center, "negative claim was not moved")
-        guest:set_pos({ x = moved_center, y = claim_pos.y, z = moved_center })
+        local center = free_negative_center({ -64, -96, -128, -160 },
+            map_claims(owner_name, guest_name), first_center)
+        guest:set_pos({ x = center, y = claim_pos.y, z = center })
         local moved_pos = guest:get_pos()
-        check(math.floor(moved_pos.x) == moved_center and math.floor(moved_pos.z) == moved_center,
+        check(math.floor(moved_pos.x) == center and math.floor(moved_pos.z) == center,
             "guest did not reach the moved negative claim position")
         claimed, reply = town.func(guest_name, "claim 1")
         check(claimed, "moved negative claim failed: " .. tostring(reply))
         local moved = find_claim(map_claims(owner_name, guest_name), "West Hollow")
-        check(moved and moved.x1 == moved_center - 1 and moved.x2 == moved_center + 1 and
-            moved.z1 == moved_center - 1 and moved.z2 == moved_center + 1,
+        check(moved and moved.x1 == center - 1 and moved.x2 == center + 1 and
+            moved.z1 == center - 1 and moved.z2 == center + 1,
             "moved negative claim projection is wrong")
-        check(not core.is_protected({ x = moved_center, y = claim_pos.y, z = moved_center }, guest_name),
+        check(not core.is_protected({ x = center, y = claim_pos.y, z = center }, guest_name),
             "guest cannot build in own negative claim")
         local state = read_state()
-        state.negative_center = moved_center
+        state.negative_center = center
         check(core.safe_file_write(world .. "/town-probe-state.json", assert(core.write_json(state))),
-            "moved negative claim center was not persisted")
+            "negative claim center was not saved for restart and map checks")
         return "PASS paid negative claim creation, protection, removal, movement and public projection"
     end)
     write_result("town-negative-claim-result.txt", ok and result or "FAIL " .. tostring(result), ok)
+end)
+
+core.register_globalstep(function()
+    if not negative_claim_checked or manager_visual_opened then return end
+    local arm = io.open(world .. "/town-manager-visual-arm.txt", "r")
+    if not arm then return end
+    arm:close()
+    manager_visual_opened = true
+    local ok, result = pcall(function()
+        check(core.get_player_by_name(owner_name) and core.get_player_by_name(guest_name),
+            "town manager visual probe needs both connected wallet players")
+        local town = core.registered_chatcommands.town
+        for _, name in ipairs({ owner_name, guest_name }) do
+            local opened, message = town.func(name, "menu")
+            check(opened and message:find("Town manager opened", 1, true),
+                "town manager did not open for " .. name)
+        end
+        local original = town.func
+        local browser_claim_seen = false
+        town.func = function(name, param)
+            local accepted, message = original(name, param)
+            if name == owner_name and param == "claim 1" and not browser_claim_seen then
+                browser_claim_seen = true
+                local roster = admin_town(owner_name)
+                local valid = not accepted and type(message) == "string" and
+                    message:find("Insufficient confirmed land credits", 1, true) and
+                    roster.claims == 1 and roster.protectedColumns == 9
+                write_result("town-manager-browser-claim-result.txt",
+                    valid and "PASS browser Claim here reached paid quota denial without changing protected land" or
+                    "FAIL browser Claim here bypassed paid quota or changed protected land", valid)
+            end
+            return accepted, message
+        end
+        return "PASS server sent owner and guest town manager forms to browser clients"
+    end)
+    write_result("town-manager-visual-result.txt", ok and result or "FAIL " .. tostring(result), ok)
 end)
 
 core.register_globalstep(function()

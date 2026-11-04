@@ -48,7 +48,7 @@ The repeatable `npm run test:firefox-opfs` command then passed twice on separate
 
 The staged `21f97a29c16b` bundle also passed `npm run test:storage-lock` in headless Chromium 156 and `BROWSER=firefox npm run test:storage-lock` in headless Firefox 157 on the local Node origin. Both tests used `?storage=auto` and one browser context with three tabs. While the first tab held the OPFS lock, the second showed the upstream busy dialog and did not log a game join. After the first tab used **Exit to Menu**, the second joined. A third tab was blocked while the second ran; closing the second tab without using the menu released the lock, and **Try Again** let the third join. This verifies local ordinary tab-close recovery, not a renderer crash, OS kill, or storage behavior at the public Pages origin.
 
-No public Safari/Firefox deployment was tested. The current public Pages bundle is older than this local candidate. Browser coverage still needs a normal interactive Firefox run, shipping Safari testing, longer persistence and storage-lock checks before general release.
+[Pages run 41865307906](https://github.com/cupOJoseph/minemine/actions/runs/41865307906) published the Firefox launcher fix from main. Live HTTP returned `playtest.js?v=firefox-storage-1`, the temporary-world notice and `?storage=auto` link, while `/play/build.json` still identified pinned release `21f97a29c16b`. This verifies delivery of the updated source, not Firefox rendering or OPFS behavior on the public origin. Browser coverage still needs normal interactive Firefox gameplay, shipping Safari testing, longer persistence and storage-lock checks before general release.
 
 ## Live Ethereum-mainnet ENS resolution — 2026-10-23 EDT
 

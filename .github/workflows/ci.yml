@@ -19,3 +19,15 @@ jobs:
       - run: npm run test:evm
       - run: npm run test:smart-auth
       - run: npm run contracts:compile
+  spacetime-module:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.1'
+          cache: npm
+          cache-dependency-path: spacetimedb/package-lock.json
+      - run: npm ci --prefix spacetimedb --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck --prefix spacetimedb
+      - run: npm test --prefix spacetimedb

@@ -9,5 +9,8 @@ public/account/account.js.LEGAL.txt
 runtime/
 artifacts/
 coverage/
+spacetimedb/dist/
+spacetime.local.json
+spacetime.*.local.json
 *.log
 .DS_Store

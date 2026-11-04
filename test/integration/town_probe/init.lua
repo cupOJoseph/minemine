@@ -684,6 +684,25 @@ core.register_globalstep(function()
         local town = core.registered_chatcommands.town
         local created, message = town.func(guest_name, "create West Hollow")
         check(created, "guest town creation failed: " .. tostring(message))
+        -- Both players bought nine columns. The second town must not spend its
+        -- credits on the first town's exact area or a one-column overlap.
+        for _, attempted_x in ipairs({ claim_pos.x, math.floor(claim_pos.x) + 2 }) do
+            guest:set_pos({ x = attempted_x, y = claim_pos.y, z = claim_pos.z })
+            local attempted = guest:get_pos()
+            check(math.floor(attempted.x) == math.floor(attempted_x) and
+                math.floor(attempted.z) == math.floor(claim_pos.z),
+                "guest did not reach the overlapping claim position")
+            local denied, reason = town.func(guest_name, "claim 1")
+            check(not denied and reason:find("overlaps an existing town claim", 1, true),
+                "cross-town overlapping claim was accepted: " .. tostring(reason))
+            check(find_claim(map_claims(owner_name, guest_name), "West Hollow") == nil,
+                "denied overlapping claim appeared in the public map")
+            check(admin_town(guest_name).claims == 0,
+                "denied overlapping claim changed the private roster")
+        end
+        local info_ok, info = town.func(guest_name, "info")
+        check(info_ok and info:find("protected 0/9 columns", 1, true),
+            "denied overlapping claims consumed paid land credits")
         local first_center = free_negative_center({ -48, -80, -112, -144 },
             map_claims(owner_name, guest_name))
         guest:set_pos({ x = first_center, y = claim_pos.y, z = first_center })
@@ -720,7 +739,7 @@ core.register_globalstep(function()
         state.negative_center = center
         check(core.safe_file_write(world .. "/town-probe-state.json", assert(core.write_json(state))),
             "negative claim center was not saved for restart and map checks")
-        return "PASS paid negative claim creation, protection, removal, movement and public projection"
+        return "PASS cross-town overlap denial, paid negative claim creation, protection, removal, movement and public projection"
     end)
     write_result("town-negative-claim-result.txt", ok and result or "FAIL " .. tostring(result), ok)
 end)

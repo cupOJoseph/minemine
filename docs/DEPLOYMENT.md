@@ -106,7 +106,8 @@ Copy the archive and sidecar to the Ubuntu 22.04 x86-64 VM through the approved 
 ```sh
 cd /tmp/minemine-host-download
 sha256sum -c minemine-host-runtime-ubuntu22-x64.tar.gz.sha256
-sudo useradd --system --home-dir /srv/minemine --shell /usr/sbin/nologin minemine
+sudo useradd --system --user-group --home-dir /srv/minemine --shell /usr/sbin/nologin minemine
+test "$(id -gn minemine)" = minemine
 sudo install -d -o minemine -g minemine -m 0750 /srv/minemine /srv/minemine/app /srv/minemine/world
 sudo tar -C /srv/minemine/app -xzf minemine-host-runtime-ubuntu22-x64.tar.gz
 sudo chown -R minemine:minemine /srv/minemine/app

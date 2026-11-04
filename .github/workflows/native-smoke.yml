@@ -1,6 +1,14 @@
 name: Build and smoke-test native MineMine server
 on:
   workflow_dispatch:
+    inputs:
+      load_clients:
+        description: Maximum disposable browser clients in the native load rehearsal
+        type: choice
+        default: '16'
+        options:
+          - '16'
+          - '32'
   pull_request:
     paths:
       - '.github/workflows/native-smoke.yml'
@@ -51,6 +59,8 @@ jobs:
   native:
     runs-on: ubuntu-22.04
     timeout-minutes: 50
+    env:
+      LOAD_MAX_CLIENTS: ${{ inputs.load_clients || '16' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -192,8 +202,9 @@ jobs:
           cp -a test/integration/town_probe runtime/native-world/worldmods/town_probe
           cp -a test/integration/load_probe runtime/native-world/worldmods/load_probe
           printf '\nload_mod_town_probe = true\nload_mod_load_probe = true\n' >> runtime/native-world/world.mt
-          sed 's/^max_users = 2$/max_users = 16/' game/minetest.conf > runtime/ci-minetest.conf
-          grep -Fxq 'max_users = 16' runtime/ci-minetest.conf
+          case "$LOAD_MAX_CLIENTS" in 16|32) ;; *) echo 'Unsupported load-client count.' >&2; exit 2;; esac
+          sed "s/^max_users = 2$/max_users = $LOAD_MAX_CLIENTS/" game/minetest.conf > runtime/ci-minetest.conf
+          grep -Fxq "max_users = $LOAD_MAX_CLIENTS" runtime/ci-minetest.conf
           world_dir="$GITHUB_WORKSPACE/runtime/native-world"
           node_binary=$(command -v node)
           start_stack() {

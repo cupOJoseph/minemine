@@ -10,7 +10,9 @@ const logPath = process.env.NATIVE_LOG || 'runtime/browser-native.log';
 const output = process.env.LOAD_RESULTS || 'runtime/native-load-snapshots.jsonl';
 const joinOutput = process.env.LOAD_JOIN_RESULTS || 'runtime/native-load-joins.jsonl';
 const movementOutput = process.env.LOAD_MOVEMENT_RESULTS || 'runtime/native-load-movement.json';
-const stages = [2, 4, 8, 16];
+const maxClients = Number(process.env.LOAD_MAX_CLIENTS || 16);
+assert.ok([16, 32].includes(maxClients), 'load rehearsal supports only 16 or 32 clients');
+const stages = maxClients === 32 ? [2, 4, 8, 16, 32] : [2, 4, 8, 16];
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function watchGameSocket(page, markers, traffic) {
@@ -198,9 +200,9 @@ try {
   const actorNames = [...names].slice(0, 8);
   const actorPages = pages.slice(0, actorNames.length);
   const beforePositions = await requestPositions('before');
-  assert.equal(beforePositions.count, 16, 'movement baseline needs sixteen native players');
+  assert.equal(beforePositions.count, maxClients, 'movement baseline needs every native player');
   const beforeTraffic = gameTrafficTotals(gameTraffic);
-  const beforeStep = await waitForOnline(16);
+  const beforeStep = await waitForOnline(maxClients);
   const movementKeys = ['w', 'a', 's', 'd', 'w', 'a', 's', 'd'];
   for (const page of actorPages) {
     await page.locator('#canvas').click({ timeout: 10_000 });
@@ -214,7 +216,7 @@ try {
   }
   await sleep(2_000);
   const afterPositions = await requestPositions('after');
-  assert.equal(afterPositions.count, 16, 'movement activity lost a native player');
+  assert.equal(afterPositions.count, maxClients, 'movement activity lost a native player');
   const displacements = actorNames.map((playerName, index) => {
     const before = beforePositions.positions[playerName];
     const after = afterPositions.positions[playerName];
@@ -226,7 +228,7 @@ try {
   let activityStep;
   const activityDeadline = Date.now() + 45_000;
   do {
-    activityStep = await waitForOnline(16);
+    activityStep = await waitForOnline(maxClients);
     if (activityStep.observed_at > beforeStep.observed_at) break;
     await sleep(1000);
   } while (Date.now() < activityDeadline);
@@ -236,9 +238,9 @@ try {
   await writeFile(movementOutput, `${JSON.stringify({ actors: actorNames.length, moved,
     horizontal_displacement_blocks: displacements, step_interval_ms_p95: activityStep.step_interval_ms_p95,
     online_players: activityStep.online_players, game_websocket_payload_delta: trafficDelta })}\n`);
-  await appendFile(output, `${JSON.stringify({ stage: 16, phase: 'movement',
+  await appendFile(output, `${JSON.stringify({ stage: maxClients, phase: 'movement',
     captured_at: new Date().toISOString(), game_websocket_payload: afterTraffic, ...activityStep })}\n`);
-  console.log(`Movement with sixteen online: ${moved}/8 actors moved at least half a block; ` +
+  console.log(`Movement with ${maxClients} online: ${moved}/8 actors moved at least half a block; ` +
     `p95 native step ${activityStep.step_interval_ms_p95.toFixed(1)} ms`);
   const observedTraffic = gameTrafficTotals(gameTraffic);
   assert.ok(observedTraffic.egress_payload_bytes > 0 && observedTraffic.ingress_payload_bytes > 0,

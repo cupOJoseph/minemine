@@ -184,8 +184,8 @@ jobs:
           set -euo pipefail
           cp -a test/integration/town_probe runtime/native-world/worldmods/town_probe
           printf '\nload_mod_town_probe = true\n' >> runtime/native-world/world.mt
-          sed 's/^max_users = 2$/max_users = 4/' game/minetest.conf > runtime/ci-minetest.conf
-          grep -Fxq 'max_users = 4' runtime/ci-minetest.conf
+          sed 's/^max_users = 2$/max_users = 8/' game/minetest.conf > runtime/ci-minetest.conf
+          grep -Fxq 'max_users = 8' runtime/ci-minetest.conf
           world_dir="$GITHUB_WORKSPACE/runtime/native-world"
           node_binary=$(command -v node)
           start_stack() {

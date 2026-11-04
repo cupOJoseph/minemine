@@ -242,7 +242,7 @@ jobs:
             fi
           }
           cleanup() {
-            touch runtime/server-memory-first.stop runtime/server-memory-restart.stop
+            touch runtime/server-memory-first.stop runtime/server-memory-restart.stop runtime/client-runner.stop
             capture_cgroup "$current_phase"
             sudo systemctl stop minemine-ci-api-first.service minemine-ci-native-first.service minemine-ci-api-restart.service minemine-ci-native-restart.service minemine-ci-anvil.service 2>/dev/null || true
           }
@@ -288,7 +288,12 @@ jobs:
           bash scripts/sample-stack-memory.sh "$native_pid" "$api_pid" runtime/server-memory-first.csv runtime/server-memory-first.stop &
           sampler_pid=$!
           WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" NATIVE_LOG=runtime/browser-native.log node test/integration/browser-native.mjs
+          rm -f runtime/client-runner.stop
+          bash scripts/sample-client-runner.sh runtime/client-runner.csv runtime/client-runner.stop &
+          client_sampler_pid=$!
           WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" NATIVE_LOG=runtime/browser-native.log node test/integration/browser-native-load.mjs
+          touch runtime/client-runner.stop
+          wait "$client_sampler_pid"
           touch runtime/server-memory-first.stop
           wait "$sampler_pid"
           capture_cgroup first
@@ -437,6 +442,7 @@ jobs:
             runtime/native-load-snapshots.jsonl
             runtime/native-load-joins.jsonl
             runtime/native-load-movement.json
+            runtime/client-runner.csv
             runtime/native-world/minemine-load-position-before.json
             runtime/native-world/minemine-load-position-after.json
             runtime/native-world/minemine-native-metrics.json

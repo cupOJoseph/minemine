@@ -44,20 +44,29 @@ export function createBetaCodes(worldDir, now = Date.now) {
     CREATE TABLE IF NOT EXISTS beta_admissions (
       account_id TEXT PRIMARY KEY,
       code_id TEXT NOT NULL REFERENCES beta_codes(id),
-      admitted_at INTEGER NOT NULL
+      admitted_at INTEGER NOT NULL,
+      revoked_at INTEGER
     );
     CREATE TABLE IF NOT EXISTS beta_audit (
       id INTEGER PRIMARY KEY,
       code_id TEXT NOT NULL,
       action TEXT NOT NULL,
       actor TEXT NOT NULL,
-      at INTEGER NOT NULL
+      at INTEGER NOT NULL,
+      account_id TEXT
     );`);
   db.exec('PRAGMA foreign_keys = ON');
+  if (!db.prepare('PRAGMA table_info(beta_admissions)').all().some(column => column.name === 'revoked_at')) {
+    db.exec('ALTER TABLE beta_admissions ADD COLUMN revoked_at INTEGER');
+  }
+  if (!db.prepare('PRAGMA table_info(beta_audit)').all().some(column => column.name === 'account_id')) {
+    db.exec('ALTER TABLE beta_audit ADD COLUMN account_id TEXT');
+  }
   const findByHash = db.prepare('SELECT * FROM beta_codes WHERE code_hash = ?');
   const findById = db.prepare('SELECT * FROM beta_codes WHERE id = ?');
-  const findAdmission = db.prepare('SELECT code_id, admitted_at FROM beta_admissions WHERE account_id = ?');
+  const findAdmission = db.prepare('SELECT code_id, admitted_at, revoked_at FROM beta_admissions WHERE account_id = ?');
   const audit = db.prepare('INSERT INTO beta_audit(code_id, action, actor, at) VALUES (?, ?, ?, ?)');
+  const admissionAudit = db.prepare('INSERT INTO beta_audit(code_id, action, actor, at, account_id) VALUES (?, ?, ?, ?, ?)');
   const invalidCode = () => { throw new BetaCodeError('Invalid or expired beta code.', 'invalid_code'); };
   function transaction(work) {
     db.exec('BEGIN IMMEDIATE');
@@ -91,7 +100,7 @@ export function createBetaCodes(worldDir, now = Date.now) {
       return db.prepare('SELECT id, created_at, expires_at, max_uses, uses, intended_account, revoked_at FROM beta_codes ORDER BY created_at DESC, id DESC LIMIT 100').all();
     },
     recentAudit(limit = 50) {
-      return db.prepare('SELECT id, code_id, action, actor, at FROM beta_audit ORDER BY at DESC, id DESC LIMIT ?').all(limit);
+      return db.prepare('SELECT id, code_id, action, actor, at, account_id FROM beta_audit ORDER BY at DESC, id DESC LIMIT ?').all(limit);
     },
     revoke(id, actor) {
       account(actor);
@@ -105,11 +114,38 @@ export function createBetaCodes(worldDir, now = Date.now) {
         return true;
       });
     },
+    admission(accountId) { return findAdmission.get(account(accountId)) || null; },
+    revokeAdmission(accountId, actor) {
+      account(accountId);
+      account(actor);
+      return transaction(() => {
+        const row = findAdmission.get(accountId);
+        if (!row) throw new BetaCodeError('Beta admission not found.', 'not_found');
+        if (row.revoked_at !== null) return false;
+        const at = now();
+        db.prepare('UPDATE beta_admissions SET revoked_at = ? WHERE account_id = ?').run(at, accountId);
+        admissionAudit.run(row.code_id, 'admission_revoked', actor, at, accountId);
+        return true;
+      });
+    },
+    restoreAdmission(accountId, actor) {
+      account(accountId);
+      account(actor);
+      return transaction(() => {
+        const row = findAdmission.get(accountId);
+        if (!row) throw new BetaCodeError('Beta admission not found.', 'not_found');
+        if (row.revoked_at === null) return false;
+        db.prepare('UPDATE beta_admissions SET revoked_at = NULL WHERE account_id = ?').run(accountId);
+        admissionAudit.run(row.code_id, 'admission_restored', actor, now(), accountId);
+        return true;
+      });
+    },
     redeem(plaintext, accountId) {
       account(accountId);
       if (typeof plaintext !== 'string' || !codePattern.test(plaintext)) invalidCode();
       return transaction(() => {
         const existing = findAdmission.get(accountId);
+        if (existing && existing.revoked_at !== null) throw new BetaCodeError('Beta access was revoked.', 'revoked');
         if (existing) return { admitted: true, alreadyAdmitted: true };
         const row = findByHash.get(hash(plaintext));
         if (!row || row.revoked_at !== null || row.expires_at <= now() || row.uses >= row.max_uses || (row.intended_account && row.intended_account !== accountId)) invalidCode();
@@ -119,7 +155,10 @@ export function createBetaCodes(worldDir, now = Date.now) {
         return { admitted: true, alreadyAdmitted: false };
       });
     },
-    isAdmitted(accountId) { return Boolean(findAdmission.get(account(accountId))); },
+    isAdmitted(accountId) {
+      const row = findAdmission.get(account(accountId));
+      return Boolean(row && row.revoked_at === null);
+    },
     close() { db.close(); },
   };
 }

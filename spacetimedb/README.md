@@ -36,7 +36,8 @@ test before this projection can serve players.
 The network smoke starts a temporary loopback-only, in-memory standalone host,
 publishes the module with disposable development-token claims, accepts one
 authorized profile write and exact replay, rejects a second identity and an
-anonymous caller with **403**, reads one row over SQL, then stops the host. CI
+anonymous caller with **403**, then writes a second row through the server bridge
+path and reads both rows over SQL before stopping the host. CI
 downloads the official Linux 2.14.1 archive and verifies its SHA-256 before
 running this check. The local development token is scoped to that disposable
 host; a real OIDC bridge write and subscription are still untested.
@@ -53,13 +54,39 @@ absolute path of the 2.14.1 `spacetimedb-cli` binary for the last command.
   source. Exact retries are idempotent; older revisions cannot overwrite a
   newer projection; a different value at the same revision is rejected.
 
-The next implementation step is a durable Node/Luanti bridge with an OIDC
-service credential, a backfill, and a reconnect/replay integration test. The
-bridge must read the canonical account/name registry and persist or derive
-revisions across restarts. Keep this module off the public client path until
-that test and a host budget measurement pass.
+## Source bridge pilot
+
+The MineMine name registry writes a durable profile projection row in the same
+SQLite transaction as a verified wallet sign in. Opening an older registry
+backfills existing wallet profiles. The first revision contains only the stable
+native character ID as `displayName`; this does not project ENS or managed
+names without fresh ownership checks. A bounded one-shot command reads pending
+rows, obtains a SpacetimeAuth service token with `client_credentials`, sends
+confirmed `upsert_profile` HTTP calls, and acknowledges each successful row.
+If the process stops after a remote commit but before the local acknowledgement,
+the revision is retried safely. Failed rows remain pending. The loopback
+network smoke exercises this bridge path with a disposable development token.
+
+After configuring a real database, module `BRIDGE_ISSUER`, `BRIDGE_AUDIENCE`,
+and `BRIDGE_SUBJECT` must match the SpacetimeAuth service token's claims. Set
+`SPACETIME_DB_ORIGIN`, `SPACETIME_DB_NAME`, `SPACETIME_AUTH_CLIENT_ID`, and
+`SPACETIME_AUTH_CLIENT_SECRET` privately on the Node host, then run
+`npm run profiles:sync`. Keep the client secret out of the repository and
+browser. The command sends at most 100 rows per invocation, requires HTTPS,
+and exits on a failed write; schedule and monitor repeated invocations only
+after the real credential and database have been tested. The profile table is
+public in the pilot, so do not deploy it with real accounts before deciding
+whether exposing account addresses is acceptable.
+
+Real SpacetimeAuth token issuance, a hosted database, live replay after restart,
+subscription/reconnect behavior, ENS display updates, and host budget
+measurement remain untested. This bridge does not increase the native Luanti
+world's player capacity. Keep the module off the public client path until those
+gates pass.
 
 Sources: [SpacetimeDB authentication](https://spacetimedb.com/docs/core-concepts/authentication/),
 [auth claims](https://spacetimedb.com/docs/core-concepts/authentication/usage/),
 [module environment](https://spacetimedb.com/docs/databases/environment-variables/),
-and [module tests](https://spacetimedb.com/docs/how-to/unit-testing/).
+[module tests](https://spacetimedb.com/docs/how-to/unit-testing/),
+[Maincloud connection URL](https://spacetimedb.com/docs/how-to/deploy/maincloud/),
+and [HTTP reducer calls](https://spacetimedb.com/docs/http/database/).

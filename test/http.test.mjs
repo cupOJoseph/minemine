@@ -9,7 +9,7 @@ import Stripe from 'stripe';
 import { createApp } from '../server/app.mjs';
 import { AuthError, playerName } from '../server/auth.mjs';
 import { readConfig } from '../server/config.mjs';
-import { createNameRegistry } from '../server/name-registry.mjs';
+import { createNameRegistry, NameRegistryError } from '../server/name-registry.mjs';
 
 async function fixture(t, env = {}, clock, overrides = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), 'miners-http-'));
@@ -64,6 +64,7 @@ test('HTTP wallet flow: challenge, real signature, cookie session, gated game, l
   assert.match(cookieHeader, /HttpOnly; SameSite=Strict; Path=\//);
   const sessionCookie = cookieHeader.split(';')[0];
   assert.equal((await request('/api/session', undefined, sessionCookie)).status, 200);
+  assert.equal((await request('/api/names/checkout', { handle: 'builder' }, sessionCookie)).status, 503);
   assert.deepEqual(await (await request('/api/currency/recipient?input=' + wallet.address, undefined, sessionCookie)).json(), { address: wallet.address, ensName: null });
   assert.equal((await (await request('/api/identity', undefined, sessionCookie)).json()).ensName, null);
   assert.equal((await request('/api/currency/recipient?input=builder.eth', undefined, sessionCookie)).status, 503);
@@ -106,8 +107,17 @@ test('static files supply isolation headers; private paths and invalid bodies ar
   assert.ok(remoteFrame.headers.get('Content-Security-Policy').includes("frame-ancestors 'self'"));
   const config = await request('/api/config');
   assert.equal(config.headers.get('Cache-Control'), 'no-store');
-  const { soloPlaytestAvailable } = await config.json();
+  const { soloPlaytestAvailable, zeroDevTestProjectId } = await config.json();
   assert.equal(typeof soloPlaytestAvailable, 'boolean');
+  assert.equal(zeroDevTestProjectId, null);
+  const account = await request('/account/');
+  assert.equal(account.status, 302);
+  assert.equal(account.headers.get('Location'), '/account/index.html');
+  const accountPage = await request('/account/index.html');
+  assert.equal(accountPage.status, 200);
+  assert.match(await accountPage.text(), /Create a MineMine account/);
+  assert.ok(accountPage.headers.get('Content-Security-Policy').includes('https://kms.zerodev.app'));
+  assert.ok(!page.headers.get('Content-Security-Policy').includes('https://kms.zerodev.app'));
   const play = await request('/play/');
   assert.equal(play.status, 302);
   assert.equal(play.headers.get('Location'), soloPlaytestAvailable ? '/engine/index.html' : 'https://cupojoseph.github.io/minemine/play/');
@@ -126,6 +136,16 @@ test('rate limiting bounds anonymous authentication attempts', async t => {
   let response;
   for (let n = 0; n < 121; n++) response = await request('/api/config');
   assert.equal(response.status, 429);
+});
+test('local ZeroDev lab exposes only its public project ID and keeps the game closed', async t => {
+  const { request } = await fixture(t, {
+    ZERODEV_TEST_SIGNUP: 'true', ZERODEV_PROJECT_ID: 'test-project-123',
+    RPC_URL: 'https://ethereum-sepolia-rpc.publicnode.com',
+  });
+  const configuration = await (await request('/api/config')).json();
+  assert.equal(configuration.zeroDevTestProjectId, 'test-project-123');
+  assert.equal(configuration.gameReady, false);
+  assert.equal((await request('/api/game/ticket', {})).status, 401);
 });
 test('trusted local Caddy gives visitors separate limits and cannot be spoofed by a remote peer', async t => {
   const { request } = await fixture(t, { PUBLIC_ORIGIN: 'https://play.example', TRUST_LOOPBACK_PROXY: 'true' });
@@ -375,8 +395,21 @@ test('beta invitations are hashed, wallet bound, and gate shared-world tickets',
   assert.equal(audit.events[1].actor, player.address.toLowerCase());
   assert.equal(JSON.stringify(audit).includes(code), false, 'audit never exposes the beta secret');
   assert.equal((await request('/api/game/ticket', {}, playerCookie)).status, 503, 'revoking a code does not erase an existing admission');
+  const profile = await (await request(`/api/admin/players/${(await (await request('/api/session', undefined, playerCookie)).json()).playerName}`, undefined, adminCookie)).json();
+  assert.equal(profile.betaAdmission.revokedAt, null);
+  assert.equal(profile.betaGateEnabled, true);
+  assert.equal((await request('/api/admin/beta/admissions/revoke', { address: player.address }, playerCookie)).status, 403);
+  assert.equal((await request('/api/admin/beta/admissions/revoke', { address: admin.address }, adminCookie)).status, 400);
+  assert.deepEqual(await (await request('/api/admin/beta/admissions/revoke', { address: player.address }, adminCookie)).json(), { revoked: true });
+  assert.deepEqual(await (await request('/api/beta/status', undefined, playerCookie)).json(), { enabled: true, admitted: false });
+  assert.equal((await request('/api/game/ticket', {}, playerCookie)).status, 403);
+  assert.equal((await request('/api/beta/redeem', { code }, playerCookie)).status, 400);
+  assert.deepEqual(await (await request('/api/admin/beta/admissions/revoke', { address: player.address }, adminCookie)).json(), { revoked: false });
+  assert.deepEqual(await (await request('/api/admin/beta/admissions/restore', { address: player.address }, adminCookie)).json(), { restored: true });
+  assert.equal((await request('/api/game/ticket', {}, playerCookie)).status, 503);
   now += 5 * 60_000;
   assert.equal((await request('/api/admin/beta/codes/create', {}, adminCookie)).status, 403);
+  assert.equal((await request('/api/admin/beta/admissions/revoke', { address: player.address }, adminCookie)).status, 403);
 });
 
 test('selected ENS identity is wallet-bound, rechecked, and removed after ownership transfers', async t => {
@@ -421,6 +454,7 @@ test('selected ENS identity is wallet-bound, rechecked, and removed after owners
 test('paid managed name displays only while ENS resolves to its signed account wallet', async t => {
   const wallet = new Wallet('0x' + 'd1'.repeat(32));
   const other = new Wallet('0x' + 'd2'.repeat(32));
+  let now = Date.UTC(2026, 10, 2, 12);
   let target = wallet.address;
   let offline = false;
   const ensResolver = {
@@ -432,29 +466,107 @@ test('paid managed name displays only while ENS resolves to its signed account w
     },
     close() {},
   };
-  const { request, worldDir } = await fixture(t, {}, null, { ensResolver });
+  const { request, worldDir } = await fixture(t, {}, () => now, { ensResolver });
   const challenge = await request('/api/auth/challenge', { address: wallet.address, chainId: 11155111 });
   const signature = await wallet.signMessage((await challenge.json()).message);
   const verified = await request('/api/auth/verify', { signature }, challenge.headers.getSetCookie()[0].split(';')[0]);
   const cookie = verified.headers.getSetCookie()[0].split(';')[0];
-  const names = createNameRegistry(worldDir);
+  const names = createNameRegistry(worldDir, () => now);
   t.after(() => names.close());
   const accountId = wallet.address.toLowerCase();
   names.beginCheckout('builder', accountId, 'order-1');
   names.markPaid('builder', accountId, 'order-1', 'payment-1');
-  assert.equal((await (await request('/api/identity', undefined, cookie)).json()).ensName, null, 'payment alone is not issuance');
+  const pending = await (await request('/api/identity', undefined, cookie)).json();
+  assert.equal(pending.ensName, null, 'payment alone is not issuance');
+  assert.deepEqual(pending.managedName, { name: 'builder.minemine.eth', status: 'pending', expiresAt: null });
   await names.activateManagedName('builder', accountId, 'order-1', 'payment-1', async name => (await ensResolver.recipient(name)).address);
   const active = await (await request('/api/identity', undefined, cookie)).json();
+  const expiresAt = names.lookup('builder').expires_at;
+  assert.deepEqual(active.managedName, { name: 'builder.minemine.eth', status: 'active', expiresAt: new Date(expiresAt).toISOString() });
   assert.equal(active.ensName, 'builder.minemine.eth');
   assert.equal(active.managedEnsName, 'builder.minemine.eth');
   assert.equal(active.playerName, playerName(wallet.address), 'display names do not change native identity');
   target = other.address;
-  assert.equal((await (await request('/api/identity', undefined, cookie)).json()).ensName, null, 'a changed record is hidden');
+  const changed = await (await request('/api/identity', undefined, cookie)).json();
+  assert.equal(changed.ensName, null, 'a changed record is hidden');
+  assert.equal(changed.managedName.status, 'unverified');
   offline = true;
-  assert.equal((await (await request('/api/identity', undefined, cookie)).json()).ensName, null, 'an ENS outage is hidden');
+  const unavailable = await (await request('/api/identity', undefined, cookie)).json();
+  assert.equal(unavailable.ensName, null, 'an ENS outage is hidden');
+  assert.equal(unavailable.managedName.status, 'unverified');
   offline = false;
   target = wallet.address;
   assert.equal((await (await request('/api/identity', undefined, cookie)).json()).ensName, 'builder.minemine.eth');
+  now = expiresAt;
+  const laterChallenge = await request('/api/auth/challenge', { address: wallet.address, chainId: 11155111 });
+  const laterSignature = await wallet.signMessage((await laterChallenge.json()).message);
+  const laterVerified = await request('/api/auth/verify', { signature: laterSignature }, laterChallenge.headers.getSetCookie()[0].split(';')[0]);
+  const laterCookie = laterVerified.headers.getSetCookie()[0].split(';')[0];
+  const expired = await (await request('/api/identity', undefined, laterCookie)).json();
+  assert.equal(expired.ensName, null);
+  assert.deepEqual(expired.managedName, { name: 'builder.minemine.eth', status: 'expired', expiresAt: new Date(expiresAt).toISOString() });
+});
+
+test('signed loopback checkout reuses a durable hold and rejects unavailable names', async t => {
+  const stripeSdk = new Stripe('sk_test_minemine_http');
+  const calls = [];
+  let ready = false;
+  const stripeClient = { webhooks: stripeSdk.webhooks, checkout: { sessions: {
+    async create(params, options) {
+      calls.push({ params, options });
+      return { id: 'cs_test_player_name', object: 'checkout.session', livemode: false,
+        mode: 'payment', currency: 'usd', amount_total: 200, status: 'open',
+        client_reference_id: params.client_reference_id, metadata: params.metadata,
+        expires_at: params.expires_at, url: 'https://checkout.stripe.com/c/pay/cs_test_player_name' };
+    },
+  } } };
+  const { request, worldDir } = await fixture(t, {}, null, {
+    stripeClient, stripeWebhookSecret: 'whsec_minemine_http', nameCheckoutTestEnabled: true,
+    namePreflight: async () => {
+      if (!ready) throw new NameRegistryError('MineMine ENS resolver is not ready.', 'ens_sale_unavailable');
+    },
+  });
+  const names = createNameRegistry(worldDir);
+  t.after(() => names.close());
+  const signIn = async wallet => {
+    const challengeResponse = await request('/api/auth/challenge', { address: wallet.address, chainId: 11155111 });
+    const challengeCookie = challengeResponse.headers.getSetCookie()[0].split(';')[0];
+    const signature = await wallet.signMessage((await challengeResponse.json()).message);
+    const response = await request('/api/auth/verify', { signature }, challengeCookie);
+    assert.equal(response.status, 200);
+    return response.headers.getSetCookie()[0].split(';')[0];
+  };
+  assert.equal((await (await request('/api/config')).json()).nameCheckoutTestEnabled, true);
+  assert.equal((await request('/api/names/checkout', { handle: 'builder' })).status, 401);
+  const first = new Wallet('0x' + 'a5'.repeat(32));
+  const firstCookie = await signIn(first);
+  assert.equal((await request('/api/names/checkout', { handle: 'b' }, firstCookie)).status, 400);
+  const unavailable = await request('/api/names/checkout', { handle: 'builder' }, firstCookie);
+  assert.equal(unavailable.status, 503);
+  assert.equal(names.lookup('builder'), null, 'preflight failure creates no local hold');
+  assert.equal(calls.length, 0, 'preflight failure never contacts Stripe');
+  ready = true;
+  const created = await request('/api/names/checkout', { handle: 'BUILDER',
+    accountId: new Wallet('0x' + 'b5'.repeat(32)).address }, firstCookie);
+  assert.equal(created.status, 200);
+  const result = await created.json();
+  assert.equal(result.testMode, true);
+  assert.match(result.orderId, /^[a-f0-9-]{36}$/);
+  assert.equal(result.handle, 'builder');
+  assert.equal(calls[0].params.metadata.account_id, first.address.toLowerCase(), 'body cannot select the billed account');
+  assert.equal(names.lookup('builder').state, 'checkout_held');
+  const heldIdentity = await (await request('/api/identity', undefined, firstCookie)).json();
+  assert.equal(heldIdentity.managedName.status, 'held');
+  assert.equal(heldIdentity.managedName.name, 'builder.minemine.eth');
+  assert.equal(heldIdentity.ensName, null, 'a checkout hold is never a public ENS name');
+  const retried = await request('/api/names/checkout', { handle: 'builder' }, firstCookie);
+  assert.equal(retried.status, 200);
+  assert.equal((await retried.json()).orderId, result.orderId);
+  assert.deepEqual(calls[1], calls[0], 'retry uses the same Stripe idempotency key and parameters');
+  assert.equal((await request('/api/names/checkout', { handle: 'another' }, firstCookie)).status, 409);
+  const secondCookie = await signIn(new Wallet('0x' + 'b5'.repeat(32)));
+  assert.equal((await request('/api/names/checkout', { handle: 'builder' }, secondCookie)).status, 409);
+  assert.equal(calls.length, 2, 'collisions never create another Checkout Session');
 });
 
 test('Stripe test webhook needs a raw valid signature and a matching paid session', async t => {

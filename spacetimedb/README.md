@@ -32,6 +32,14 @@ harness does not verify JWT signatures, network connections, subscriptions,
 durability, or real OIDC issuance. Those require a running server integration
 test before this projection can serve players.
 
+On 2026-11-04, the 2.14.1 CLI also published this module to a temporary
+loopback-only, in-memory standalone host with disposable environment values.
+`spacetime describe` showed the expected public `player_profile` table,
+`upsert_profile` reducer, and three required environment declarations. An
+anonymous CLI reducer call returned **403** with the bridge-only error. The
+host was stopped after the check. This is a network authorization negative
+check; a real OIDC bridge write and subscription are still untested.
+
 ## Projection contract
 
 - `accountId`: lowercase EVM address already bound to a signed MineMine session

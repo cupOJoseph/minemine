@@ -46,13 +46,15 @@ if (sourceClaims.version !== 1 || Object.keys(sourceClaims).sort().join(',') !==
 const allClaims = validateClaims(sourceClaims.claims);
 const probe = JSON.parse(readFileSync('runtime/static-map-world/town-probe-state.json', 'utf8'));
 const expectedX = Math.floor(probe.pos.x), expectedZ = Math.floor(probe.pos.z);
+const negativeCenter = probe.negative_center;
+if (!Number.isInteger(negativeCenter) || negativeCenter >= 0) throw new Error('Native negative claim center is missing.');
 const paid = allClaims.find(claim => claim.town === 'Probe Town');
 const negative = allClaims.find(claim => claim.town === 'West Hollow');
 if (allClaims.length !== 2 || !paid ||
     paid.x1 !== expectedX - 1 || paid.x2 !== expectedX + 1 ||
     paid.z1 !== expectedZ - 1 || paid.z2 !== expectedZ + 1 ||
-    !negative || negative.x1 !== -65 || negative.x2 !== -63 ||
-    negative.z1 !== -65 || negative.z2 !== -63) {
+    !negative || negative.x1 !== negativeCenter - 1 || negative.x2 !== negativeCenter + 1 ||
+    negative.z1 !== negativeCenter - 1 || negative.z2 !== negativeCenter + 1) {
   throw new Error('Public claim projection differs from the native paid claims.');
 }
 const townClaims = allClaims.filter(claim =>

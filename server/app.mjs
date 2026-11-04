@@ -4,6 +4,7 @@ import { existsSync, createReadStream, readFileSync, statSync } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
 import { isIP } from 'node:net';
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { Contract, FetchRequest, JsonRpcProvider, ensNormalize, formatUnits, getAddress } from 'ethers';
 import Stripe from 'stripe';
@@ -16,8 +17,9 @@ import { writeBalanceSnapshot } from './balance-snapshot.mjs';
 import { attachGameProxy } from './game-proxy.mjs';
 import { createPlayerStats, createPlayerExplorer } from './player-stats.mjs';
 import { townMembership } from './town-roster.mjs';
-import { createNameRegistry, NameRegistryError } from './name-registry.mjs';
+import { createNameRegistry, NameRegistryError, normalizeHandle } from './name-registry.mjs';
 import { createNameCheckout } from './name-checkout.mjs';
+import { createManagedNamePreflight } from './managed-name-preflight.mjs';
 import { createBetaCodes, BetaCodeError } from './beta-codes.mjs';
 
 const publicRoot = path.resolve(fileURLToPath(new URL('../public/', import.meta.url)));
@@ -90,8 +92,12 @@ export function createApp(config) {
   const playerExplorer = createPlayerExplorer(config.worldDir);
   const names = createNameRegistry(config.worldDir, config.now || Date.now);
   const stripe = config.stripeClient || (config.stripeTestSecretKey ? new Stripe(config.stripeTestSecretKey) : null);
+  const namePreflight = config.namePreflight || (config.ensExpectedOwner && config.ensNameWriterAddress && config.ensRpcUrl ?
+    createManagedNamePreflight({ rpcUrl: config.ensRpcUrl, expectedOwner: config.ensExpectedOwner,
+      writerAddress: config.ensNameWriterAddress, now: config.now || Date.now }) : null);
   const nameCheckout = stripe && config.stripeWebhookSecret ? createNameCheckout({
-    stripe, names, origin: config.origin, webhookSecret: config.stripeWebhookSecret, now: config.now || Date.now,
+    stripe, names, origin: config.origin, webhookSecret: config.stripeWebhookSecret,
+    preflight: namePreflight,
   }) : null;
   const betaCodes = createBetaCodes(config.worldDir, config.now || Date.now);
   const adminWallets = new Set((config.adminWalletAddresses || []).map(address => address.toLowerCase()));
@@ -169,9 +175,11 @@ export function createApp(config) {
     // Upstream engine builds its own runtime styles and menu event attributes.
     // Keep those permissions scoped to the engine; wallet pages retain strict CSP.
     const enginePage = req.url?.startsWith('/engine/');
+    const accountPage = req.url?.startsWith('/account/');
     const wsOrigin = config.origin.replace(/^http/, 'ws');
     const frameAncestors = req.url === '/engine/connect.html' ? "'self'" : "'none'";
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; " + (enginePage ? "script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " : "style-src 'self'; ") + "img-src 'self' data:; connect-src 'self' " + wsOrigin + "; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors " + frameAncestors);
+    const accountConnect = accountPage ? ' https://kms.zerodev.app https://authproxy.turnkey.com https://api.turnkey.com https://rpc.zerodev.app https://ethereum-sepolia-rpc.publicnode.com' : '';
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; " + (enginePage ? "script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " : "style-src 'self'; ") + "img-src 'self' data:; connect-src 'self' " + wsOrigin + accountConnect + "; worker-src 'self' blob:; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors " + frameAncestors);
     if (config.secure) res.setHeader('Strict-Transport-Security', 'max-age=31536000');
     try {
       if (req.headers.host !== new URL(config.origin).host) throw new AuthError('Unexpected host.', 400);
@@ -205,7 +213,7 @@ export function createApp(config) {
         const jar = cookies(req);
         const sessionToken = jar[sessionCookie];
         const session = auth.get(sessionToken);
-        if (req.method === 'GET' && url.pathname === '/api/config') return json(res, 200, { chainId: config.chainId, tokenAddress: config.tokenAddress, townContractAddress: config.townContractAddress, currencySymbol: 'MINE', gameReady: available(), soloPlaytestAvailable: soloAvailable(), enginePresent: existsSync(path.join(publicRoot, 'engine/index.html')), ensAvailable: Boolean(config.ensRpcUrl || config.ensOwnership), betaInvitesEnabled: Boolean(config.betaInvitesEnabled), milestone: 'solo-playtest', walletSupport: 'EOA' });
+        if (req.method === 'GET' && url.pathname === '/api/config') return json(res, 200, { chainId: config.chainId, tokenAddress: config.tokenAddress, townContractAddress: config.townContractAddress, currencySymbol: 'MINE', gameReady: available(), soloPlaytestAvailable: soloAvailable(), enginePresent: existsSync(path.join(publicRoot, 'engine/index.html')), ensAvailable: Boolean(config.ensRpcUrl || config.ensOwnership), betaInvitesEnabled: Boolean(config.betaInvitesEnabled), nameCheckoutTestEnabled: Boolean(config.nameCheckoutTestEnabled && nameCheckout), zeroDevTestProjectId: config.zeroDevTestSignup ? config.zeroDevProjectId : null, milestone: 'solo-playtest', walletSupport: 'EOA' });
         if (req.method === 'GET' && url.pathname === '/api/health') return json(res, 200, { ok: true, nativeReady: nativeReady(), gameReady: available(), currencyConfigured: Boolean(config.tokenAddress && config.rpcUrl) });
         if (req.method === 'POST' && url.pathname === '/api/auth/challenge') {
           const data = await body(req);
@@ -231,6 +239,27 @@ export function createApp(config) {
           return json(res, 200, { ok: true });
         }
         if (!session) throw new AuthError('Sign in with your wallet first.');
+        if (req.method === 'POST' && url.pathname === '/api/names/checkout') {
+          if (!config.nameCheckoutTestEnabled || !nameCheckout) throw new AuthError('Player name checkout is unavailable.', 503);
+          const data = await body(req);
+          try {
+            const handle = normalizeHandle(data.handle);
+            const accountId = session.address.toLowerCase();
+            const existing = names.checkoutForAccount(accountId);
+            if (existing && (existing.state !== 'checkout_held' || existing.handle !== handle)) {
+              throw new NameRegistryError('This account already has a MineMine username or checkout hold.', 'account_has_name');
+            }
+            const result = await nameCheckout.create({ handle, accountId, orderId: existing?.order_id || randomUUID() });
+            return json(res, 200, { ...result, testMode: true });
+          } catch (error) {
+            if (error instanceof NameRegistryError) {
+              const status = error.code === 'ens_sale_unavailable' ? 503 :
+                ['invalid_handle', 'invalid_input'].includes(error.code) ? 400 : 409;
+              throw new AuthError(error.message, status);
+            }
+            throw error;
+          }
+        }
         if (url.pathname.startsWith('/api/admin/')) {
           if (!adminWallets.has(session.address.toLowerCase())) throw new AuthError('Admin access required.', 403);
           if (req.method === 'GET' && url.pathname === '/api/admin/stats') return json(res, 200, await playerStats(nativeReady()));
@@ -384,7 +413,12 @@ export function createApp(config) {
             throw error;
           }
         }
-        if (req.method === 'GET' && url.pathname === '/api/identity') return json(res, 200, await playerIdentity(session));
+        if (req.method === 'GET' && url.pathname === '/api/identity') {
+          const identity = await playerIdentity(session);
+          const term = names.managedNameTermForAccount(session.address.toLowerCase());
+          if (term?.status === 'active' && identity.managedEnsName !== term.name) term.status = 'unverified';
+          return json(res, 200, { ...identity, managedName: term });
+        }
         if (req.method === 'POST' && url.pathname === '/api/identity/ens') {
           const data = await body(req);
           const verified = await ensOwnership.verify(data.name, session.address);
@@ -427,6 +461,11 @@ export function createApp(config) {
       }
       if (url.pathname === '/map' || url.pathname === '/map/') {
         res.writeHead(302, { Location: '/map/index.html' });
+        res.end();
+        return;
+      }
+      if (url.pathname === '/account' || url.pathname === '/account/') {
+        res.writeHead(302, { Location: '/account/index.html' });
         res.end();
         return;
       }

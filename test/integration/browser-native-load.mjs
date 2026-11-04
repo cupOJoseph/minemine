@@ -76,7 +76,7 @@ async function waitForOnline(expected) {
 
 await writeFile(output, '');
 await writeFile(joinOutput, '');
-const browser = await chromium.launch({ headless: true, args: ['--enable-unsafe-swiftshader'] });
+const browsers = [];
 const contexts = [];
 const names = new Set();
 try {
@@ -89,6 +89,10 @@ try {
       const { session, cookie, auth } = await signIn(wallet);
       assert.ok(!names.has(session.playerName), 'each wallet needs a distinct native character');
       names.add(session.playerName);
+      const browserStart = Date.now();
+      const browser = await chromium.launch({ headless: true, args: ['--enable-unsafe-swiftshader'] });
+      const browserLaunchMs = Date.now() - browserStart;
+      browsers.push(browser);
       const context = await browser.newContext({ viewport: { width: 640, height: 360 } });
       contexts.push(context);
       const [name, value] = cookie.split('=');
@@ -109,7 +113,8 @@ try {
       const native = await waitForJoin(session.playerName, page);
       const totalMs = Date.now() - start;
       assert.ok(markers.ticket_at && markers.proxy_at, `browser ticket or game proxy missing for client ${number}`);
-      const timing = { client: number, stage, ...auth,
+      const timing = { client: number, stage, browser_mode: 'separate-processes',
+        browser_launch_ms: browserLaunchMs, ...auth,
         dom_content_loaded_ms: domAt - start,
         ticket_response_ms: markers.ticket_at - start,
         game_proxy_open_ms: markers.proxy_at - start,
@@ -137,5 +142,5 @@ try {
   }
 } finally {
   for (const context of contexts.reverse()) await context.close().catch(() => {});
-  await browser.close();
+  for (const browser of browsers.reverse()) await browser.close().catch(() => {});
 }

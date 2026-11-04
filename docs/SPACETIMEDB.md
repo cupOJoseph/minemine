@@ -1,6 +1,6 @@
 # SpacetimeDB scaling plan
 
-Authentication research checked against the official SpacetimeDB 2.0.0 docs on 2026-11-04. Pin the actual server and SDK versions before implementation.
+Authentication research checked against the official SpacetimeDB docs on 2026-11-04. The isolated [profile module prototype](../spacetimedb/README.md) pins CLI and npm library 2.14.1, compiles locally, and has in-memory reducer tests. It is not connected to the MineMine server or a public database. The official [2.11 security notice](https://spacetimedb.com/changelog/v2.11.0) is one reason the older local 2.4.1 CLI must not be used for a production host.
 
 This is the **next phase**, not part of the currently playable game. The present Luanti server remains authoritative for voxel edits, inventory, physics, and town protection. Adding a database by itself will not raise the engine's player limit; first measure native-server step intervals, map emerge time, outbound bandwidth, reconnects, and memory with 16, then 32 and 64 clients. The [native load measurement plan](NATIVE_LOAD_METRICS.md) distinguishes sampled step intervals from CPU execution time.
 

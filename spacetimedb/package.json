@@ -8,7 +8,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:network:local": "node test/network-smoke.mjs"
   },
   "dependencies": {
     "spacetimedb": "2.14.1"

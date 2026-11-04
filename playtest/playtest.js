@@ -42,7 +42,12 @@ try {
   checkBrowser();
   start.disabled = false;
   start.textContent = 'Start playtest →';
-  say('The first launch downloads the engine and game. Your browser may ask to keep the saved world.');
+  if (/Firefox\//.test(navigator.userAgent) && new URLSearchParams(location.search).get('storage') !== 'auto') {
+    document.getElementById('firefox-storage').hidden = false;
+    say('The first launch downloads the engine and game. Firefox starts with a temporary world.');
+  } else {
+    say('The first launch downloads the engine and game. Your browser may ask to keep the saved world.');
+  }
   fetch('./build.json').then(r => r.ok ? r.json() : null).then(build => {
     if (build) document.getElementById('build').textContent = 'Engine wrapper ' + build.wrapperCommit.slice(0, 12) + ' · game ' + build.gameCommit.slice(0, 12) + ' · initial heap ' + build.profile.memoryMiB + ' MiB';
   }).catch(() => {});
@@ -90,7 +95,7 @@ start.addEventListener('click', async () => {
       document.body.appendChild(controls);
       const overlay = document.createElement('div');
       overlay.id = 'miners-playtest-overlay';
-      overlay.textContent = 'MINEMINE SOLO PLAYTEST · ' + (launcher.isPersistent() ? 'Browser storage active' : 'Temporary world — storage unavailable') + ' · Esc: menu';
+      overlay.textContent = 'MINEMINE SOLO PLAYTEST · ' + (launcher.isPersistent() ? 'Browser storage active' : 'Temporary world — progress will be lost') + ' · Esc: menu';
       document.body.appendChild(overlay);
     });
     await session.start();

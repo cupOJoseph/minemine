@@ -148,4 +148,15 @@ test('beta invite gate rejects signed wallets until a code is redeemed', async t
   await once(admitted, 'open');
   admitted.send('NEWADDR');
   assert.match((await once(admitted, 'message'))[0].toString(), /^ADDR fd00::/);
+  const revoke = await send(url + '/api/admin/beta/admissions/revoke', { method: 'POST', headers: { ...headers, Cookie: adminCookie }, body: JSON.stringify({ address: player.address }) });
+  assert.equal(revoke.status, 200);
+  assert.equal((await once(admitted, 'close'))[0], 1008, 'suspension closes the established proxy connection');
+  const suspended = new WebSocket(wsUrl, options);
+  clients.push(suspended);
+  assert.match((await once(suspended, 'error'))[0].message, /403/);
+  const restore = await send(url + '/api/admin/beta/admissions/restore', { method: 'POST', headers: { ...headers, Cookie: adminCookie }, body: JSON.stringify({ address: player.address }) });
+  assert.equal(restore.status, 200);
+  const restored = new WebSocket(wsUrl, options);
+  clients.push(restored);
+  await once(restored, 'open');
 });

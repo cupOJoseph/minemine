@@ -66,6 +66,23 @@ local function find_claim(claims, town_name)
     end
 end
 
+local function clear_negative_center(start, claims)
+    local center = start
+    for _ = 1, 16 do
+        local available = true
+        for _, claim in ipairs(claims) do
+            if center - 1 <= claim.x2 and center + 1 >= claim.x1 and
+                center - 1 <= claim.z2 and center + 1 >= claim.z1 then
+                available = false
+                break
+            end
+        end
+        if available then return center end
+        center = center - 32
+    end
+    error("no clear negative test claim center")
+end
+
 local function run(config)
     check(config.ensName == "builder.eth", "verified ENS fixture missing")
     local town = core.registered_chatcommands.town
@@ -192,10 +209,13 @@ local function run_restart(config)
     local ok, message = town.func(state.owner, "info")
     check(ok and message:find("protected 9/9 columns", 1, true), "town credit or claim count changed after restart")
     local negative = find_claim(map_claims(state.owner, state.guest), "West Hollow")
-    check(negative and negative.x1 == -65 and negative.x2 == -63 and
-        negative.z1 == -65 and negative.z2 == -63,
+    local center = state.negative_center
+    check(type(center) == "number" and center < 0 and center % 1 == 0,
+        "negative claim center was not persisted")
+    check(negative and negative.x1 == center - 1 and negative.x2 == center + 1 and
+        negative.z1 == center - 1 and negative.z2 == center + 1,
         "negative paid claim was not projected after native restart")
-    check(core.is_protected({ x = -64, y = state.pos.y, z = -64 }, state.owner),
+    check(core.is_protected({ x = center, y = state.pos.y, z = center }, state.owner),
         "negative claim protection was lost after native restart")
     return "PASS inventory, placed node, paid-size claim and owner/outsider protection survive native restart"
 end
@@ -625,33 +645,41 @@ core.register_globalstep(function()
         local town = core.registered_chatcommands.town
         local created, message = town.func(guest_name, "create West Hollow")
         check(created, "guest town creation failed: " .. tostring(message))
-        guest:set_pos({ x = -48, y = claim_pos.y, z = -48 })
+        local first_center = clear_negative_center(-48, map_claims(owner_name, guest_name))
+        guest:set_pos({ x = first_center, y = claim_pos.y, z = first_center })
         local first_pos = guest:get_pos()
-        check(math.floor(first_pos.x) == -48 and math.floor(first_pos.z) == -48,
+        check(math.floor(first_pos.x) == first_center and math.floor(first_pos.z) == first_center,
             "guest did not reach the first negative claim position")
         local claimed, reply = town.func(guest_name, "claim 1")
         check(claimed, "first negative claim failed: " .. tostring(reply))
         local first = find_claim(map_claims(owner_name, guest_name), "West Hollow")
-        check(first and first.x1 == -49 and first.x2 == -47 and
-            first.z1 == -49 and first.z2 == -47, "first negative claim projection is wrong")
-        check(core.is_protected({ x = -48, y = claim_pos.y, z = -48 }, owner_name),
+        check(first and first.x1 == first_center - 1 and first.x2 == first_center + 1 and
+            first.z1 == first_center - 1 and first.z2 == first_center + 1,
+            "first negative claim projection is wrong")
+        check(core.is_protected({ x = first_center, y = claim_pos.y, z = first_center }, owner_name),
             "negative claim does not protect against the other wallet")
         local removed, removed_message = town.func(guest_name, "unclaim")
         check(removed, "negative unclaim failed: " .. tostring(removed_message))
         check(find_claim(map_claims(owner_name, guest_name), "West Hollow") == nil,
             "removed negative claim remains in public projection")
-        guest:set_pos({ x = -64, y = claim_pos.y, z = -64 })
+        local moved_center = clear_negative_center(first_center - 16, map_claims(owner_name, guest_name))
+        check(moved_center < 0 and moved_center ~= first_center, "negative claim was not moved")
+        guest:set_pos({ x = moved_center, y = claim_pos.y, z = moved_center })
         local moved_pos = guest:get_pos()
-        check(math.floor(moved_pos.x) == -64 and math.floor(moved_pos.z) == -64,
+        check(math.floor(moved_pos.x) == moved_center and math.floor(moved_pos.z) == moved_center,
             "guest did not reach the moved negative claim position")
         claimed, reply = town.func(guest_name, "claim 1")
         check(claimed, "moved negative claim failed: " .. tostring(reply))
         local moved = find_claim(map_claims(owner_name, guest_name), "West Hollow")
-        check(moved and moved.x1 == -65 and moved.x2 == -63 and
-            moved.z1 == -65 and moved.z2 == -63,
+        check(moved and moved.x1 == moved_center - 1 and moved.x2 == moved_center + 1 and
+            moved.z1 == moved_center - 1 and moved.z2 == moved_center + 1,
             "moved negative claim projection is wrong")
-        check(not core.is_protected({ x = -64, y = claim_pos.y, z = -64 }, guest_name),
+        check(not core.is_protected({ x = moved_center, y = claim_pos.y, z = moved_center }, guest_name),
             "guest cannot build in own negative claim")
+        local state = read_state()
+        state.negative_center = moved_center
+        check(core.safe_file_write(world .. "/town-probe-state.json", assert(core.write_json(state))),
+            "moved negative claim center was not persisted")
         return "PASS paid negative claim creation, protection, removal, movement and public projection"
     end)
     write_result("town-negative-claim-result.txt", ok and result or "FAIL " .. tostring(result), ok)

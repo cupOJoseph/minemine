@@ -8,11 +8,15 @@ on:
       - 'server/**'
       - 'playtest/**'
       - 'test/integration/browser-native.mjs'
+      - 'test/integration/browser-native-load.mjs'
       - 'test/integration/browser-native-restart.mjs'
       - 'test/integration/wallet-ui-evm.mjs'
       - 'test/integration/admin-beta-ui.mjs'
       - 'test/integration/beta-player-ui.mjs'
+      - 'test/integration/managed-name-ui.mjs'
       - 'test/integration/map-ui.mjs'
+      - 'test/integration/pages-landing.mjs'
+      - 'test/integration/account-ui.mjs'
       - 'test/integration/town_probe/**'
       - 'test/integration/map_edit_probe/**'
       - 'package.json'
@@ -22,6 +26,9 @@ on:
       - 'scripts/ci-api-service.sh'
       - 'scripts/ci-deploy-economy.mjs'
       - 'scripts/package-host-runtime.sh'
+      - 'scripts/build-account.mjs'
+      - 'client/account.jsx'
+      - 'public/account/**'
       - 'scripts/build-minetestmapper.sh'
       - 'scripts/publish-map-from-backup.mjs'
       - 'scripts/ci-mapserver-smoke.sh'
@@ -29,6 +36,9 @@ on:
       - 'patches/mapserver/**'
       - 'scripts/ci-static-map-snapshot.sh'
       - 'public/map/**'
+      - 'public/app.js'
+      - 'public/index.html'
+      - 'public/style.css'
       - 'deploy/vps/**'
       - 'upstream.sources.json'
 permissions:
@@ -87,6 +97,7 @@ jobs:
             echo 'Native server logged an error while starting the world.'
             exit 1
           fi
+          WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" node scripts/check-native-metrics.mjs
       - name: Restore a stopped-world backup and restart
         run: |
           tar -C runtime -czf runtime/native-world-backup.tar.gz native-world
@@ -114,8 +125,14 @@ jobs:
         run: npm run test:wallet-ui
       - name: Exercise beta admin controls in Chromium
         run: npm run test:admin-ui
+      - name: Exercise local ZeroDev account lab in Chromium
+        run: |
+          npm run account:build
+          node test/integration/account-ui.mjs
       - name: Exercise player beta redemption in Chromium
         run: npm run test:beta-player-ui
+      - name: Exercise managed-name term in Chromium
+        run: npm run test:managed-name-ui
       - uses: actions/download-artifact@v4
         with:
           name: miners-solo-playtest
@@ -126,6 +143,10 @@ jobs:
         run: |
           cp -a runtime/downloaded-build/public/engine public/engine
           npm run adapter:install
+      - name: Exercise Pages landing in Chromium
+        run: |
+          PAGES_SITE_DIR="$GITHUB_WORKSPACE/runtime/pages-smoke" node scripts/prepare-pages-playtest.mjs
+          PAGES_SITE_DIR="$GITHUB_WORKSPACE/runtime/pages-smoke" node test/integration/pages-landing.mjs
       - name: Build pinned world mapper for host archive
         run: bash scripts/build-minetestmapper.sh
       - name: Package and test relocated host runtime
@@ -136,6 +157,8 @@ jobs:
           tar -C runtime/host-bundle-check -xzf runtime/minemine-host-runtime-ubuntu22-x64.tar.gz
           test -x runtime/host-bundle-check/vendor/native/bin/luantiserver
           test -f runtime/host-bundle-check/.env.example
+          test -f runtime/host-bundle-check/public/account/account.js
+          test -f runtime/host-bundle-check/public/account/account.js.LEGAL.txt
           test -f runtime/host-bundle-check/public/engine/adapter.js
           test -f runtime/host-bundle-check/deploy/vps/backup-world.sh
           test -x runtime/host-bundle-check/vendor/mapper/minetestmapper
@@ -164,6 +187,8 @@ jobs:
           set -euo pipefail
           cp -a test/integration/town_probe runtime/native-world/worldmods/town_probe
           printf '\nload_mod_town_probe = true\n' >> runtime/native-world/world.mt
+          sed 's/^max_users = 2$/max_users = 4/' game/minetest.conf > runtime/ci-minetest.conf
+          grep -Fxq 'max_users = 4' runtime/ci-minetest.conf
           world_dir="$GITHUB_WORKSPACE/runtime/native-world"
           node_binary=$(command -v node)
           start_stack() {
@@ -172,7 +197,7 @@ jobs:
             local native_log=$3
             local api_log=$4
             sudo systemd-run --quiet --unit="minemine-ci-native-$phase" --slice=minemine-ci.slice --uid="$USER" --same-dir --property=Type=exec \
-              /usr/bin/bash "$GITHUB_WORKSPACE/scripts/ci-native-service.sh" "$world_dir" "$GITHUB_WORKSPACE/runtime/$engine_log" "$GITHUB_WORKSPACE/runtime/$native_log"
+              /usr/bin/bash "$GITHUB_WORKSPACE/scripts/ci-native-service.sh" "$world_dir" "$GITHUB_WORKSPACE/runtime/$engine_log" "$GITHUB_WORKSPACE/runtime/$native_log" "$GITHUB_WORKSPACE/runtime/ci-minetest.conf"
             sudo systemd-run --quiet --unit="minemine-ci-api-$phase" --slice=minemine-ci.slice --uid="$USER" --same-dir --property=Type=exec \
               /usr/bin/bash "$GITHUB_WORKSPACE/scripts/ci-api-service.sh" "$world_dir" "$GITHUB_WORKSPACE/runtime/$api_log" "$node_binary" "$GITHUB_WORKSPACE/runtime/ci-economy.env"
             test "$(systemctl show -P Slice "minemine-ci-native-$phase.service")" = 'minemine-ci.slice'
@@ -244,6 +269,7 @@ jobs:
           bash scripts/sample-stack-memory.sh "$native_pid" "$api_pid" runtime/server-memory-first.csv runtime/server-memory-first.stop &
           sampler_pid=$!
           WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" NATIVE_LOG=runtime/browser-native.log node test/integration/browser-native.mjs
+          WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" NATIVE_LOG=runtime/browser-native.log node test/integration/browser-native-load.mjs
           touch runtime/server-memory-first.stop
           wait "$sampler_pid"
           capture_cgroup first
@@ -338,6 +364,9 @@ jobs:
             runtime/server-memory-first.csv
             runtime/server-memory-restart.csv
             runtime/server-memory-summary.txt
+            runtime/native-load-snapshots.jsonl
+            runtime/native-load-joins.jsonl
+            runtime/native-world/minemine-native-metrics.json
             runtime/admin-beta-desktop.png
             runtime/admin-beta-mobile.png
             runtime/beta-player-admitted.png
@@ -347,6 +376,7 @@ jobs:
             runtime/server-cgroup-restart-events.txt
             runtime/server-cgroup-summary.txt
             runtime/native-world/town-probe-result.txt
+            runtime/native-world/town-probe-state.json
             runtime/native-world/town-negative-claim-result.txt
             runtime/native-world/town-probe-reconnect-result.txt
             runtime/native-world/town-expired-grant-check-result.txt

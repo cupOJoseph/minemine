@@ -12,6 +12,7 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run account:build
       - run: npm test
       - run: bash test/backup-world.sh
       - run: npm run test:http

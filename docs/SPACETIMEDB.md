@@ -17,6 +17,12 @@ The first opt-in 32-browser CI rehearsal [stopped at the 16th join](https://gith
 
 SpacetimeDB's module model uses [tables, reducers, and subscriptions](https://spacetimedb.com/docs/intro/key-architecture/). A database module is a possible authority for bounded social state; it does not make the current single Luanti simulation process support more players by itself.
 
+## Pilot hosting within the budget
+
+As checked on 2026-11-04, [Maincloud Free](https://spacetimedb.com/pricing) lists $0/month with 2,500 TeV of monthly credit (approximately 3 million function calls, 12.5 GB egress, or 1 GB table storage as individual equivalents). A separate SpacetimeDB pilot there would keep the proposed $7.80/month DigitalOcean base plan below the owner's $10 ceiling **only while usage remains within the free credit and before tax or VPS overages**. The $25/month Pro tier is outside that ceiling. Do not enable paid usage or move the live world into Maincloud without a cost and recovery decision.
+
+Maincloud Free [can pause an idle database](https://spacetimedb.com/docs/how-to/deploy/maincloud/); the pricing page lists automatic replication and backups under Pro. Keep the first module a disposable, server-only profile projection and measure actual energy, egress, reconnect catch-up, and availability before relying on it for player-visible state. Self-hosting SpacetimeDB alongside Luanti on the 1 GiB Droplet has not been measured and is not included in the first-host plan. A Maincloud account and OIDC service identity are still needed for a real bridge; the local pilot used neither.
+
 ## Acceptance gate for a single large world
 
 A design is ready to replace a portion of Luanti authority only after two independent clients observe identical edits after reconnect, conflicting edits resolve deterministically, protection is enforced server-side, a forged caller identity and wrong-issuer/audience tokens are rejected, backups restore consistent world and account state, and a specified concurrency target holds acceptable tick and network latency on a named host. Until then, “many players in one world” remains a measured target, not a shipped feature.

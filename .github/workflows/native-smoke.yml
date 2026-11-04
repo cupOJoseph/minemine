@@ -15,6 +15,7 @@ on:
       - 'test/integration/beta-player-ui.mjs'
       - 'test/integration/managed-name-ui.mjs'
       - 'test/integration/map-ui.mjs'
+      - 'test/integration/host-proxy.mjs'
       - 'test/integration/pages-landing.mjs'
       - 'test/integration/account-ui.mjs'
       - 'test/integration/town_probe/**'
@@ -32,6 +33,7 @@ on:
       - 'scripts/build-minetestmapper.sh'
       - 'scripts/publish-map-from-backup.mjs'
       - 'scripts/ci-mapserver-smoke.sh'
+      - 'scripts/ci-host-stack-smoke.sh'
       - 'scripts/ci-build-patched-mapserver.sh'
       - 'patches/mapserver/**'
       - 'scripts/ci-static-map-snapshot.sh'
@@ -338,6 +340,38 @@ jobs:
           test "$(cat "/sys/fs/cgroup$cgroup/memory.max")" = '805306368'
           test "$(cat "/sys/fs/cgroup$cgroup/memory.swap.max")" = '0'
           test "$(awk '$1 == "oom_kill" { print $2 }' runtime/mapserver-cgroup-events.txt)" = '0'
+      - name: Download checksum-pinned official Caddy for host rehearsal
+        run: |
+          mkdir -p runtime/host-caddy
+          curl --fail --location --silent --show-error --retry 3 \
+            https://github.com/caddyserver/caddy/releases/download/v2.11.7/caddy_2.11.7_linux_amd64.tar.gz \
+            -o runtime/host-caddy/caddy.tar.gz
+          printf '%s  %s\n' 727b91701a392de6ebc5027509f548bf39979e5216340d0faed8fa5e69c84f8b runtime/host-caddy/caddy.tar.gz | sha256sum --check
+          tar -C runtime/host-caddy -xzf runtime/host-caddy/caddy.tar.gz caddy
+          test -x runtime/host-caddy/caddy
+          runtime/host-caddy/caddy version
+      - name: Rehearse Caddy, Node and Luanti under 1 GiB and one CPU
+        run: |
+          sudo systemctl set-property --runtime minemine-host-ci.slice MemoryAccounting=yes MemoryMax=1G MemorySwapMax=0 CPUAccounting=yes CPUQuota=100%
+          test "$(systemctl show -P MemoryMax minemine-host-ci.slice)" = '1073741824'
+          test "$(systemctl show -P MemorySwapMax minemine-host-ci.slice)" = '0'
+          sudo systemd-run --quiet --scope --unit=minemine-host-ci-rehearsal --slice=minemine-host-ci.slice --uid="$USER" --same-dir \
+            /usr/bin/env GITHUB_WORKSPACE="$GITHUB_WORKSPACE" NODE_BINARY="$(command -v node)" \
+            /usr/bin/bash scripts/ci-host-stack-smoke.sh
+      - name: Record one-core host stack resource use
+        if: always()
+        run: |
+          cgroup=$(systemctl show -P ControlGroup minemine-host-ci.slice 2>/dev/null || true)
+          if [ -z "$cgroup" ]; then echo 'Host rehearsal slice was not started.'; exit 0; fi
+          test -f "/sys/fs/cgroup$cgroup/memory.peak"
+          cat "/sys/fs/cgroup$cgroup/memory.peak" | tee runtime/host-cgroup-peak-bytes.txt
+          cat "/sys/fs/cgroup$cgroup/memory.events" | tee runtime/host-cgroup-events.txt
+          cat "/sys/fs/cgroup$cgroup/cpu.stat" | tee runtime/host-cgroup-cpu-stat.txt
+          cat "/sys/fs/cgroup$cgroup/cpu.max" | tee runtime/host-cgroup-cpu-max.txt
+          test "$(cat "/sys/fs/cgroup$cgroup/memory.max")" = '1073741824'
+          test "$(cat "/sys/fs/cgroup$cgroup/memory.swap.max")" = '0'
+          awk '{ if ($1 != $2) exit 1 }' runtime/host-cgroup-cpu-max.txt
+          test "$(awk '$1 == "oom_kill" { print $2 }' runtime/host-cgroup-events.txt)" = '0'
       - name: Render a bounded static map from a stopped-world copy
         run: bash scripts/ci-static-map-snapshot.sh
       - name: Exercise the generated world map in Chromium
@@ -439,6 +473,16 @@ jobs:
             runtime/mapserver-edit-native-console.log
             runtime/mapserver-world-restart.log
             runtime/mapserver-world-restart-console.log
+            runtime/host-native-console.log
+            runtime/host-api-console.log
+            runtime/host-caddy-console.log
+            runtime/host-caddy-validate.log
+            runtime/host-api-health.json
+            runtime/host-wasm-headers.txt
+            runtime/host-cgroup-peak-bytes.txt
+            runtime/host-cgroup-events.txt
+            runtime/host-cgroup-cpu-stat.txt
+            runtime/host-cgroup-cpu-max.txt
             runtime/static-world-map.png
             runtime/static-world-map.json
             runtime/static-map-render.log

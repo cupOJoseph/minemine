@@ -42,22 +42,40 @@ async function session(action, expectedPosition) {
   });
   try {
     const page = context.pages()[0] || await context.newPage();
+    const events = [];
+    function record(kind, message) {
+      events.push({ at: new Date().toISOString(), kind, message: String(message).slice(0, 800) });
+      if (events.length > 300) events.shift();
+    }
+    page.on('console', message => record(`console:${message.type()}`, message.text()));
+    page.on('pageerror', error => record('pageerror', error.message));
+    page.on('requestfailed', request => record('requestfailed', `${request.method()} ${request.url()} ${request.failure()?.errorText || ''}`));
+    page.on('response', response => { if (response.status() >= 400) record('http', `${response.status()} ${response.url()}`); });
+    page.on('crash', () => record('page', 'crashed'));
+    async function saveDiagnostics(stage) {
+      const state = await page.evaluate(() => {
+        const canvas = document.querySelector('#canvas');
+        return {
+          href: location.href, title: document.title, readyState: document.readyState,
+          userAgent: navigator.userAgent, crossOriginIsolated,
+          status: document.querySelector('#status')?.textContent?.trim() || null,
+          startDisabled: document.querySelector('#start')?.disabled ?? null,
+          storageNotice: document.querySelector('#miners-playtest-overlay')?.textContent?.trim() || null,
+          canvas: canvas && { width: canvas.width, height: canvas.height },
+        };
+      }).catch(error => ({ unavailable: error.message }));
+      writeFileSync(join(artifactDir, `${action}-diagnostics.json`), JSON.stringify({ stage, state, events }, null, 2));
+    }
     try {
       await page.goto(url.href, { waitUntil: 'domcontentloaded' });
       const joined = waitForConsole(page, /singleplayer.*joins game/);
       await page.locator('#start').click();
       await page.locator('#miners-playtest-overlay').waitFor({ timeout: 180_000 });
       assert.match(await page.locator('#miners-playtest-overlay').textContent(), /Browser storage active/);
+      await saveDiagnostics('storage-active');
       await joined;
       await page.waitForTimeout(8_000);
-      writeFileSync(join(artifactDir, `${action}-environment.json`), JSON.stringify(await page.evaluate(() => ({
-        userAgent: navigator.userAgent,
-        crossOriginIsolated,
-        canvas: (() => { const canvas = document.querySelector('#canvas'); return canvas && {
-          width: canvas.width, height: canvas.height,
-        }; })(),
-        storageNotice: document.querySelector('#miners-playtest-overlay')?.textContent?.trim() || null,
-      })), null, 2));
+      await saveDiagnostics('joined');
       await page.screenshot({ path: join(artifactDir, `${action}-world.png`) });
 
       // The pinned starter world spawns facing above a nearby tree. Focus the
@@ -84,6 +102,7 @@ async function session(action, expectedPosition) {
       await page.locator('#start').waitFor({ timeout: 30_000 });
       return position;
     } catch (error) {
+      await saveDiagnostics(`failed: ${error.message}`);
       await page.screenshot({ path: join(artifactDir, `${action}-failure.png`), timeout: 10_000 }).catch(() => {});
       throw error;
     }

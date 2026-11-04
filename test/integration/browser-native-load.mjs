@@ -9,7 +9,7 @@ const worldDir = process.env.WORLD_DIR || 'runtime/native-world';
 const logPath = process.env.NATIVE_LOG || 'runtime/browser-native.log';
 const output = process.env.LOAD_RESULTS || 'runtime/native-load-snapshots.jsonl';
 const joinOutput = process.env.LOAD_JOIN_RESULTS || 'runtime/native-load-joins.jsonl';
-const stages = [2, 4, 8];
+const stages = [2, 4, 8, 16];
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function signIn(wallet) {

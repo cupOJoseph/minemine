@@ -40,6 +40,7 @@ export async function syncPendingProfiles({ registry, databaseOrigin, databaseNa
   const rows = registry.pendingProfileProjections(batchSize);
   const url = new URL(`/v1/database/${databaseName}/call/upsert_profile`, base);
   url.searchParams.set('confirmed', 'true');
+  let acknowledged = 0;
   for (const row of rows) {
     const response = await fetchImpl(url, {
       method: 'POST',
@@ -48,7 +49,7 @@ export async function syncPendingProfiles({ registry, databaseOrigin, databaseNa
       signal: AbortSignal.timeout(10_000),
     });
     if (!response.ok) throw new Error(`Profile projection failed (HTTP ${response.status}).`);
-    registry.acknowledgeProfileProjection(row.accountId, row.revision);
+    if (registry.acknowledgeProfileProjection(row.accountId, row.revision)) acknowledged++;
   }
-  return rows.length;
+  return acknowledged;
 }

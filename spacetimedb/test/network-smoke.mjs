@@ -97,6 +97,7 @@ try {
         assert.equal(accountId, projected.accountId);
         assert.equal(revision, 1);
         acknowledged = true;
+        return true;
       },
     },
     databaseOrigin: origin, databaseName: database, token: bridge.token, allowLoopback: true,

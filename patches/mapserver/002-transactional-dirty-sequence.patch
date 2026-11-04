@@ -1,0 +1,352 @@
+diff --git a/db/accessor.go b/db/accessor.go
+index 6ba83ea..b7f7c9f 100644
+--- a/db/accessor.go
++++ b/db/accessor.go
+@@ -9,6 +9,7 @@ type Block struct {
+ 	Pos   *types.MapBlockCoords
+ 	Data  []byte
+ 	Mtime int64
++	Seq   int64
+ }
+ 
+ // BlockCursor is persisted after a rendered batch. Position breaks ties when
+@@ -16,6 +17,7 @@ type Block struct {
+ type BlockCursor struct {
+ 	Mtime int64                 `json:"mtime"`
+ 	Pos   *types.MapBlockCoords `json:"pos,omitempty"`
++	Seq   int64                 `json:"seq,omitempty"`
+ }
+ 
+ type InitialBlocksResult struct {
+diff --git a/db/sqlite/cursor_test.go b/db/sqlite/cursor_test.go
+index 53cb7b0..e1d0b0b 100644
+--- a/db/sqlite/cursor_test.go
++++ b/db/sqlite/cursor_test.go
+@@ -11,7 +11,7 @@ import (
+ 	"testing"
+ )
+ 
+-func TestMtimeCursorDrainsSameTimestampAcrossPages(t *testing.T) {
++func TestDirtySequenceDrainsSameTimestampAcrossPages(t *testing.T) {
+ 	for _, legacy := range []bool{false, true} {
+ 		t.Run(fmt.Sprintf("legacy=%t", legacy), func(t *testing.T) {
+ 			filename := filepath.Join(t.TempDir(), "map.sqlite")
+@@ -67,10 +67,6 @@ func TestMtimeCursorDrainsSameTimestampAcrossPages(t *testing.T) {
+ 			}
+ 
+ 			cursor := db.BlockCursor{Mtime: 999}
+-			pending, err := accessor.FindBlocksByMtime(cursor, 1000, 128)
+-			if err != nil || len(pending) != 0 {
+-				t.Fatalf("current timestamp must wait, got %d blocks and %v", len(pending), err)
+-			}
+ 			seen := make(map[int]bool)
+ 			for _, want := range []int{128, 128, 87} {
+ 				page, err := accessor.FindBlocksByMtime(cursor, 1001, 128)
+@@ -87,7 +83,7 @@ func TestMtimeCursorDrainsSameTimestampAcrossPages(t *testing.T) {
+ 					seen[block.Pos.X] = true
+ 				}
+ 				last := page[len(page)-1]
+-				cursor = db.BlockCursor{Mtime: last.Mtime, Pos: last.Pos}
++				cursor = db.BlockCursor{Mtime: last.Mtime, Pos: last.Pos, Seq: last.Seq}
+ 			}
+ 			if len(seen) != 343 {
+ 				t.Fatalf("only saw %d of 343 blocks", len(seen))
+@@ -96,6 +92,84 @@ func TestMtimeCursorDrainsSameTimestampAcrossPages(t *testing.T) {
+ 			if err != nil || len(page) != 0 {
+ 				t.Fatalf("expected cursor to be drained, got %d blocks and %v", len(page), err)
+ 			}
++			if err := accessor.Migrate(); err != nil {
++				t.Fatal(err)
++			}
++			page, err = accessor.FindBlocksByMtime(cursor, 1001, 128)
++			if err != nil || len(page) != 0 {
++				t.Fatalf("cursor should remain drained after migration, got %d blocks and %v", len(page), err)
++			}
++		})
++	}
++}
++
++func TestDirtySequenceSeesDelayedCommitAndReplayedEdit(t *testing.T) {
++	for _, legacy := range []bool{false, true} {
++		t.Run(fmt.Sprintf("legacy=%t", legacy), func(t *testing.T) {
++			filename := filepath.Join(t.TempDir(), "map.sqlite")
++			if legacy {
++				testutils.CreateEmptyLegacyDatabase(filename)
++			} else {
++				testutils.CreateEmptyDatabase(filename)
++			}
++			accessor, err := New(filename)
++			if err != nil {
++				t.Fatal(err)
++			}
++			defer accessor.db.Close()
++			if err := accessor.Migrate(); err != nil {
++				t.Fatal(err)
++			}
++			writer, err := sql.Open("sqlite", filename+"?mode=rw")
++			if err != nil {
++				t.Fatal(err)
++			}
++			defer writer.Close()
++			insert := "INSERT INTO blocks(x,y,z,data) VALUES (?,0,0,?)"
++			if legacy {
++				insert = "INSERT INTO blocks(pos,data) VALUES (?,?)"
++			}
++			position := func(x int) int64 {
++				if legacy {
++					return util.CoordToPlain(types.NewMapBlockCoords(x, 0, 0))
++				}
++				return int64(x)
++			}
++			if _, err := writer.Exec(insert, position(200), []byte("first")); err != nil {
++				t.Fatal(err)
++			}
++			tx, err := writer.Begin()
++			if err != nil {
++				t.Fatal(err)
++			}
++			defer tx.Rollback()
++			if _, err := tx.Exec(insert, position(100), []byte("late")); err != nil {
++				t.Fatal(err)
++			}
++			first, err := accessor.FindBlocksByMtime(db.BlockCursor{}, 0, 128)
++			if err != nil || len(first) != 1 || first[0].Pos.X != 200 {
++				t.Fatalf("uncommitted block must be invisible: %v, %v", first, err)
++			}
++			if err := tx.Commit(); err != nil {
++				t.Fatal(err)
++			}
++			cursor := db.BlockCursor{Seq: first[0].Seq}
++			second, err := accessor.FindBlocksByMtime(cursor, 0, 128)
++			if err != nil || len(second) != 1 || second[0].Pos.X != 100 {
++				t.Fatalf("delayed commit must appear after cursor: %v, %v", second, err)
++			}
++			update := "UPDATE blocks SET data = ? WHERE x = ? AND y = 0 AND z = 0"
++			if legacy {
++				update = "UPDATE blocks SET data = ? WHERE pos = ?"
++			}
++			if _, err := writer.Exec(update, []byte("again"), position(200)); err != nil {
++				t.Fatal(err)
++			}
++			cursor.Seq = second[0].Seq
++			third, err := accessor.FindBlocksByMtime(cursor, 0, 128)
++			if err != nil || len(third) != 1 || third[0].Pos.X != 200 || string(third[0].Data) != "again" {
++				t.Fatalf("edit after cursor must reappear: %v, %v", third, err)
++			}
+ 		})
+ 	}
+ }
+diff --git a/db/sqlite/sql.go b/db/sqlite/sql.go
+index 7003c1c..68194b0 100644
+--- a/db/sqlite/sql.go
++++ b/db/sqlite/sql.go
+@@ -18,6 +18,62 @@ const getBlocksByMtimeQueryLegacy = `
+ 	limit ?
+ `
+ 
++const createDirtyQueueXYZ = `
++	CREATE TABLE IF NOT EXISTS mapserver_change_counter (
++		id INTEGER PRIMARY KEY CHECK (id = 1), seq INTEGER NOT NULL
++	);
++	INSERT OR IGNORE INTO mapserver_change_counter(id, seq) VALUES (1, 0);
++	CREATE TABLE IF NOT EXISTS mapserver_dirty (
++		x INTEGER NOT NULL, y INTEGER NOT NULL, z INTEGER NOT NULL,
++		seq INTEGER NOT NULL, PRIMARY KEY (x, y, z)
++	);
++	CREATE INDEX IF NOT EXISTS mapserver_dirty_seq ON mapserver_dirty(seq);
++	CREATE TRIGGER IF NOT EXISTS mapserver_dirty_insert AFTER INSERT ON blocks BEGIN
++		UPDATE mapserver_change_counter SET seq = seq + 1 WHERE id = 1;
++		INSERT OR REPLACE INTO mapserver_dirty(x, y, z, seq)
++			VALUES (NEW.x, NEW.y, NEW.z, (SELECT seq FROM mapserver_change_counter WHERE id = 1));
++	END;
++	CREATE TRIGGER IF NOT EXISTS mapserver_dirty_update AFTER UPDATE OF data ON blocks BEGIN
++		UPDATE mapserver_change_counter SET seq = seq + 1 WHERE id = 1;
++		INSERT OR REPLACE INTO mapserver_dirty(x, y, z, seq)
++			VALUES (NEW.x, NEW.y, NEW.z, (SELECT seq FROM mapserver_change_counter WHERE id = 1));
++	END;
++`
++
++const createDirtyQueueLegacy = `
++	CREATE TABLE IF NOT EXISTS mapserver_change_counter (
++		id INTEGER PRIMARY KEY CHECK (id = 1), seq INTEGER NOT NULL
++	);
++	INSERT OR IGNORE INTO mapserver_change_counter(id, seq) VALUES (1, 0);
++	CREATE TABLE IF NOT EXISTS mapserver_dirty (
++		pos INTEGER PRIMARY KEY, seq INTEGER NOT NULL
++	);
++	CREATE INDEX IF NOT EXISTS mapserver_dirty_seq ON mapserver_dirty(seq);
++	CREATE TRIGGER IF NOT EXISTS mapserver_dirty_insert AFTER INSERT ON blocks BEGIN
++		UPDATE mapserver_change_counter SET seq = seq + 1 WHERE id = 1;
++		INSERT OR REPLACE INTO mapserver_dirty(pos, seq)
++			VALUES (NEW.pos, (SELECT seq FROM mapserver_change_counter WHERE id = 1));
++	END;
++	CREATE TRIGGER IF NOT EXISTS mapserver_dirty_update AFTER UPDATE OF data ON blocks BEGIN
++		UPDATE mapserver_change_counter SET seq = seq + 1 WHERE id = 1;
++		INSERT OR REPLACE INTO mapserver_dirty(pos, seq)
++			VALUES (NEW.pos, (SELECT seq FROM mapserver_change_counter WHERE id = 1));
++	END;
++`
++
++const getDirtyBlocksXYZ = `
++	SELECT b.x, b.y, b.z, b.data, b.mtime, d.seq
++	FROM mapserver_dirty d JOIN blocks b
++		ON b.x = d.x AND b.y = d.y AND b.z = d.z
++	WHERE d.seq > ? ORDER BY d.seq LIMIT ?
++`
++
++const getDirtyBlocksLegacy = `
++	SELECT b.pos, b.data, b.mtime, d.seq
++	FROM mapserver_dirty d JOIN blocks b ON b.pos = d.pos
++	WHERE d.seq > ? ORDER BY d.seq LIMIT ?
++`
++
+ const countBlocksQuery = `
+ 	select count(*) from blocks b
+ `
+diff --git a/db/sqlite/sqlite.go b/db/sqlite/sqlite.go
+index 64a3e5f..8ca1ac4 100644
+--- a/db/sqlite/sqlite.go
++++ b/db/sqlite/sqlite.go
+@@ -76,6 +76,19 @@ func (db *Sqlite3Accessor) Migrate() error {
+ 		log.WithFields(logrus.Fields{"elapsed": elapsed}).Info("Migration completed")
+ 	}
+ 
++	// Install after the mtime migration so both fresh and already migrated
++	// worlds record new writes. A row in this queue is replaced on each edit,
++	// bounding its size by the number of distinct mapblocks ever changed.
++	// Retaining rows allows safe replay if cursor settings are lost or rolled
++	// back independently of the world database.
++	queueSchema := createDirtyQueueXYZ
++	if db.legacy_pos {
++		queueSchema = createDirtyQueueLegacy
++	}
++	if _, err := rwdb.Exec(queueSchema); err != nil {
++		return fmt.Errorf("create mapserver dirty queue failed: %w", err)
++	}
++
+ 	return nil
+ }
+ 
+@@ -91,11 +104,7 @@ func (a *Sqlite3Accessor) FindBlocksByMtime(cursor db.BlockCursor, before int64,
+ 	}
+ 
+ 	if a.legacy_pos {
+-		lastPos := int64(util.MinPlainCoord - 1)
+-		if cursor.Pos != nil {
+-			lastPos = util.CoordToPlain(cursor.Pos)
+-		}
+-		rows, err := a.db.Query(getBlocksByMtimeQueryLegacy, cursor.Mtime, lastPos, before, limit)
++		rows, err := a.db.Query(getDirtyBlocksLegacy, cursor.Seq, limit)
+ 		if err != nil {
+ 			return nil, err
+ 		}
+@@ -106,21 +115,22 @@ func (a *Sqlite3Accessor) FindBlocksByMtime(cursor db.BlockCursor, before int64,
+ 			var pos int64
+ 			var data []byte
+ 			var mtime int64
++			var seq int64
+ 
+-			err = rows.Scan(&pos, &data, &mtime)
++			err = rows.Scan(&pos, &data, &mtime, &seq)
+ 			if err != nil {
+ 				return nil, err
+ 			}
+ 
+ 			mb := convertRows(pos, data, mtime)
++			mb.Seq = seq
+ 			blocks = append(blocks, mb)
+ 		}
+-	} else {
+-		lastPos := &types.MapBlockCoords{X: -1 << 31, Y: -1 << 31, Z: -1 << 31}
+-		if cursor.Pos != nil {
+-			lastPos = cursor.Pos
++		if err := rows.Err(); err != nil {
++			return nil, err
+ 		}
+-		rows, err := a.db.Query(getBlocksByMtimeQuery, cursor.Mtime, lastPos.X, lastPos.Y, lastPos.Z, before, limit)
++	} else {
++		rows, err := a.db.Query(getDirtyBlocksXYZ, cursor.Seq, limit)
+ 		if err != nil {
+ 			return nil, err
+ 		}
+@@ -130,13 +140,16 @@ func (a *Sqlite3Accessor) FindBlocksByMtime(cursor db.BlockCursor, before int64,
+ 		for rows.Next() {
+ 			mb := &db.Block{Pos: &types.MapBlockCoords{}}
+ 
+-			err = rows.Scan(&mb.Pos.X, &mb.Pos.Y, &mb.Pos.Z, &mb.Data, &mb.Mtime)
++			err = rows.Scan(&mb.Pos.X, &mb.Pos.Y, &mb.Pos.Z, &mb.Data, &mb.Mtime, &mb.Seq)
+ 			if err != nil {
+ 				return nil, err
+ 			}
+ 
+ 			blocks = append(blocks, mb)
+ 		}
++		if err := rows.Err(); err != nil {
++			return nil, err
++		}
+ 	}
+ 
+ 	return blocks, nil
+diff --git a/mapblockaccessor/mtime.go b/mapblockaccessor/mtime.go
+index ac87271..f03a4c8 100644
+--- a/mapblockaccessor/mtime.go
++++ b/mapblockaccessor/mtime.go
+@@ -14,6 +14,7 @@ type FindMapBlocksByMtimeResult struct {
+ 	HasMore         bool
+ 	LastPos         *types.MapBlockCoords
+ 	LastMtime       int64
++	LastSeq         int64
+ 	List            []*types.ParsedMapblock
+ 	UnfilteredCount int
+ }
+@@ -36,7 +37,7 @@ func (a *MapBlockAccessor) FindMapBlocksByMtime(cursor db.BlockCursor, before in
+ 		return nil, err
+ 	}
+ 
+-	result := FindMapBlocksByMtimeResult{LastMtime: cursor.Mtime}
++	result := FindMapBlocksByMtimeResult{LastMtime: cursor.Mtime, LastSeq: cursor.Seq}
+ 
+ 	mblist := make([]*types.ParsedMapblock, 0)
+ 	var newlastpos *types.MapBlockCoords
+@@ -46,6 +47,7 @@ func (a *MapBlockAccessor) FindMapBlocksByMtime(cursor db.BlockCursor, before in
+ 	for _, block := range blocks {
+ 		newlastpos = block.Pos
+ 		result.LastMtime = block.Mtime
++		result.LastSeq = block.Seq
+ 
+ 		currentLayer := types.FindLayerByY(layerfilter, block.Pos.Y)
+ 
+diff --git a/tilerendererjob/incremental.go b/tilerendererjob/incremental.go
+index 26698e6..2ec5d25 100644
+--- a/tilerendererjob/incremental.go
++++ b/tilerendererjob/incremental.go
+@@ -14,7 +14,7 @@ type IncrementalRenderEvent struct {
+ 	LastMtime int64 `json:"lastmtime"`
+ }
+ 
+-const incrementalCursorKey = "incremental_cursor_v1"
++const incrementalCursorKey = "incremental_cursor_v2"
+ 
+ func incrementalRender(ctx *app.App) {
+ 	cursor := db.BlockCursor{Mtime: ctx.Settings.GetInt64(settings.SETTING_LAST_MTIME, 0)}
+@@ -35,9 +35,8 @@ func incrementalRender(ctx *app.App) {
+ 
+ 	for true {
+ 		start := time.Now()
+-		// Both map databases stamp writes with their own clock. Delay the
+-		// current timestamp until it has closed, so a late write cannot land
+-		// behind the position cursor within the same timestamp.
++		// PostgreSQL still uses the bounded timestamp cursor. SQLite reads its
++		// transactional sequence and ignores this timestamp cutoff.
+ 		before, err := ctx.Blockdb.GetTimestamp()
+ 		if err != nil {
+ 			panic(err)
+@@ -56,7 +55,7 @@ func incrementalRender(ctx *app.App) {
+ 
+ 		tiles := renderMapblocks(ctx, result.List)
+ 
+-		cursor = db.BlockCursor{Mtime: result.LastMtime, Pos: result.LastPos}
++		cursor = db.BlockCursor{Mtime: result.LastMtime, Pos: result.LastPos, Seq: result.LastSeq}
+ 		saved, err := json.Marshal(cursor)
+ 		if err != nil {
+ 			panic(err)

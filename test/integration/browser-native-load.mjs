@@ -128,6 +128,23 @@ async function requestPositions(label) {
   throw new Error(`Native ${label} position snapshot did not arrive`);
 }
 
+async function prepareMovement(actorNames) {
+  const resultPath = path.join(worldDir, 'minemine-load-prepare-result.json');
+  await writeFile(path.join(worldDir, 'minemine-load-prepare.json'),
+    `${JSON.stringify({ players: actorNames })}\n`, { mode: 0o600 });
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    const raw = await readFile(resultPath, 'utf8').catch(() => '');
+    if (raw) {
+      const result = JSON.parse(raw);
+      assert.deepEqual(result, { ready: true, count: actorNames.length }, 'native movement pads must be ready');
+      return;
+    }
+    await sleep(500);
+  }
+  throw new Error('Native movement pads were not prepared');
+}
+
 await writeFile(output, '');
 await writeFile(joinOutput, '');
 const browsers = [];
@@ -199,6 +216,10 @@ try {
   }
   const actorNames = [...names].slice(0, 8);
   const actorPages = pages.slice(0, actorNames.length);
+  // All new characters share one spawn coordinate. Separate the actors on
+  // disposable pads so crowding cannot masquerade as a failed input packet.
+  await prepareMovement(actorNames);
+  await sleep(5_000);
   const beforePositions = await requestPositions('before');
   assert.equal(beforePositions.count, maxClients, 'movement baseline needs every native player');
   const beforeTraffic = gameTrafficTotals(gameTraffic);

@@ -11,8 +11,8 @@ const output = process.env.LOAD_RESULTS || 'runtime/native-load-snapshots.jsonl'
 const joinOutput = process.env.LOAD_JOIN_RESULTS || 'runtime/native-load-joins.jsonl';
 const movementOutput = process.env.LOAD_MOVEMENT_RESULTS || 'runtime/native-load-movement.json';
 const maxClients = Number(process.env.LOAD_MAX_CLIENTS || 16);
-assert.ok([16, 32].includes(maxClients), 'load rehearsal supports only 16 or 32 clients');
-const stages = maxClients === 32 ? [2, 4, 8, 16, 32] : [2, 4, 8, 16];
+assert.ok([16, 20, 32].includes(maxClients), 'load rehearsal supports 16, 20, or 32 clients');
+const stages = maxClients === 16 ? [2, 4, 8, 16] : [2, 4, 8, 16, maxClients];
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function watchGameSocket(page, markers, traffic) {

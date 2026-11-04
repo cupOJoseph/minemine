@@ -3,11 +3,12 @@ on:
   workflow_dispatch:
     inputs:
       load_clients:
-        description: Maximum disposable browser clients in the native load rehearsal
+        description: Maximum disposable browser clients (16 routine; 20 or 32 opt-in)
         type: choice
         default: '16'
         options:
           - '16'
+          - '20'
           - '32'
   pull_request:
     paths:
@@ -202,7 +203,12 @@ jobs:
           cp -a test/integration/town_probe runtime/native-world/worldmods/town_probe
           cp -a test/integration/load_probe runtime/native-world/worldmods/load_probe
           printf '\nload_mod_town_probe = true\nload_mod_load_probe = true\n' >> runtime/native-world/world.mt
-          case "$LOAD_MAX_CLIENTS" in 16|32) ;; *) echo 'Unsupported load-client count.' >&2; exit 2;; esac
+          case "$LOAD_MAX_CLIENTS" in
+            16) load_deadline= ;;
+            20) load_deadline=30m ;;
+            32) load_deadline=25m ;;
+            *) echo 'Unsupported load-client count.' >&2; exit 2 ;;
+          esac
           sed "s/^max_users = 2$/max_users = $LOAD_MAX_CLIENTS/" game/minetest.conf > runtime/ci-minetest.conf
           grep -Fxq "max_users = $LOAD_MAX_CLIENTS" runtime/ci-minetest.conf
           world_dir="$GITHUB_WORKSPACE/runtime/native-world"
@@ -291,10 +297,10 @@ jobs:
           rm -f runtime/client-runner.stop
           bash scripts/sample-client-runner.sh runtime/client-runner.csv runtime/client-runner.stop &
           client_sampler_pid=$!
-          if [ "$LOAD_MAX_CLIENTS" = 32 ]; then
-            # Finish this optional rehearsal before the 50-minute job limit so
+          if [ -n "$load_deadline" ]; then
+            # Finish an optional rehearsal before the 50-minute job limit so
             # the EXIT trap and always-run artifact upload retain partial data.
-            timeout --signal=TERM --kill-after=15s 25m \
+            timeout --signal=TERM --kill-after=15s "$load_deadline" \
               env WORLD_DIR="$GITHUB_WORKSPACE/runtime/native-world" NATIVE_LOG=runtime/browser-native.log \
               node test/integration/browser-native-load.mjs
           else

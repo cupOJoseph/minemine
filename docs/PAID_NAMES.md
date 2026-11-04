@@ -1,6 +1,6 @@
 # Paid MineMine names and collision policy
 
-Research checked 2026-11-02. Product intent: a player using the conventional email/passkey signup path pays **$2 USD for the account and the first year of its `username.minemine.eth` reservation**, with renewal afterward. The project owner reports owning `minemine.eth` and chose a **MineMine-managed ENS subname** pointing to the player's ZeroDev wallet. There is no separate account fee. An existing-wallet player can instead sign in with a wallet and choose an ENS name they currently own. The local name registry and wallet-selected full ENS display names are implemented; no paid checkout or ENS subname issuance is live yet.
+Research checked 2026-11-03. Product intent: a player using the conventional email/passkey signup path pays **$2 USD once for the account and the first year of its `username.minemine.eth` reservation**. The project owner reports owning `minemine.eth` and chose a **MineMine-managed ENS subname** pointing to the player's ZeroDev wallet. There is no separate account fee. The name can be renewed after the first year; the renewal price will be set later and must be shown before any paid signup or renewal is offered. An existing-wallet player can instead sign in with a wallet and choose an ENS name they currently own. The local name registry and wallet-selected full ENS display names are implemented; no paid checkout or ENS subname issuance is live yet.
 
 ## The one-name rule
 

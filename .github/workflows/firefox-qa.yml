@@ -20,7 +20,8 @@ jobs:
         env:
           MINEMINE_QA_URL: https://cupojoseph.github.io/minemine/play/?storage=auto
           MINEMINE_QA_ARTIFACT_DIR: runtime/firefox-qa
-        run: npm run test:firefox-opfs
+          MINEMINE_QA_HEADED: '1'
+        run: xvfb-run -a npm run test:firefox-opfs
       - name: Retain Firefox environment and screenshots
         if: always()
         uses: actions/upload-artifact@v4

@@ -32,6 +32,14 @@ function identifier(value, label) {
   return value;
 }
 
+function oneYearAfter(start) {
+  const date = new Date(start);
+  const year = date.getUTCFullYear() + 1;
+  const month = date.getUTCMonth();
+  const day = Math.min(date.getUTCDate(), new Date(Date.UTC(year, month + 1, 0)).getUTCDate());
+  return Date.UTC(year, month, day, date.getUTCHours(), date.getUTCMinutes(), date.getUTCSeconds(), date.getUTCMilliseconds());
+}
+
 export function createNameRegistry(worldDir, now = Date.now) {
   mkdirSync(worldDir, { recursive: true, mode: 0o700 });
   const directory = path.join(worldDir, 'name_registry');
@@ -152,9 +160,29 @@ export function createNameRegistry(worldDir, now = Date.now) {
   return {
     file,
     lookup(input) { return current(normalizeHandle(input)); },
+    checkoutForAccount(accountId) {
+      identifier(accountId, 'account');
+      return db.prepare('SELECT handle, state, order_id FROM names WHERE account_id = ?').get(accountId) || null;
+    },
     managedNameForAccount(accountId) {
       identifier(accountId, 'account');
-      return db.prepare("SELECT ens_name FROM names WHERE account_id = ? AND state = 'paid_active'").get(accountId)?.ens_name || null;
+      return db.prepare("SELECT ens_name FROM names WHERE account_id = ? AND state = 'paid_active' AND expires_at > ?")
+        .get(accountId, now())?.ens_name || null;
+    },
+    managedNameTermForAccount(accountId) {
+      identifier(accountId, 'account');
+      const row = db.prepare("SELECT handle, state, expires_at, updated_at FROM names WHERE account_id = ? AND state IN ('checkout_held', 'paid_pending_ens', 'paid_active')")
+        .get(accountId);
+      if (!row) return null;
+      if (row.state === 'checkout_held') return {
+        name: `${row.handle}.minemine.eth`, status: 'held', expiresAt: null,
+        checkoutEndsAt: new Date(row.updated_at + 45 * 60_000).toISOString(),
+      };
+      return {
+        name: `${row.handle}.minemine.eth`,
+        status: row.state === 'paid_pending_ens' ? 'pending' : row.expires_at > now() ? 'active' : 'expired',
+        expiresAt: row.expires_at === null ? null : new Date(row.expires_at).toISOString(),
+      };
     },
     accountForPublicName(input) {
       if (typeof input !== 'string' || input.length > 255 || input !== input.trim()) {
@@ -164,13 +192,20 @@ export function createNameRegistry(worldDir, now = Date.now) {
         let handle;
         try { handle = normalizeHandle(input); }
         catch { return null; }
-        return db.prepare("SELECT account_id FROM names WHERE handle = ? AND state = 'paid_active'").get(handle)?.account_id || null;
+        return db.prepare("SELECT account_id FROM names WHERE handle = ? AND state = 'paid_active' AND expires_at > ?")
+          .get(handle, now())?.account_id || null;
       }
       let ensName;
       try { ensName = ensNormalize(input); }
       catch { throw new NameRegistryError('Invalid ENS name.', 'invalid_input'); }
       if (ensName.length > 255 || !ensName.split('.').every(Boolean)) throw new NameRegistryError('Invalid ENS name.', 'invalid_input');
-      const managed = db.prepare("SELECT account_id FROM names WHERE ens_name = ? AND state = 'paid_active'").get(ensName)?.account_id;
+      let handle;
+      try { handle = managedHandle(ensName); }
+      catch { handle = null; }
+      const direct = handle ? current(handle) : null;
+      if (direct?.state === 'paid_active' && (!Number.isSafeInteger(direct.expires_at) || direct.expires_at <= now())) return null;
+      const managed = db.prepare("SELECT account_id FROM names WHERE ens_name = ? AND state = 'paid_active' AND expires_at > ?")
+        .get(ensName, now())?.account_id;
       return managed || db.prepare('SELECT account_id FROM ens_selections WHERE ens_name = ?').get(ensName)?.account_id || null;
     },
     adminReservations() {
@@ -217,6 +252,7 @@ export function createNameRegistry(worldDir, now = Date.now) {
       catch { return false; }
       if (!handle) return true;
       const row = current(handle);
+      if (row?.state === 'paid_active' && (!Number.isSafeInteger(row.expires_at) || row.expires_at <= now())) return false;
       return !row || row.account_id === accountId ||
         (row.state === 'admin_reserved' && row.intended_account_id === accountId);
     },
@@ -331,9 +367,11 @@ export function createNameRegistry(worldDir, now = Date.now) {
         if (!row || row.account_id !== accountId || row.order_id !== orderId || row.payment_id !== paymentId ||
             !['paid_pending_ens', 'paid_active'].includes(row.state)) conflict();
         if (row.state === 'paid_active') return row;
-        db.prepare("UPDATE names SET state = 'paid_active', ens_name = ?, updated_at = ? WHERE handle = ?")
-          .run(ensName, now(), handle);
-        addAudit.run(handle, 'paid_active', accountId, now());
+        const activatedAt = now();
+        const expiresAt = oneYearAfter(activatedAt);
+        db.prepare("UPDATE names SET state = 'paid_active', ens_name = ?, expires_at = ?, updated_at = ? WHERE handle = ?")
+          .run(ensName, expiresAt, activatedAt, handle);
+        addAudit.run(handle, 'paid_active', accountId, activatedAt);
         return current(handle);
       });
     },

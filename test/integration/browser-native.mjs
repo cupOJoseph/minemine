@@ -503,10 +503,11 @@ try {
   await signalProbe('town-negative-claim-arm.txt', 'town-negative-claim-result.txt',
     'paid negative town projection and removal');
   const mapProjection = JSON.parse(await readFile(path.join(worldDir, 'town-map-claims.json'), 'utf8'));
+  const probeState = JSON.parse(await readFile(path.join(worldDir, 'town-probe-state.json'), 'utf8'));
+  const negativeCenter = probeState.negative_center;
+  assert.ok(Number.isInteger(negativeCenter) && negativeCenter < 0, 'negative claim center was not recorded');
   assert.equal(mapProjection.version, 1);
   assert.deepEqual(Object.keys(mapProjection).sort(), ['claims', 'version']);
-  const negativeCenter = JSON.parse(await readFile(path.join(worldDir, 'town-probe-state.json'), 'utf8')).negative_center;
-  assert.ok(Number.isInteger(negativeCenter) && negativeCenter < 0, 'native negative claim center is missing');
   assert.deepEqual(mapProjection.claims.find(claim => claim.town === 'West Hollow'),
     { town: 'West Hollow', x1: negativeCenter - 1, x2: negativeCenter + 1,
       z1: negativeCenter - 1, z2: negativeCenter + 1 });

@@ -31,3 +31,15 @@ jobs:
       - run: npm ci --prefix spacetimedb --ignore-scripts --no-audit --no-fund
       - run: npm run typecheck --prefix spacetimedb
       - run: npm test --prefix spacetimedb
+      - name: Verify SpacetimeDB module against a loopback host
+        run: |
+          archive="$RUNNER_TEMP/spacetime-2.14.1.tar.gz"
+          directory="$RUNNER_TEMP/minemine-spacetime-2.14.1"
+          curl -fsSL --retry 3 --retry-delay 2 \
+            https://github.com/clockworklabs/SpacetimeDB/releases/download/v2.14.1/spacetime-x86_64-unknown-linux-gnu.tar.gz \
+            -o "$archive"
+          printf '%s  %s\n' '67a3c99c19abc4ba58b4ab999b309b3c5899602b3f0f7ae75e296335c174c82b' "$archive" | sha256sum -c -
+          mkdir -p "$directory"
+          tar -xzf "$archive" -C "$directory"
+          test -x "$directory/spacetimedb-cli"
+          SPACETIME_CLI="$directory/spacetimedb-cli" npm run test:network:local --prefix spacetimedb

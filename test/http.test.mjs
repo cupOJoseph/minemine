@@ -225,7 +225,12 @@ test('admin player explorer links accepted joins to signed wallets and rechecks 
   assert.equal((await request('/api/identity/ens', { name: 'builder.eth' }, playerCookie)).status, 200);
   const key = new Date().toISOString().slice(0, 7);
   writeFileSync(path.join(worldDir, `minemine-player-joins-${key}.log`), `${Math.floor(Date.now() / 1000)}\t${name}\n`);
+  writeFileSync(path.join(worldDir, 'town-admin-roster.json'), JSON.stringify({ version: 1, towns: [{
+    name: 'Probe Town', owner: name, members: [], claims: 1, protectedColumns: 9,
+  }] }));
   assert.equal((await request(`/api/admin/players/${name}`, undefined, playerCookie)).status, 403);
+  assert.equal((await request('/town-admin-roster.json', undefined, playerCookie)).status, 404,
+    'the private native roster is never served as a static file');
   const adminCookie = await login(admin);
   const roster = await (await request('/api/admin/players', undefined, adminCookie)).json();
   assert.equal(roster.players[0].walletAddress, player.address.toLowerCase());
@@ -235,8 +240,15 @@ test('admin player explorer links accepted joins to signed wallets and rechecks 
   assert.equal(profile.address, player.address.toLowerCase());
   assert.equal(profile.ensName, 'builder.eth');
   assert.equal(profile.playerName, name);
+  assert.deepEqual(profile.townMembership.town, {
+    name: 'Probe Town', role: 'owner', owner: name, memberCount: 0, claimCount: 1, protectedColumns: 9,
+  });
+  assert.equal(profile.townMembership.status, 'present');
+  assert.equal(JSON.stringify(profile).includes('members'), false, 'admin profile excludes the full private roster');
   currentOwner = admin.address;
   assert.equal((await (await request(`/api/admin/players/${name}`, undefined, adminCookie)).json()).ensName, null);
+  writeFileSync(path.join(worldDir, 'town-admin-roster.json'), '{bad');
+  assert.equal((await (await request(`/api/admin/players/${name}`, undefined, adminCookie)).json()).townMembership.status, 'unavailable');
   assert.equal((await request('/api/admin/players/not-a-character', undefined, adminCookie)).status, 400);
 });
 

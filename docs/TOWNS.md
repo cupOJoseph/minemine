@@ -27,6 +27,8 @@ The deployment script refuses chains other than Sepolia (11155111) and local Anv
 
 ## In-game commands
 
+`/town` opens an in-game manager. Owners can create a town, claim or unclaim at their position, invite or remove wallet player IDs, and see confirmed credit use and members. An invited player can join from the form; members can leave. The form submits to the same server-side chat command handler, so it cannot bypass wallet identity, paid quota, overlap or membership checks. Wallet credit purchases and sync remain on the website; the form does not initiate an onchain transaction. Direct commands below remain available.
+
 The owner creates one town with `/town create <name>`, then stands at a desired center and uses `/town claim <radius>`. The claim covers a square of `(2 × radius + 1)²` x/z columns, at all heights. Radius is 1–16. Claims cannot overlap another town's area or protection reported by an earlier protection mod at the claim height. `/town unclaim` removes the claim the owner is standing in and makes those purchased columns available for another claim.
 
 `/town info` shows protected and purchased columns. `/town invite <wallet player name>` creates an invitation; the invited player uses `/town accept <owner wallet player name>`. Owners use `/town kick <member>`; members use `/town leave`. A player belongs to at most one town. Membership lets players build within the town but never bypasses another mod's protection.
@@ -35,7 +37,7 @@ The mod is installed by `node scripts/setup-world.mjs` in a **new** development 
 
 ## Verification still required
 
-- Check formspec interactions, bucket/liquid behavior, explosions, pistons/machines, and other mods. `core.is_protected` covers standard protection-aware actions; custom mods may need their own checks.
+- Check the town manager's rendering and input on real browser and native clients, plus bucket/liquid behavior, explosions, pistons/machines, and other mods. The native probe exercises create, paid claim, invite, removal and unauthorized claim through the form callback. `core.is_protected` covers standard protection-aware actions; custom mods may need their own checks.
 - Test two wallets buying credits on Sepolia and syncing confirmed quotas into the native world, then repeat town creation, member access, overlap checks, reconnect, and save/reload against those purchased credits.
 - Confirm the wallet UI handles approval success, purchase failure, page close, changed wallet account, and delayed confirmations without claiming success early.
 - Review treasury custody, price, refund policy, land scarcity, anti-griefing, moderation, and contract security before real-value deployment.

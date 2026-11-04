@@ -60,6 +60,19 @@ local function map_claims(owner, guest)
     return snapshot.claims
 end
 
+local function admin_town(owner)
+    local file = assert(io.open(world .. "/town-admin-roster.json", "r"))
+    local raw = file:read("*a")
+    file:close()
+    local snapshot = core.parse_json(raw)
+    check(type(snapshot) == "table" and snapshot.version == 1 and type(snapshot.towns) == "table",
+        "native private town roster is invalid")
+    for _, entry in ipairs(snapshot.towns) do
+        if entry.owner == owner then return entry end
+    end
+    error("owner missing from private town roster")
+end
+
 local function find_claim(claims, town_name)
     for _, claim in ipairs(claims) do
         if claim.town == town_name then return claim end
@@ -90,6 +103,12 @@ local function run(config)
     local function command(name, param)
         return town.func(name, param)
     end
+    local function form_action(actor, fields)
+        for _, callback in ipairs(core.registered_on_player_receive_fields) do
+            if callback(actor, "town_claims:manager", fields) then return true end
+        end
+        return false
+    end
     local owner, guest = config.owner, config.guest
     local player = core.get_player_by_name(owner)
     check(player and core.get_player_by_name(guest), "both wallet players must be connected")
@@ -117,24 +136,45 @@ local function run(config)
             "wallet owner gained an unexpected privilege: " .. privilege)
     end
 
-    local ok, message = command(owner, "create Probe Town")
-    check(ok, "town creation failed: " .. tostring(message))
+    local ok, message = command(owner, "")
+    check(ok and message:find("Town manager opened", 1, true), "town manager did not open")
+    check(form_action(player, { create = true, town_name = "Probe Town" }),
+        "town creation form action was not handled")
+    ok, message = command(owner, "info")
+    check(ok and message:find("Probe Town", 1, true), "town creation form did not create a town")
+    local roster = admin_town(owner)
+    check(roster.name == "Probe Town" and #roster.members == 0 and roster.claims == 0,
+        "private roster missed town creation")
     ok, message = command(owner, "claim 2")
     check(not ok and message:find("Insufficient confirmed land credits", 1, true), "oversized claim was not refused")
-    ok, message = command(owner, "claim 1")
-    check(ok, "nine-column claim failed: " .. tostring(message))
+    check(form_action(player, { claim = true, claim_radius = "1" }),
+        "claim form action was not handled")
+    roster = admin_town(owner)
+    check(roster.claims == 1 and roster.protectedColumns == 9,
+        "private roster missed paid land claim")
 
     local pos = player:get_pos()
     check(not core.is_protected(pos, owner), "owner cannot build in own claim")
     check(core.is_protected(pos, guest), "outsider can build in protected claim")
-    ok, message = command(owner, "invite " .. guest)
-    check(ok, "invitation failed: " .. tostring(message))
+    check(form_action(player, { invite = true, member_id = guest }),
+        "invitation form action was not handled")
     ok, message = command(guest, "accept " .. owner)
     check(ok, "invitation acceptance failed: " .. tostring(message))
+    roster = admin_town(owner)
+    check(#roster.members == 1 and roster.members[1] == guest,
+        "private roster missed accepted member")
     check(not core.is_protected(pos, guest), "member cannot build in protected claim")
-    ok, message = command(owner, "kick " .. guest)
-    check(ok, "member removal failed: " .. tostring(message))
+    check(form_action(player, { kick = true, member_id = guest }),
+        "member removal form action was not handled")
+    check(#admin_town(owner).members == 0, "private roster retained removed member")
     check(core.is_protected(pos, guest), "removed member can still build in protected claim")
+    check(form_action(core.get_player_by_name(guest), { claim = true, claim_radius = "1" }),
+        "unauthorized form action was not handled")
+    check(admin_town(owner).claims == 1, "non-owner form changed the paid claim")
+    -- The probe submits callbacks directly, so close the server-sent forms
+    -- before Chromium tests real dig/place input with these connected players.
+    core.close_formspec(owner, "town_claims:manager")
+    core.close_formspec(guest, "town_claims:manager")
     -- These public Luanti APIs enter the normal node_dig/item_place_node
     -- handlers with the connected wallet players as the actors.
     local edit_pos = { x = math.floor(pos.x), y = math.floor(pos.y) + 3, z = math.floor(pos.z) }

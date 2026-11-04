@@ -46,12 +46,59 @@ local function export_map_claims()
     end
 end
 
+-- Private world projection for the authenticated admin player explorer.
+-- Keep the public map export above free of player and membership data.
+local function export_admin_roster()
+    local entries = {}
+    for owner, town in pairs(state.towns) do
+        if type(owner) == "string" and owner:match("^w_%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x$") and
+                type(town) == "table" and type(town.name) == "string" and
+                #town.name >= 3 and #town.name <= 24 and town.name:match("^[%w _%-]+$") and
+                type(town.members) == "table" and type(town.claims) == "table" then
+            local members = {}
+            for member, joined in pairs(town.members) do
+                if joined == true and type(member) == "string" and
+                        member:match("^w_%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x$") and member ~= owner then
+                    members[#members + 1] = member
+                end
+            end
+            table.sort(members)
+            local columns = 0
+            for _, claim in ipairs(town.claims) do
+                if type(claim) == "table" and type(claim.x1) == "number" and type(claim.x2) == "number" and
+                        type(claim.z1) == "number" and type(claim.z2) == "number" and
+                        claim.x1 <= claim.x2 and claim.z1 <= claim.z2 then
+                    columns = columns + (claim.x2 - claim.x1 + 1) * (claim.z2 - claim.z1 + 1)
+                end
+            end
+            entries[#entries + 1] = { owner = owner, name = town.name, members = members,
+                claims = #town.claims, protectedColumns = columns }
+        end
+    end
+    table.sort(entries, function(a, b) return a.owner < b.owner end)
+    local encoded = {}
+    for index, entry in ipairs(entries) do
+        local members = {}
+        for member_index, member in ipairs(entry.members) do members[member_index] = assert(core.write_json(member)) end
+        encoded[index] = '{"owner":' .. assert(core.write_json(entry.owner)) ..
+            ',"name":' .. assert(core.write_json(entry.name)) ..
+            ',"members":[' .. table.concat(members, ",") .. ']' ..
+            ',"claims":' .. entry.claims .. ',"protectedColumns":' .. entry.protectedColumns .. '}'
+    end
+    local payload = '{"version":1,"towns":[' .. table.concat(encoded, ",") .. ']}\n'
+    if not core.safe_file_write(core.get_worldpath() .. "/town-admin-roster.json", payload) then
+        core.log("error", "town_claims: could not update private admin roster")
+    end
+end
+
 local function persist()
     storage:set_string("towns:v1", core.serialize(state))
     export_map_claims()
+    export_admin_roster()
 end
 
 export_map_claims()
+export_admin_roster()
 
 local function wallet_name(name)
     return type(name) == "string" and name:match("^w_%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x$") ~= nil
@@ -101,6 +148,58 @@ local function counts()
     return towns, claims
 end
 
+local manager_form = "town_claims:manager"
+local function show_manager(name, message)
+    local owner, town = town_of(name)
+    local parts = {
+        "formspec_version[4]size[10,8.5]",
+        "label[0.5,0.5;MineMine towns]",
+        "button_exit[8,7.7;1.5,0.7;close;Close]",
+    }
+    if not town then
+        parts[#parts + 1] = "label[0.5,1.0;9,0.8;Create a town, then buy and sync MINE land credits before claiming.]"
+        parts[#parts + 1] = "field[0.5,2.0;5.7,0.8;town_name;Town name;]"
+        parts[#parts + 1] = "button[6.5,2.0;2.5,0.8;create;Create town]"
+        local inviter = state.invitations[name]
+        local invited_town = inviter and state.towns[inviter]
+        if invited_town then
+            parts[#parts + 1] = "label[0.5,3.4;Invitation from " .. core.formspec_escape(inviter) ..
+                " to join " .. core.formspec_escape(invited_town.name) .. "]"
+            parts[#parts + 1] = "button[0.5,4.0;2.5,0.8;accept;Join town]"
+        else
+            parts[#parts + 1] = "label[0.5,3.4;No pending town invitation.]"
+        end
+    elseif owner == name then
+        local members = 0
+        local member_ids = {}
+        for member in pairs(town.members) do
+            members = members + 1
+            member_ids[#member_ids + 1] = core.formspec_escape(member)
+        end
+        table.sort(member_ids)
+        parts[#parts + 1] = "label[0.5,1.2;" .. core.formspec_escape(town.name) .. " - owner]"
+        parts[#parts + 1] = "label[0.5,1.7;Protected " .. used(town) .. "/" .. quota(name) ..
+            " columns, " .. #town.claims .. " claims, " .. members .. " members]"
+        parts[#parts + 1] = "field[0.5,2.6;3.1,0.8;claim_radius;Claim radius (1-16);1]"
+        parts[#parts + 1] = "button[3.8,2.6;2.0,0.8;claim;Claim here]"
+        parts[#parts + 1] = "button[6.0,2.6;2.7,0.8;unclaim;Unclaim here]"
+        parts[#parts + 1] = "field[0.5,4.1;5.0,0.8;member_id;Wallet player ID (w_...);]"
+        parts[#parts + 1] = "button[5.7,4.1;1.5,0.8;invite;Invite]"
+        parts[#parts + 1] = "button[7.4,4.1;1.5,0.8;kick;Remove]"
+        parts[#parts + 1] = "label[0.5,5.2;Members (copy an ID into the field above to remove):]"
+        parts[#parts + 1] = "textlist[0.5,5.6;8.5,1.1;members_list;" ..
+            (#member_ids > 0 and table.concat(member_ids, ",") or "No members") .. ";0;false]"
+        parts[#parts + 1] = "label[0.5,6.7;9,0.6;Stand inside a claim to unclaim it. Wallet credit sync is on the website.]"
+    else
+        parts[#parts + 1] = "label[0.5,1.2;Member of " .. core.formspec_escape(town.name) .. "]"
+        parts[#parts + 1] = "label[0.5,1.7;Owner: " .. core.formspec_escape(owner) .. "]"
+        parts[#parts + 1] = "label[0.5,2.2;Protected " .. used(town) .. "/" .. quota(owner) .. " columns]"
+        parts[#parts + 1] = "button[0.5,3.0;2.5,0.8;leave;Leave town]"
+    end
+    if message then parts[#parts + 1] = "label[0.5,7.2;7.2,1.0;" .. core.formspec_escape(message) .. "]" end
+    core.show_formspec(name, manager_form, table.concat(parts))
+end
+
 -- Luanti's standard dig/place protection entry point. Other protection mods
 -- retain their original decision; town membership never bypasses them.
 core.is_protected = function(pos, name)
@@ -117,11 +216,15 @@ core.is_protected = function(pos, name)
 end
 
 core.register_chatcommand("town", {
-    params = "create <name> | claim <radius> | unclaim | invite <player> | accept <owner> | kick <player> | leave | info",
+    params = "[menu] | create <name> | claim <radius> | unclaim | invite <player> | accept <owner> | kick <player> | leave | info",
     description = "Create and manage a wallet-funded protected town",
     func = function(name, param)
         if not wallet_name(name) then return false, "Town commands require a wallet account." end
         local command, argument = (param or ""):match("^(%S+)%s*(.-)%s*$")
+        if not command or command == "menu" then
+            show_manager(name)
+            return true, "Town manager opened."
+        end
         local owner, town = town_of(name)
         if command == "create" then
             if owner then return false, "You already belong to a town." end
@@ -202,3 +305,32 @@ core.register_chatcommand("town", {
         return false, "Use /town create, claim, unclaim, invite, accept, kick, leave, or info."
     end,
 })
+
+core.register_on_player_receive_fields(function(player, formname, fields)
+    if formname ~= manager_form then return end
+    local name = player:get_player_name()
+    if not wallet_name(name) or fields.quit then return true end
+    local action
+    for _, candidate in ipairs({ "create", "claim", "unclaim", "invite", "kick", "accept", "leave" }) do
+        if fields[candidate] then
+            if action then
+                show_manager(name, "Choose one town action at a time.")
+                return true
+            end
+            action = candidate
+        end
+    end
+    if not action then return true end
+    local argument = ""
+    if action == "create" then argument = fields.town_name
+    elseif action == "claim" then argument = fields.claim_radius
+    elseif action == "invite" or action == "kick" then argument = fields.member_id
+    elseif action == "accept" then argument = state.invitations[name] end
+    if type(argument) ~= "string" or #argument > 64 then
+        show_manager(name, "Invalid town form input.")
+        return true
+    end
+    local ok, result = core.registered_chatcommands.town.func(name, action .. " " .. argument)
+    show_manager(name, result or (ok and "Town updated." or "Town action failed."))
+    return true
+end)

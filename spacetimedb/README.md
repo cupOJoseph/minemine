@@ -24,6 +24,7 @@ npm ci --prefix spacetimedb
 npm run typecheck --prefix spacetimedb
 npm test --prefix spacetimedb
 spacetime build -p spacetimedb
+npm run test:network:local --prefix spacetimedb
 ```
 
 The unit tests use SpacetimeDB's in-memory datastore and test reducer
@@ -32,13 +33,15 @@ harness does not verify JWT signatures, network connections, subscriptions,
 durability, or real OIDC issuance. Those require a running server integration
 test before this projection can serve players.
 
-On 2026-11-04, the 2.14.1 CLI also published this module to a temporary
-loopback-only, in-memory standalone host with disposable environment values.
-`spacetime describe` showed the expected public `player_profile` table,
-`upsert_profile` reducer, and three required environment declarations. An
-anonymous CLI reducer call returned **403** with the bridge-only error. The
-host was stopped after the check. This is a network authorization negative
-check; a real OIDC bridge write and subscription are still untested.
+The network smoke starts a temporary loopback-only, in-memory standalone host,
+publishes the module with disposable development-token claims, accepts one
+authorized profile write and exact replay, rejects a second identity and an
+anonymous caller with **403**, reads one row over SQL, then stops the host. CI
+downloads the official Linux 2.14.1 archive and verifies its SHA-256 before
+running this check. The local development token is scoped to that disposable
+host; a real OIDC bridge write and subscription are still untested.
+If the `spacetime` command selects an older CLI, set `SPACETIME_CLI` to the
+absolute path of the 2.14.1 `spacetimedb-cli` binary for the last command.
 
 ## Projection contract
 

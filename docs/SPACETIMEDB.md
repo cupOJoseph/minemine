@@ -1,6 +1,6 @@
 # SpacetimeDB scaling plan
 
-This is the **next phase**, not part of the currently playable game. The present Luanti server remains authoritative for voxel edits, inventory, physics, and town protection. Adding a database by itself will not raise the engine's player limit; first measure native-server tick time, map emerge time, outbound bandwidth, reconnects, and memory with 16, then 32 and 64 clients.
+This is the **next phase**, not part of the currently playable game. The present Luanti server remains authoritative for voxel edits, inventory, physics, and town protection. Adding a database by itself will not raise the engine's player limit; first measure native-server step intervals, map emerge time, outbound bandwidth, reconnects, and memory with 16, then 32 and 64 clients. The [native load measurement plan](NATIVE_LOAD_METRICS.md) distinguishes sampled step intervals from CPU execution time.
 
 ## A safe first integration
 

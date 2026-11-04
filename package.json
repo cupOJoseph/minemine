@@ -16,6 +16,7 @@
     "contracts:deploy": "node --env-file-if-exists=.env scripts/deploy-token.mjs",
     "towns:deploy": "node --env-file-if-exists=.env scripts/deploy-towns.mjs",
     "doctor": "node scripts/doctor.mjs",
+    "metrics:native": "node scripts/check-native-metrics.mjs",
     "adapter:install": "node scripts/install-remote-adapter.mjs",
     "upstream:fetch": "node scripts/fetch-upstream.mjs",
     "test:evm": "node --test test/integration/token-evm.mjs",
@@ -25,9 +26,11 @@
     "test:wallet-ui": "node test/integration/wallet-ui-evm.mjs",
     "test:admin-ui": "node test/integration/admin-beta-ui.mjs",
     "test:beta-player-ui": "node test/integration/beta-player-ui.mjs",
+    "test:managed-name-ui": "node test/integration/managed-name-ui.mjs",
     "test:map-ui": "node test/integration/map-ui.mjs",
     "test:firefox-opfs": "node scripts/qa-firefox-opfs.mjs",
-    "test:ens-live": "node --env-file-if-exists=.env test/integration/ens-live.mjs"
+    "test:ens-live": "node --env-file-if-exists=.env test/integration/ens-live.mjs",
+    "account:build": "node scripts/build-account.mjs"
   },
   "dependencies": {
     "@ensdomains/ensjs": "5.2.12",
@@ -39,7 +42,22 @@
   "devDependencies": {
     "@foundry-rs/anvil": "1.7.1",
     "@openzeppelin/contracts": "4.9.6",
+    "@tanstack/react-query": "5.105.2",
+    "@wagmi/core": "3.6.7",
+    "@zerodev/ecdsa-validator": "5.4.9",
+    "@zerodev/sdk": "5.5.4",
+    "@zerodev/wallet-core": "0.0.7",
+    "@zerodev/wallet-react": "0.0.10",
+    "esbuild": "0.28.2",
+    "events": "3.3.0",
     "playwright": "1.64.1",
-    "solc": "0.8.26"
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "solc": "0.8.26",
+    "wagmi": "3.7.9"
+  },
+  "overrides": {
+    "follow-redirects": "1.16.2",
+    "tmp": "0.2.7"
   }
 }

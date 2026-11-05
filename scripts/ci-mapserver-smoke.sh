@@ -257,55 +257,75 @@ if [ "${MAPSERVER_SEQUENCE_RESTART_PROOF:-false}" = true ]; then
   test "${cursor_before:-0}" -gt 0
   counter_before=$(sqlite3 "$world_db" 'select seq from mapserver_change_counter where id=1')
   test "$counter_before" -ge "$cursor_before"
-  kill -TERM "$mapper_pid" 2>/dev/null || true
+  settings_backup=runtime/mapserver-settings-pre-crash.sqlite
+  sqlite3 "$settings_db" ".backup '$settings_backup'"
+  rollback_cursor=$(sqlite3 "$settings_backup" "select json_extract(value, '$.seq') from settings where key='incremental_cursor_v2'")
+  test "${rollback_cursor:-0}" -ge "$cursor_before"
+  # Simulate an abrupt process death, then make a world edit while the mapper
+  # is down. Its dirty row must survive and be consumed after restart.
+  kill -KILL "$mapper_pid" 2>/dev/null || true
   wait "$mapper_pid" 2>/dev/null || true
-  (
-    cd runtime/mapserver-world
-    exec ../mapserver-download/mapserver > ../mapserver-restart-console.log 2>&1
-  ) &
-  mapper_pid=$!
-  restart_ready=0
-  for attempt in {1..30}; do
-    if kill -0 "$mapper_pid" 2>/dev/null &&
-       curl --fail --silent --show-error http://127.0.0.1:18080/ -o /dev/null 2>/dev/null; then
-      restart_ready=1
-      break
-    fi
-    if ! kill -0 "$mapper_pid" 2>/dev/null; then break; fi
-    sleep 1
-  done
-  if [ "$restart_ready" -ne 1 ]; then
-    tail -60 runtime/mapserver-restart-console.log
-    echo 'Patched mapserver did not restart on the copied world.'
-    exit 1
-  fi
-  cursor_restarted=$(sqlite3 "$settings_db" "select json_extract(value, '$.seq') from settings where key='incremental_cursor_v2'")
-  test "$cursor_restarted" -ge "$cursor_before"
-  # A data update after restart must receive a newer world transaction
-  # sequence and advance the renderer's durable cursor on its next poll.
   sqlite3 "$world_db" "update blocks set data=data where x=$block_x and y=$block_y and z=$block_z"
   counter_after=$(sqlite3 "$world_db" 'select seq from mapserver_change_counter where id=1')
   test "$counter_after" -gt "$counter_before"
-  resumed=0
-  for attempt in {1..30}; do
-    if ! kill -0 "$mapper_pid" 2>/dev/null; then break; fi
-    cursor_after=$(sqlite3 "$settings_db" "select json_extract(value, '$.seq') from settings where key='incremental_cursor_v2'")
-    if [ "${cursor_after:-0}" -ge "$counter_after" ]; then
-      resumed=1
-      break
+  test "$rollback_cursor" -lt "$counter_after"
+  start_restarted_mapper() {
+    local log=$1
+    (
+      cd runtime/mapserver-world
+      exec ../mapserver-download/mapserver > "../$log" 2>&1
+    ) &
+    mapper_pid=$!
+    restart_ready=0
+    for attempt in {1..30}; do
+      if kill -0 "$mapper_pid" 2>/dev/null &&
+         curl --fail --silent --show-error http://127.0.0.1:18080/ -o /dev/null 2>/dev/null; then
+        restart_ready=1
+        break
+      fi
+      if ! kill -0 "$mapper_pid" 2>/dev/null; then break; fi
+      sleep 1
+    done
+    if [ "$restart_ready" -ne 1 ]; then
+      tail -60 "runtime/$log"
+      echo 'Patched mapserver did not restart on the copied world.'
+      exit 1
     fi
-    sleep 1
-  done
-  if [ "$resumed" -ne 1 ]; then
-    tail -60 runtime/mapserver-restart-console.log
-    echo 'Patched mapserver did not advance its durable cursor after restart.'
-    exit 1
-  fi
+  }
+  wait_for_sequence() {
+    local log=$1
+    local current=0
+    for attempt in {1..30}; do
+      if ! kill -0 "$mapper_pid" 2>/dev/null; then break; fi
+      current=$(sqlite3 "$settings_db" "select json_extract(value, '$.seq') from settings where key='incremental_cursor_v2'")
+      if [ "${current:-0}" -ge "$counter_after" ]; then
+        cursor_after=$current
+        return 0
+      fi
+      sleep 1
+    done
+    tail -60 "runtime/$log"
+    echo 'Patched mapserver did not replay the durable dirty sequence.'
+    return 1
+  }
+  start_restarted_mapper mapserver-restart-console.log
+  wait_for_sequence mapserver-restart-console.log
+  first_restart_cursor=$cursor_after
+  # Restore an older settings cursor without touching the world database. The
+  # retained dirty queue must allow this previously processed edit to replay.
+  kill -KILL "$mapper_pid" 2>/dev/null || true
+  wait "$mapper_pid" 2>/dev/null || true
+  rm -f "$settings_db" "$settings_db-wal" "$settings_db-shm"
+  cp "$settings_backup" "$settings_db"
+  restored_cursor=$(sqlite3 "$settings_db" "select json_extract(value, '$.seq') from settings where key='incremental_cursor_v2'")
+  test "$restored_cursor" = "$rollback_cursor"
+  start_restarted_mapper mapserver-replay-console.log
+  wait_for_sequence mapserver-replay-console.log
   dirty_count=$(sqlite3 "$world_db" 'select count(*) from mapserver_dirty')
   world_count=$(sqlite3 "$world_db" 'select count(*) from blocks')
   test "$dirty_count" -le "$world_count"
-  printf 'Mapserver restarted with cursor %s and processed post-restart sequence %s; dirty rows %s / world blocks %s; world SQLite bytes %s.\n' \
-    "$cursor_restarted" "$cursor_after" "$dirty_count" "$world_count" "$(stat -c %s "$world_db")"
+  printf 'Mapserver survived SIGKILL and cursor rollback %s: first restart %s, replay %s; dirty rows %s / world blocks %s; world SQLite bytes %s.\n' \
+    "$rollback_cursor" "$first_restart_cursor" "$cursor_after" "$dirty_count" "$world_count" "$(stat -c %s "$world_db")"
 fi
 if [ -n "$api_pid" ]; then
   curl --fail --silent --show-error http://127.0.0.1:18082/api/health -o runtime/mapserver-api-health.json

@@ -1,5 +1,9 @@
 # Validation record
 
+## Browser dependency release review — 2026-11-05 UTC
+
+Fresh `npm audit --json` runs against the root and `spacetimedb/` lockfiles each reported zero known advisories. [npm's audit documentation](https://docs.npmjs.com/auditing-package-dependencies-for-security-vulnerabilities/) says this checks the dependency tree against the registry's known advisories; it does not assess the separately built C/WASM libraries or complete a license review. The current browser artifact still contains libarchive 3.8.10. [Libarchive 3.8.11](https://github.com/libarchive/libarchive/releases/tag/v3.8.11), published October 30, is explicitly a security and bugfix release. Its official release asset advertises SHA-256 `a3dc0872b1b39da34dc18ef1b944f0f11ffd37425d70ae04be679279f1cf43d2` for the `.tar.xz` source; an independently downloaded copy matched. Rebuild and revalidate the browser engine with 3.8.11 before closing B03 or calling the current artifact a general release.
+
 ## Local ZeroDev email account lab — 2026-11-02 UTC
 
 The account lab and signed-name checkout branches are now combined in a stacked feature branch. `npm run account:build` passed, and local Chromium loaded the disabled and dummy-project email-form states at desktop and mobile widths without page errors. The signed handle form is shown only after ZeroDev sign-in and requires the separate loopback Stripe test flag; it could not be exercised through a real provider because the owner has not created the Sepolia project yet. The server-side handler tests cover checkout authorization, ENS preflight denial before any hold or Stripe call, wallet binding, collision, and idempotent retry. No Stripe test account or real ENS writer is configured, and no card or onchain name was charged or issued.

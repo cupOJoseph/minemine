@@ -1,6 +1,8 @@
-import { getAddress } from 'ethers';
-
 const defaultTokenUrl = 'https://auth.spacetimedb.com/oidc/token';
+
+function normalizedAddress(value) {
+  return typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value) ? value.toLowerCase() : null;
+}
 
 function endpoint(input, allowLoopback = false) {
   const url = new URL(input);
@@ -41,11 +43,11 @@ export function createProfileDisplayVerifier({ registry, ensResolver, ensOwnersh
     if (managed === row.displayName) {
       try {
         const resolved = await ensResolver.recipient(managed);
-        return getAddress(resolved.address).toLowerCase() === row.accountId;
+        return normalizedAddress(resolved.address) === row.accountId;
       } catch { return false; }
     }
     try {
-      const verified = await ensOwnership.verify(row.displayName, getAddress(row.accountId));
+      const verified = await ensOwnership.verify(row.displayName, row.accountId);
       return verified.name === row.displayName;
     } catch { return false; }
   };

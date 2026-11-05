@@ -1,0 +1,11 @@
+[Unit]
+Description=Replay pending MineMine wallet profile projections
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=2min
+AccuracySec=30s
+Unit=minemine-profile-sync.service
+
+[Install]
+WantedBy=timers.target

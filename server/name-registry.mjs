@@ -251,6 +251,9 @@ export function createNameRegistry(worldDir, now = Date.now) {
         FROM profile_projection WHERE ack_revision < revision ORDER BY account_id LIMIT ?`)
         .all(limit).map(row => ({ ...row }));
     },
+    pendingProfileProjectionCount() {
+      return db.prepare('SELECT COUNT(*) AS count FROM profile_projection WHERE ack_revision < revision').get().count;
+    },
     acknowledgeProfileProjection(accountId, revision) {
       let address;
       try { address = getAddress(accountId).toLowerCase(); }

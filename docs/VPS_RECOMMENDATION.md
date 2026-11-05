@@ -59,4 +59,6 @@ Before enabling the shared-world button or announcing the URL, verify:
 - Town quotas reflect confirmed testnet purchases; owner/member/outsider dig and place behavior survives restart.
 - Automated backups, a stopped-world restore, process restarts, log/metric collection, disk alerts, and a small invite-only load test pass with recorded CPU, RAM, tick time and egress. The 16-client target requires separate capacity measurement and may require a larger future budget.
 
+New host archives built from this source include an optional [SpacetimeDB profile sync timer](../deploy/vps/minemine-profile-sync.timer). Leave it disabled for the first host until a hosted database, real service token, data recovery and free-tier usage have been checked. Its service reads the private `/etc/minemine/minemine.env` and writes acknowledgements to the private world registry. Use `WORLD_DIR=/srv/minemine/world node scripts/sync-spacetime-profiles.mjs --status` as the `minemine` user to inspect the pending row count without credentials.
+
 This host recommendation is for the first native-server milestone. The [SpacetimeDB plan](SPACETIMEDB.md) is a later architecture decision after native-world measurements.

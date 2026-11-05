@@ -165,9 +165,9 @@ test('profile projection backfills and acknowledges only the durable source revi
     first.recordWalletSignIn({ address: wallet.address, playerName: name });
     first.recordWalletSignIn({ address: wallet.address, playerName: name });
     assert.equal(first.pendingProfileProjectionCount(), 1);
-    assert.deepEqual(first.pendingProfileProjections(), [{ accountId, displayName: name, revision: 1 }]);
+    assert.deepEqual(first.pendingProfileProjections(), [{ accountId, playerId: name, displayName: name, revision: 1 }]);
     assert.equal(first.acknowledgeProfileProjection(accountId, 2), false);
-    assert.deepEqual(first.pendingProfileProjections(), [{ accountId, displayName: name, revision: 1 }]);
+    assert.deepEqual(first.pendingProfileProjections(), [{ accountId, playerId: name, displayName: name, revision: 1 }]);
     first.close();
     const second = createNameRegistry(dir);
     try {
@@ -194,7 +194,7 @@ test('profile projection backfills a wallet profile created by an older world', 
     db.close();
   }
   const second = createNameRegistry(dir);
-  try { assert.deepEqual(second.pendingProfileProjections(), [{ accountId: wallet.address.toLowerCase(), displayName: name, revision: 1 }]); }
+  try { assert.deepEqual(second.pendingProfileProjections(), [{ accountId: wallet.address.toLowerCase(), playerId: name, displayName: name, revision: 1 }]); }
   finally { second.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 

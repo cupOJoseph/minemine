@@ -247,9 +247,14 @@ export function createNameRegistry(worldDir, now = Date.now) {
     },
     pendingProfileProjections(limit = 100) {
       if (!Number.isInteger(limit) || limit < 1 || limit > 1000) throw new NameRegistryError('Invalid projection batch size.', 'invalid_input');
-      return db.prepare(`SELECT account_id AS accountId, display_name AS displayName, revision
-        FROM profile_projection WHERE ack_revision < revision ORDER BY account_id LIMIT ?`)
-        .all(limit).map(row => ({ ...row }));
+      const rows = db.prepare(`SELECT p.account_id AS accountId, w.player_name AS playerId,
+          p.display_name AS displayName, p.revision AS revision
+        FROM profile_projection p LEFT JOIN wallet_profiles w ON w.account_id = p.account_id
+        WHERE p.ack_revision < p.revision ORDER BY p.account_id LIMIT ?`).all(limit);
+      if (rows.some(row => !/^w_[a-f0-9]{17}$/.test(row.playerId || ''))) {
+        throw new NameRegistryError('Profile projection is missing its stable player ID.', 'conflict');
+      }
+      return rows.map(row => ({ ...row }));
     },
     pendingProfileProjectionCount() {
       return db.prepare('SELECT COUNT(*) AS count FROM profile_projection WHERE ack_revision < revision').get().count;

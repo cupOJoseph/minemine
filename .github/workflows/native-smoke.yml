@@ -511,6 +511,7 @@ jobs:
             runtime/browser-artifacts/
             runtime/mapserver-console.log
             runtime/mapserver-restart-console.log
+            runtime/mapserver-replay-console.log
             runtime/mapserver-api-console.log
             runtime/mapserver-api-health.json
             runtime/mapserver-cgroup-peak-bytes.txt

@@ -33,6 +33,7 @@ on:
       - 'package.json'
       - 'scripts/setup-world.mjs'
       - 'scripts/sample-stack-memory.sh'
+      - 'scripts/sample-client-runner.sh'
       - 'scripts/ci-native-service.sh'
       - 'scripts/ci-api-service.sh'
       - 'scripts/ci-deploy-economy.mjs'
@@ -311,6 +312,9 @@ jobs:
           fi
           touch runtime/client-runner.stop
           wait "$client_sampler_pid"
+          awk -F, 'NR > 2 && $5 ~ /^[0-9]+(\.[0-9]+)?$/ && $5 <= 100 &&
+            $6 ~ /^[0-9]+(\.[0-9]+)?$/ && $6 <= 100 && $8 > 0 { valid++ }
+            END { if (valid < 1) exit 1 }' runtime/client-runner.csv
           touch runtime/server-memory-first.stop
           wait "$sampler_pid"
           capture_cgroup first

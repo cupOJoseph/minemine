@@ -1,7 +1,7 @@
 import { schema, table, t, SenderError, type InferSchema, type ReducerCtx } from 'spacetimedb/server';
 
 const playerProfile = table(
-  { public: true },
+  { public: false },
   {
     accountId: t.string().primaryKey(),
     displayName: t.string(),

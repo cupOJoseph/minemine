@@ -5,6 +5,9 @@ replacement for Luanti's voxel, inventory, physics, or town authority. The
 `playerProfile` projection holds an account address, public display name, and
 monotonic source revision. Only a trusted bridge with a configured OIDC service
 identity may connect or write. The browser must never receive that credential.
+The table is private because its account address must not be available through
+public subscriptions or client SQL. A later player-facing directory needs a
+separate, explicitly safe projection.
 
 The schema requires `BRIDGE_ISSUER`, `BRIDGE_AUDIENCE`, and `BRIDGE_SUBJECT` as
 database environment values. Use a service account whose token's `iss`, `aud`,
@@ -37,7 +40,8 @@ The network smoke starts a temporary loopback-only, in-memory standalone host,
 publishes the module with disposable development-token claims, accepts one
 authorized profile write and exact replay, rejects a second identity and an
 anonymous caller with **403**, then writes a second row through the server bridge
-path and reads both rows over SQL before stopping the host. CI
+path and checks that a non-owner identity cannot read the private table over SQL
+before stopping the host. The in-memory reducer tests check the stored rows. CI
 downloads the official Linux 2.14.1 archive and verifies its SHA-256 before
 running this check. The local development token is scoped to that disposable
 host; a real OIDC bridge write and subscription are still untested.
@@ -75,8 +79,7 @@ and `BRIDGE_SUBJECT` must match the SpacetimeAuth service token's claims. Set
 browser. The command sends at most 100 rows per invocation, requires HTTPS,
 and exits on a failed write; schedule and monitor repeated invocations only
 after the real credential and database have been tested. The profile table is
-public in the pilot, so do not deploy it with real accounts before deciding
-whether exposing account addresses is acceptable.
+private; do not add a public view or table containing wallet addresses.
 
 Real SpacetimeAuth token issuance, a hosted database, live replay after restart,
 subscription/reconnect behavior, ENS display updates, and host budget

@@ -16,10 +16,17 @@ jobs:
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npx playwright install --with-deps firefox
+      - name: Exercise public solo gameplay in a temporary Firefox world
+        env:
+          MINEMINE_QA_URL: https://cupojoseph.github.io/minemine/play/?storage=memory
+          MINEMINE_QA_ARTIFACT_DIR: runtime/firefox-qa/memory
+          MINEMINE_QA_HEADED: '1'
+        run: xvfb-run -a npm run test:firefox-opfs
       - name: Exercise public solo gameplay and browser storage
+        if: always()
         env:
           MINEMINE_QA_URL: https://cupojoseph.github.io/minemine/play/?storage=auto
-          MINEMINE_QA_ARTIFACT_DIR: runtime/firefox-qa
+          MINEMINE_QA_ARTIFACT_DIR: runtime/firefox-qa/auto
           MINEMINE_QA_HEADED: '1'
         run: xvfb-run -a npm run test:firefox-opfs
       - name: Retain Firefox environment and screenshots

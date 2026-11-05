@@ -17,6 +17,7 @@ mkdirSync(artifactDir, { recursive: true });
 const url = process.env.MINEMINE_QA_URL
   ? new URL(process.env.MINEMINE_QA_URL)
   : new URL('/engine/index.html?storage=auto', process.env.MINEMINE_QA_ORIGIN || 'http://localhost:3000');
+const persistent = url.searchParams.get('storage') === 'auto';
 
 function waitForConsole(page, pattern, timeoutMs = 180_000) {
   return new Promise((resolve, reject) => {
@@ -69,31 +70,45 @@ async function session(action, expectedPosition) {
     }
     try {
       await page.goto(url.href, { waitUntil: 'domcontentloaded' });
-      const joined = waitForConsole(page, /singleplayer.*joins game/);
+      // Observe immediately so a timeout cannot become an unhandled rejection
+      // while a slow browser is still completing the click or storage overlay.
+      const joined = waitForConsole(page, /singleplayer.*joins game/)
+        .then(match => ({ match }), error => ({ error }));
       await page.locator('#start').click();
       await page.locator('#miners-playtest-overlay').waitFor({ timeout: 180_000 });
-      assert.match(await page.locator('#miners-playtest-overlay').textContent(), /Browser storage active/);
+      assert.match(await page.locator('#miners-playtest-overlay').textContent(),
+        persistent ? /Browser storage active/ : /Temporary world/);
       await saveDiagnostics('storage-active');
-      await joined;
+      const joinResult = await joined;
+      if (joinResult.error) throw joinResult.error;
       await page.waitForTimeout(8_000);
       await saveDiagnostics('joined');
       await page.screenshot({ path: join(artifactDir, `${action}-world.png`) });
+      if (persistent) {
+        await page.waitForTimeout(25_000);
+        await page.screenshot({ path: join(artifactDir, `${action}-world-late.png`) });
+      }
 
       // The pinned starter world spawns facing above a nearby tree. Focus the
       // canvas, aim down, and place a dirt block with hotbar slot 2.
       await page.mouse.click(640, 400);
       if (action === 'place') await page.mouse.move(640, 620, { steps: 3 });
+      await page.waitForTimeout(1_000);
       await page.keyboard.press(action === 'place' ? '2' : '1');
       const changed = waitForConsole(page, action === 'place'
         ? /singleplayer places node default:dirt at \((-?\d+),(-?\d+),(-?\d+)\)/
-        : /singleplayer digs default:dirt at \((-?\d+),(-?\d+),(-?\d+)\)/, 45_000);
+        : /singleplayer digs default:dirt at \((-?\d+),(-?\d+),(-?\d+)\)/, 45_000)
+        .then(match => ({ match }), error => ({ error }));
+      await page.waitForTimeout(500);
       if (action === 'place') await page.mouse.click(640, 400, { button: 'right' });
       else {
         await page.mouse.down();
         await page.waitForTimeout(1_800);
         await page.mouse.up();
       }
-      const match = await changed;
+      const changeResult = await changed;
+      if (changeResult.error) throw changeResult.error;
+      const match = changeResult.match;
       const position = match.slice(1).join(',');
       if (expectedPosition) assert.equal(position, expectedPosition, 'restart must edit the same saved block');
 
@@ -112,8 +127,12 @@ async function session(action, expectedPosition) {
 
 try {
   const position = await session('place');
-  await session('dig', position);
-  console.log(`PASS Firefox OPFS saved dirt at (${position}) across clean exit and fresh browser process.`);
+  if (persistent) {
+    await session('dig', position);
+    console.log(`PASS Firefox OPFS saved dirt at (${position}) across clean exit and fresh browser process.`);
+  } else {
+    console.log(`PASS Firefox temporary world placed dirt at (${position}) and exited cleanly.`);
+  }
 } finally {
   // Cleanup must not hide the actual gameplay result or failure.
   try { rmSync(temp, { recursive: true, force: true }); }

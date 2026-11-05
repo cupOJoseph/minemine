@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { appendFile, readFile, writeFile } from 'node:fs/promises';
+import { appendFile, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Wallet } from 'ethers';
 import { chromium } from 'playwright';
@@ -130,8 +130,12 @@ async function requestPositions(label) {
 
 async function prepareMovement(actorNames) {
   const resultPath = path.join(worldDir, 'minemine-load-prepare-result.json');
-  await writeFile(path.join(worldDir, 'minemine-load-prepare.json'),
+  const requestPath = path.join(worldDir, 'minemine-load-prepare.json');
+  const temporaryPath = `${requestPath}.${process.pid}.tmp`;
+  await rm(resultPath, { force: true });
+  await writeFile(temporaryPath,
     `${JSON.stringify({ players: actorNames })}\n`, { mode: 0o600 });
+  await rename(temporaryPath, requestPath);
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
     const raw = await readFile(resultPath, 'utf8').catch(() => '');

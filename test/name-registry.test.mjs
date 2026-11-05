@@ -235,6 +235,60 @@ test('verified ENS display changes advance the durable profile revision without 
   } finally { names.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
+test('acknowledged ENS displays are rechecked in oldest-first bounded batches with revision-safe fallback', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'minemine-profile-recheck-'));
+  let clock = Date.parse('2026-11-05T12:00:00Z');
+  const names = createNameRegistry(dir, () => clock);
+  try {
+    const wallets = ['d1', 'd2'].map(seed => new Wallet(`0x${seed.repeat(32)}`));
+    const accounts = wallets.map(wallet => wallet.address.toLowerCase());
+    const players = wallets.map(wallet => playerName(wallet.address));
+    for (let index = 0; index < 2; index++) {
+      names.recordWalletSignIn({ address: wallets[index].address, playerName: players[index] });
+      assert.equal(names.recordVerifiedProfileDisplay(accounts[index], players[index], `builder${index}.eth`), 2);
+      assert.equal(names.acknowledgeProfileProjection(accounts[index], 2), true);
+    }
+    const due = names.profilesDueForDisplayRecheck();
+    assert.equal(due.length, 2);
+    assert.equal(names.completeProfileDisplayRecheck(due[0], true), true);
+    assert.deepEqual(names.profilesDueForDisplayRecheck().map(row => row.accountId), [due[1].accountId]);
+    assert.equal(names.completeProfileDisplayRecheck(due[1], false), true);
+    assert.deepEqual(names.pendingProfileProjections(), [{
+      accountId: due[1].accountId, playerId: due[1].playerId,
+      displayName: due[1].playerId, revision: 3,
+    }]);
+    assert.equal(names.completeProfileDisplayRecheck(due[1], false), false,
+      'a stale ownership result cannot advance the revision twice');
+    clock += 120_000;
+    assert.deepEqual(names.profilesDueForDisplayRecheck().map(row => row.accountId), [due[0].accountId]);
+    names.recordVerifiedProfileDisplay(due[0].accountId, due[0].playerId, 'newbuilder.eth');
+    assert.equal(names.completeProfileDisplayRecheck(due[0], false), false,
+      'an old failed lookup cannot replace a newer verified display');
+    assert.equal(names.profilesDueForDisplayRecheck().length, 0,
+      'unacknowledged names are checked during projection instead');
+    assert.throws(() => names.profilesDueForDisplayRecheck(0), { code: 'invalid_input' });
+  } finally { names.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('older profile databases add the durable recheck column on open', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'minemine-profile-recheck-migrate-'));
+  const wallet = new Wallet('0x' + 'e1'.repeat(32));
+  const accountId = wallet.address.toLowerCase();
+  const playerId = playerName(wallet.address);
+  const first = createNameRegistry(dir);
+  first.recordWalletSignIn({ address: wallet.address, playerName: playerId });
+  first.recordVerifiedProfileDisplay(accountId, playerId, 'legacy.eth');
+  first.acknowledgeProfileProjection(accountId, 2);
+  first.close();
+  const db = new DatabaseSync(path.join(dir, 'name_registry', 'registry.sqlite'));
+  db.exec(`ALTER TABLE profile_projection DROP COLUMN checked_at`);
+  db.close();
+  const reopened = createNameRegistry(dir);
+  try {
+    assert.deepEqual(reopened.profilesDueForDisplayRecheck().map(row => row.displayName), ['legacy.eth']);
+  } finally { reopened.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
 test('legacy paid records migrate and activate only after a matching ENS address readback', async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'minemine-paid-name-'));
   const wallet = new Wallet('0x' + 'c4'.repeat(32));

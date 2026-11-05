@@ -26,6 +26,7 @@ if (!preflight) {
     if (asset.length !== expected.bytes || createHash('sha256').update(asset).digest('hex') !== expected.sha256) throw new Error('Engine asset hash mismatch: ' + relative);
   }
   fs.cpSync(engine, play, { recursive: true, filter: file => !path.relative(engine, file).split(path.sep).some(part => part.startsWith('.')) });
+  fs.copyFileSync(path.join(root, 'THIRD_PARTY.md'), path.join(play, 'notices/THIRD_PARTY.md'));
   const index = path.join(play, 'index.html');
   const template = fs.readFileSync(path.join(root, 'playtest/index.html'), 'utf8');
   if (template.split('%__MINERS_RELEASE__%').length !== 2) throw new Error('Invalid launcher release marker.');

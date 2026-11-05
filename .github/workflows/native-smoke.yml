@@ -183,6 +183,8 @@ jobs:
           test -f runtime/host-bundle-check/vendor/mapper/AUTHORS
           test -f runtime/host-bundle-check/scripts/publish-map-from-backup.mjs
           test -f runtime/host-bundle-check/scripts/sync-spacetime-profiles.mjs
+          test -f runtime/host-bundle-check/deploy/vps/minemine-profile-sync.service
+          test -f runtime/host-bundle-check/deploy/vps/minemine-profile-sync.timer
           node --check runtime/host-bundle-check/scripts/sync-spacetime-profiles.mjs
           test -z "$(ldd runtime/host-bundle-check/vendor/mapper/minetestmapper | grep 'not found' || true)"
           test -f runtime/host-bundle-check/test/integration/ens-live.mjs

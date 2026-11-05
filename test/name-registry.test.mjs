@@ -164,6 +164,7 @@ test('profile projection backfills and acknowledges only the durable source revi
   try {
     first.recordWalletSignIn({ address: wallet.address, playerName: name });
     first.recordWalletSignIn({ address: wallet.address, playerName: name });
+    assert.equal(first.pendingProfileProjectionCount(), 1);
     assert.deepEqual(first.pendingProfileProjections(), [{ accountId, displayName: name, revision: 1 }]);
     assert.equal(first.acknowledgeProfileProjection(accountId, 2), false);
     assert.deepEqual(first.pendingProfileProjections(), [{ accountId, displayName: name, revision: 1 }]);
@@ -173,6 +174,7 @@ test('profile projection backfills and acknowledges only the durable source revi
       assert.equal(second.acknowledgeProfileProjection(accountId, 1), true);
       assert.equal(second.acknowledgeProfileProjection(accountId, 1), false);
       assert.deepEqual(second.pendingProfileProjections(), []);
+      assert.equal(second.pendingProfileProjectionCount(), 0);
       assert.throws(() => second.pendingProfileProjections(0), { code: 'invalid_input' });
       assert.throws(() => second.acknowledgeProfileProjection('invalid', 1), { code: 'invalid_input' });
       second.close();

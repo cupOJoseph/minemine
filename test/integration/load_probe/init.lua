@@ -10,15 +10,21 @@ local function prepare_movement()
     os.remove(request)
     local config = raw and #raw <= 4096 and core.parse_json(raw)
     local names = config and config.players
-    local result = { ready = false, count = 0 }
+    local result = { ready = false, count = 0, reason = "invalid_actor_count" }
     if type(names) == "table" and #names == 8 then
         local actors = {}
         local seen = {}
         for _, name in ipairs(names) do
-            if type(name) ~= "string" or not name:match("^w_[0-9a-f]+$") or #name ~= 19 or seen[name] then break end
+            if type(name) ~= "string" or not name:match("^w_[0-9a-f]+$") or #name ~= 19 or seen[name] then
+                result.reason = "invalid_actor_name"
+                break
+            end
             seen[name] = true
             local player = core.get_player_by_name(name)
-            if not player then break end
+            if not player then
+                result.reason = "actor_not_connected:" .. name
+                break
+            end
             table.insert(actors, player)
         end
         if #actors == 8 then

@@ -109,7 +109,9 @@ try {
     body: 'SELECT account_id, display_name, revision FROM player_profile',
   });
   const sqlText = await sql.text();
-  assert.equal(sql.status, 403, `non-owner bridge SQL must not expose private profiles: ${sqlText}`);
+  assert.equal(sql.status, 400, `non-owner bridge SQL must not expose private profiles: ${sqlText}`);
+  assert.match(sqlText, /no such table: `player_profile`.*marked private/i,
+    'private table must be hidden from the non-owner SQL catalog');
   assert.ok(!sqlText.includes(account) && !sqlText.includes(projected.accountId),
     'private profile SQL failure must not leak addresses');
   console.log('SpacetimeDB 2.14.1 loopback profile smoke passed: write, replay, bridge, private SQL denial.');

@@ -90,8 +90,12 @@ export function createNameRegistry(worldDir, now = Date.now) {
       account_id TEXT PRIMARY KEY,
       display_name TEXT NOT NULL,
       revision INTEGER NOT NULL CHECK (revision > 0),
-      ack_revision INTEGER NOT NULL DEFAULT 0 CHECK (ack_revision >= 0 AND ack_revision <= revision)
+      ack_revision INTEGER NOT NULL DEFAULT 0 CHECK (ack_revision >= 0 AND ack_revision <= revision),
+      checked_at INTEGER NOT NULL DEFAULT 0
     );`);
+  if (!db.prepare('PRAGMA table_info(profile_projection)').all().some(column => column.name === 'checked_at')) {
+    db.exec('ALTER TABLE profile_projection ADD COLUMN checked_at INTEGER NOT NULL DEFAULT 0');
+  }
   // Backfill older worlds with their stable native character as the initial
   // public display value. Verified ENS display changes get later revisions.
   db.exec(`INSERT OR IGNORE INTO profile_projection(account_id, display_name, revision)
@@ -278,9 +282,48 @@ export function createNameRegistry(worldDir, now = Date.now) {
           throw new NameRegistryError('Profile projection revision is exhausted.', 'conflict');
         }
         const nextRevision = row.revision + 1;
-        db.prepare('UPDATE profile_projection SET display_name = ?, revision = ? WHERE account_id = ?')
+        db.prepare('UPDATE profile_projection SET display_name = ?, revision = ?, checked_at = 0 WHERE account_id = ?')
           .run(displayName, nextRevision, address);
         return nextRevision;
+      });
+    },
+    profilesDueForDisplayRecheck(limit = 10, intervalMs = 2 * 60_000) {
+      if (!Number.isInteger(limit) || limit < 1 || limit > 100 ||
+          !Number.isSafeInteger(intervalMs) || intervalMs < 0) {
+        throw new NameRegistryError('Invalid profile recheck bounds.', 'invalid_input');
+      }
+      return db.prepare(`SELECT p.account_id AS accountId, w.player_name AS playerId,
+          p.display_name AS displayName, p.revision AS revision
+        FROM profile_projection p JOIN wallet_profiles w ON w.account_id = p.account_id
+        WHERE p.display_name != w.player_name AND p.ack_revision = p.revision
+          AND p.checked_at <= ?
+        ORDER BY p.checked_at, p.account_id LIMIT ?`).all(now() - intervalMs, limit);
+    },
+    completeProfileDisplayRecheck(row, verified) {
+      if (!row || typeof row !== 'object' || typeof verified !== 'boolean' ||
+          !Number.isSafeInteger(row.revision) || row.revision < 1 ||
+          typeof row.accountId !== 'string' || typeof row.playerId !== 'string' ||
+          typeof row.displayName !== 'string') {
+        throw new NameRegistryError('Invalid profile recheck result.', 'invalid_input');
+      }
+      return transaction(() => {
+        const current = db.prepare(`SELECT p.display_name, p.revision, p.ack_revision, w.player_name
+          FROM profile_projection p JOIN wallet_profiles w ON w.account_id = p.account_id
+          WHERE p.account_id = ?`).get(row.accountId);
+        if (!current || current.revision !== row.revision || current.ack_revision !== row.revision ||
+            current.display_name !== row.displayName || current.player_name !== row.playerId ||
+            current.display_name === current.player_name) return false;
+        if (verified) {
+          db.prepare('UPDATE profile_projection SET checked_at = ? WHERE account_id = ?')
+            .run(now(), row.accountId);
+        } else {
+          if (current.revision >= Number.MAX_SAFE_INTEGER) {
+            throw new NameRegistryError('Profile projection revision is exhausted.', 'conflict');
+          }
+          db.prepare(`UPDATE profile_projection SET display_name = ?, revision = ?, checked_at = 0
+            WHERE account_id = ?`).run(row.playerId, row.revision + 1, row.accountId);
+        }
+        return true;
       });
     },
     pendingProfileProjections(limit = 100) {

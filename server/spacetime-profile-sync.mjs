@@ -53,6 +53,25 @@ export function createProfileDisplayVerifier({ registry, ensResolver, ensOwnersh
   };
 }
 
+export async function revalidateAcknowledgedProfiles({ registry, verifyDisplay, batchSize = 10 }) {
+  const rows = registry.profilesDueForDisplayRecheck(batchSize);
+  if (rows.length && typeof verifyDisplay !== 'function') {
+    throw new Error('Published ENS profiles require a live ownership verifier.');
+  }
+  let checked = 0;
+  let fallbackQueued = 0;
+  for (const row of rows) {
+    let verified = false;
+    try { verified = await verifyDisplay(row) === true; }
+    catch { /* An unavailable ownership lookup cannot authorize a public name. */ }
+    if (registry.completeProfileDisplayRecheck(row, verified)) {
+      checked++;
+      if (!verified) fallbackQueued++;
+    }
+  }
+  return { checked, fallbackQueued };
+}
+
 export async function syncPendingProfiles({ registry, databaseOrigin, databaseName, token,
   fetchImpl = fetch, allowLoopback = false, batchSize = 100, verifyDisplay }) {
   if (!/^[a-z0-9][a-z0-9-]{0,127}$/.test(databaseName || '')) throw new Error('Invalid SpacetimeDB database name.');

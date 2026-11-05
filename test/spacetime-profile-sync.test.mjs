@@ -6,7 +6,7 @@ import path from 'node:path';
 import { Wallet } from 'ethers';
 import { playerName } from '../server/auth.mjs';
 import { createNameRegistry } from '../server/name-registry.mjs';
-import { createProfileDisplayVerifier, requestServiceToken, syncPendingProfiles } from '../server/spacetime-profile-sync.mjs';
+import { createProfileDisplayVerifier, revalidateAcknowledgedProfiles, requestServiceToken, syncPendingProfiles } from '../server/spacetime-profile-sync.mjs';
 
 const jwt = 'header.payload.signature';
 
@@ -100,5 +100,40 @@ test('sync rechecks ENS display before publishing and queues a stable-ID fallbac
       ensOwnership: { verify: async () => { throw new Error('managed name is not wallet-owned'); } },
     });
     assert.equal(await managedVerifier({ accountId, playerId, displayName: 'builder.minemine.eth' }), true);
+  } finally { registry.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('idle published ENS names are revalidated and failed ownership queues a durable fallback', async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'minemine-idle-profile-recheck-'));
+  let clock = Date.parse('2026-11-05T12:00:00Z');
+  const registry = createNameRegistry(dir, () => clock);
+  try {
+    const wallet = new Wallet('0x' + 'd3'.repeat(32));
+    const accountId = wallet.address.toLowerCase();
+    const playerId = playerName(wallet.address);
+    registry.recordWalletSignIn({ address: wallet.address, playerName: playerId });
+    registry.recordVerifiedProfileDisplay(accountId, playerId, 'idle.eth');
+    registry.acknowledgeProfileProjection(accountId, 2);
+    await assert.rejects(revalidateAcknowledgedProfiles({ registry }), /live ownership verifier/);
+    assert.deepEqual(await revalidateAcknowledgedProfiles({ registry, verifyDisplay: async () => true }),
+      { checked: 1, fallbackQueued: 0 });
+    assert.deepEqual(await revalidateAcknowledgedProfiles({ registry, verifyDisplay: async () => false }),
+      { checked: 0, fallbackQueued: 0 }, 'a successful check waits for the recheck interval');
+    clock += 120_000;
+    assert.deepEqual(await revalidateAcknowledgedProfiles({ registry, verifyDisplay: async () => {
+      throw new Error('ENS RPC unavailable');
+    } }), { checked: 1, fallbackQueued: 1 });
+    assert.deepEqual(registry.pendingProfileProjections(), [
+      { accountId, playerId, displayName: playerId, revision: 3 },
+    ]);
+    const sent = [];
+    assert.equal(await syncPendingProfiles({ registry, databaseOrigin: 'http://127.0.0.1:3000',
+      databaseName: 'minemine-pilot', token: jwt, allowLoopback: true,
+      fetchImpl: async (_url, request) => {
+        sent.push(JSON.parse(request.body));
+        return new Response('', { status: 200 });
+      },
+    }), 1);
+    assert.deepEqual(sent, [[accountId, playerId, playerId, 3]]);
   } finally { registry.close(); rmSync(dir, { recursive: true, force: true }); }
 });

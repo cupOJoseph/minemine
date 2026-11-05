@@ -77,9 +77,22 @@ and `BRIDGE_SUBJECT` must match the SpacetimeAuth service token's claims. Set
 `SPACETIME_AUTH_CLIENT_SECRET` privately on the Node host, then run
 `npm run profiles:sync`. Keep the client secret out of the repository and
 browser. The command sends at most 100 rows per invocation, requires HTTPS,
-and exits on a failed write; schedule and monitor repeated invocations only
-after the real credential and database have been tested. The profile table is
-private; do not add a public view or table containing wallet addresses.
+and exits on a failed write. `WORLD_DIR=/srv/minemine/world node
+scripts/sync-spacetime-profiles.mjs --status` prints the pending row count
+without needing a service credential. The host archive contains an optional
+[oneshot service](../deploy/vps/minemine-profile-sync.service) and
+[replay timer](../deploy/vps/minemine-profile-sync.timer). Install both units
+only after the hosted database and real OIDC service credential pass one manual
+sync; the timer is not enabled by the archive. Run the status command and a
+manual `systemctl start minemine-profile-sync.service`, confirm the row count
+falls, and inspect `journalctl -u minemine-profile-sync.service` before enabling
+the timer. The service writes only to the private world directory and reads
+the same private environment file as the web service. Its 20-minute deadline
+covers the bounded 100-row batch; a failure leaves unacknowledged rows for the
+next run. The [systemd timer reference](https://www.freedesktop.org/software/systemd/man/latest/systemd.timer.html)
+defines `OnBootSec` and `OnUnitActiveSec` for first start and repeat runs.
+The profile table is private; do not add a public view or table containing
+wallet addresses.
 
 Real SpacetimeAuth token issuance, a hosted database, live replay after restart,
 subscription/reconnect behavior, ENS display updates, and host budget

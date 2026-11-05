@@ -65,10 +65,12 @@ absolute path of the 2.14.1 `spacetimedb-cli` binary for the last command.
 - `playerId`: the stable `w_` native character ID bound to that account by the
   private MineMine registry. The bridge reads it from `wallet_profiles`; a
   later revision cannot change the binding.
-- `displayName`: the already validated MineMine or ENS display name. This table
-  does not claim name ownership or enforce name uniqueness. The first revision
-  uses only the native character ID; ENS and managed names need a separate
-  fresh-ownership projection before they can replace it.
+- `displayName`: the native character ID initially, or a normalized ENS name
+  after the web server verifies current wallet ownership or a managed name's
+  address record. The source queues a new revision when that verified display
+  changes. The bridge checks it again before publishing; if verification fails,
+  it publishes the stable ID at a newer revision. This table does not claim
+  name ownership or enforce name uniqueness on its own.
 - `revision`: a durable per-account integer assigned by the authoritative
   source. Exact retries are idempotent; older revisions cannot overwrite a
   newer projection; a different value at the same revision is rejected.
@@ -80,17 +82,22 @@ SQLite transaction as a verified wallet sign in. Opening an older registry
 backfills existing wallet profiles. The bridge joins the pending row to the
 private wallet profile to obtain its stable character ID and fails if that
 binding is missing. The first revision uses the native character ID as its
-display name. A bounded one-shot command reads pending
-rows, obtains a SpacetimeAuth service token with `client_credentials`, sends
+display name. A verified identity read or ENS selection can queue a changed
+display name. A bounded one-shot command reads pending rows, obtains a
+SpacetimeAuth service token with `client_credentials`, rechecks any ENS display
+through the configured mainnet `ENS_RPC_URL`, and sends
 confirmed `upsert_profile` HTTP calls, and acknowledges each successful row.
 If the process stops after a remote commit but before the local acknowledgement,
-the revision is retried safely. Failed rows remain pending. The loopback
+the revision is retried safely. Failed rows remain pending. If an ENS check
+fails, the bridge replaces that row with a higher-revision native ID before
+sending; without a verifier it refuses to send the ENS value. The loopback
 network smoke exercises this bridge path with a disposable development token.
 
 After configuring a real database, module `BRIDGE_ISSUER`, `BRIDGE_AUDIENCE`,
 and `BRIDGE_SUBJECT` must match the SpacetimeAuth service token's claims. Set
 `SPACETIME_DB_ORIGIN`, `SPACETIME_DB_NAME`, `SPACETIME_AUTH_CLIENT_ID`, and
-`SPACETIME_AUTH_CLIENT_SECRET` privately on the Node host, then run
+`SPACETIME_AUTH_CLIENT_SECRET` privately on the Node host. Set `ENS_RPC_URL` to
+a mainnet endpoint for ENS display checks, then run
 `npm run profiles:sync`. Keep the client secret out of the repository and
 browser. The command sends at most 100 rows per invocation, requires HTTPS,
 and exits on a failed write. `WORLD_DIR=/srv/minemine/world node
@@ -110,11 +117,14 @@ defines `OnBootSec` and `OnUnitActiveSec` for first start and repeat runs.
 The profile table is private; do not add a public view or table containing
 wallet addresses.
 
-Real SpacetimeAuth token issuance, a hosted database, live replay after restart,
-subscription/reconnect behavior, ENS display updates, and host budget
-measurement remain untested. This bridge does not increase the native Luanti
-world's player capacity. Keep the module off the public client path until those
-gates pass.
+An ENS name can transfer or expire while its owner is offline. This pilot has
+no autonomous revalidation pass for already-acknowledged names, so the public
+directory can retain a stale name until another verified identity read queues
+a change. Real SpacetimeAuth token issuance, a hosted database, live replay
+after restart, browser subscription, automatic outage recovery, ongoing ENS
+revalidation and host budget measurement remain untested. This bridge does not
+increase the native Luanti world's player capacity. Keep the module off the
+public client path until those gates pass.
 
 Sources: [SpacetimeDB authentication](https://spacetimedb.com/docs/core-concepts/authentication/),
 [auth claims](https://spacetimedb.com/docs/core-concepts/authentication/usage/),

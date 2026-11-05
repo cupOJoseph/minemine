@@ -76,20 +76,20 @@ export async function verifyClientSubscription({ moduleDir, origin, database, to
         if (after.playerId === playerId) resolve({ before, after });
       });
     }), 'live public directory update');
-    const updated = await call(origin, bridgeToken, [account, playerId, 'alice', 2]);
+    const updated = await call(origin, bridgeToken, [account, playerId, 'alice.eth', 2]);
     assert.equal(updated.status, 200, await updated.text());
     const { before, after } = await changed;
     assert.equal(before.displayName, playerId);
-    assert.equal(after.displayName, 'alice');
+    assert.equal(after.displayName, 'alice.eth');
     assert.equal(after.revision, 2n);
-    assert.equal(first.connection.db.playerDirectory.playerId.find(playerId)?.displayName, 'alice');
+    assert.equal(first.connection.db.playerDirectory.playerId.find(playerId)?.displayName, 'alice.eth');
 
     first.connection.disconnect();
     second = connect(DbConnection, origin, database, token);
     const secondIdentity = await second.connected;
     assert.equal(secondIdentity, firstIdentity, 'same token retains client identity on reconnect');
     const reloadedRows = await subscribe(second.connection, tables);
-    assert.equal(reloadedRows.find(row => row.playerId === playerId)?.displayName, 'alice',
+    assert.equal(reloadedRows.find(row => row.playerId === playerId)?.displayName, 'alice.eth',
       'new connection receives the latest public revision');
   } finally {
     first?.connection.disconnect();

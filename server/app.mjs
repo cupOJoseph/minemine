@@ -107,12 +107,17 @@ export function createApp(config) {
   };
   async function playerIdentity(session) {
     const accountId = session.address.toLowerCase();
+    const stableId = playerName(session.address);
+    const projected = identity => {
+      names.recordVerifiedProfileDisplay(accountId, stableId, identity.ensName || stableId);
+      return identity;
+    };
     const managed = names.managedNameForAccount(accountId);
     if (managed) {
       try {
         const resolved = await ens.recipient(managed);
         if (getAddress(resolved.address) === getAddress(session.address)) {
-          return { ...session, ensName: managed, managedEnsName: managed, selectedEnsName: null };
+          return projected({ ...session, ensName: managed, managedEnsName: managed, selectedEnsName: null });
         }
       } catch { /* A missing record or ENS outage never permits display. */ }
     }
@@ -120,7 +125,7 @@ export function createApp(config) {
     if (selected) {
       try {
         await ensOwnership.verify(selected, session.address);
-        if (names.ensNameAllowed(accountId, selected)) return { ...session, ensName: selected, selectedEnsName: selected };
+        if (names.ensNameAllowed(accountId, selected)) return projected({ ...session, ensName: selected, selectedEnsName: selected });
         names.clearSelectedEns(accountId, selected);
       } catch (error) {
         if (error instanceof AuthError && error.status === 403) names.clearSelectedEns(accountId, selected);
@@ -131,12 +136,12 @@ export function createApp(config) {
     try { primary = await ens.name(session.address); } catch { /* Address remains authoritative. */ }
     if (primary) {
       try {
-        await ensOwnership.verify(primary, session.address);
-        if (!names.ensNameAllowed(accountId, primary)) primary = null;
+        const verified = await ensOwnership.verify(primary, session.address);
+        primary = names.ensNameAllowed(accountId, verified.name) ? verified.name : null;
       }
       catch { primary = null; }
     }
-    return { ...session, ensName: primary, selectedEnsName: null };
+    return projected({ ...session, ensName: primary, selectedEnsName: null });
   }
   const betaAdmissionCache = new Map();
   const isBetaAdmitted = address => {
@@ -427,11 +432,14 @@ export function createApp(config) {
             if (error instanceof NameRegistryError) throw new AuthError(error.message, error.code === 'unavailable' ? 409 : 400);
             throw error;
           }
+          await playerIdentity(session);
           return json(res, 200, { ...session, ensName: verified.name, selectedEnsName: verified.name, ensVersion: verified.version });
         }
         if (req.method === 'POST' && url.pathname === '/api/identity/ens/clear') {
           await body(req);
-          return json(res, 200, { cleared: names.clearSelectedEns(session.address.toLowerCase()) });
+          const cleared = names.clearSelectedEns(session.address.toLowerCase());
+          await playerIdentity(session);
+          return json(res, 200, { cleared });
         }
         if (req.method === 'GET' && url.pathname === '/api/currency/recipient') return json(res, 200, await ens.recipient(url.searchParams.get('input')));
         if (req.method === 'GET' && url.pathname === '/api/currency/balance') return json(res, 200, await balance(session.address));

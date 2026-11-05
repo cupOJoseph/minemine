@@ -198,6 +198,43 @@ test('profile projection backfills a wallet profile created by an older world', 
   finally { second.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
+test('verified ENS display changes advance the durable profile revision without moving the native ID', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'minemine-profile-display-'));
+  const wallet = new Wallet('0x' + 'bc'.repeat(32));
+  const accountId = wallet.address.toLowerCase();
+  const playerId = playerName(wallet.address);
+  const names = createNameRegistry(dir);
+  try {
+    assert.equal(names.recordVerifiedProfileDisplay(accountId, playerId, 'builder.eth'), false,
+      'a profile cannot be projected before its signed wallet has a native binding');
+    names.recordWalletSignIn({ address: wallet.address, playerName: playerId });
+    assert.equal(names.recordVerifiedProfileDisplay(accountId, playerId, 'builder.eth'), 2);
+    assert.equal(names.recordVerifiedProfileDisplay(accountId, playerId, 'builder.eth'), 2,
+      'the same verified display is idempotent');
+    assert.deepEqual(names.pendingProfileProjections(), [
+      { accountId, playerId, displayName: 'builder.eth', revision: 2 },
+    ]);
+    assert.equal(names.acknowledgeProfileProjection(accountId, 1), false,
+      'an old acknowledgement cannot clear a newer name');
+    const longEns = `${'a'.repeat(63)}.${'b'.repeat(63)}.eth`;
+    assert.equal(names.recordVerifiedProfileDisplay(accountId, playerId, longEns), 3,
+      'a valid ENS name longer than the old 64-character limit remains intact');
+    assert.equal(names.recordVerifiedProfileDisplay(accountId, playerId, playerId), 4,
+      'lost ownership falls back to the stable native ID');
+    assert.equal(names.acknowledgeProfileProjection(accountId, 2), false);
+    assert.throws(() => names.recordVerifiedProfileDisplay(accountId, 'w_00000000000000000', 'builder.eth'),
+      { code: 'invalid_input' });
+    assert.throws(() => names.recordVerifiedProfileDisplay(accountId, playerId, 'bad name'),
+      { code: 'invalid_input' });
+    assert.throws(() => names.recordVerifiedProfileDisplay(accountId, playerId, 'a'.repeat(256) + '.eth'),
+      { code: 'invalid_input' });
+    assert.deepEqual(names.pendingProfileProjections(), [
+      { accountId, playerId, displayName: playerId, revision: 4 },
+    ]);
+    assert.equal(names.acknowledgeProfileProjection(accountId, 4), true);
+  } finally { names.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
 test('legacy paid records migrate and activate only after a matching ENS address readback', async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'minemine-paid-name-'));
   const wallet = new Wallet('0x' + 'c4'.repeat(32));

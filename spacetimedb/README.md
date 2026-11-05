@@ -1,13 +1,16 @@
 # MineMine SpacetimeDB profile pilot
 
-This is a **server-only prototype**, not a live account directory and not a
+This is a **server-written prototype**, not a live account directory and not a
 replacement for Luanti's voxel, inventory, physics, or town authority. The
-`playerProfile` projection holds an account address, public display name, and
-monotonic source revision. Only a trusted bridge with a configured OIDC service
-identity may connect or write. The browser must never receive that credential.
-The table is private because its account address must not be available through
-public subscriptions or client SQL. A later player-facing directory needs a
-separate, explicitly safe projection.
+private `playerProfile` table holds an account address, stable native character
+ID, display name and monotonic source revision. The public `playerDirectory`
+table holds only the character ID, display name and revision. Any client can
+read the public table; only a trusted bridge with a configured OIDC service
+identity may write either table. The browser must never receive that credential
+or the private account mapping. Both rows change in one reducer transaction.
+The character ID is a deterministic hash-derived pseudonym from the wallet
+address, so someone who already knows an address can compute its character ID;
+the directory does not promise anonymity.
 
 The schema requires `BRIDGE_ISSUER`, `BRIDGE_AUDIENCE`, and `BRIDGE_SUBJECT` as
 database environment values. Use a service account whose token's `iss`, `aud`,
@@ -39,21 +42,27 @@ test before this projection can serve players.
 The network smoke starts a temporary loopback-only, in-memory standalone host,
 publishes the module with disposable development-token claims, accepts one
 authorized profile write and exact replay, rejects a second identity and an
-anonymous caller with **403**, then writes a second row through the server bridge
-path and checks that a non-owner identity cannot read the private table over SQL
-before stopping the host. The in-memory reducer tests check the stored rows. CI
+anonymous writer with **403**, then writes a second row through the server bridge
+path. A non-owner identity reads the public directory over SQL but cannot read
+the private wallet table. The in-memory reducer tests check both stored rows. CI
 downloads the official Linux 2.14.1 archive and verifies its SHA-256 before
 running this check. The local development token is scoped to that disposable
-host; a real OIDC bridge write and subscription are still untested.
+host; a real OIDC bridge write, browser subscription and reconnect are still untested.
 If the `spacetime` command selects an older CLI, set `SPACETIME_CLI` to the
 absolute path of the 2.14.1 `spacetimedb-cli` binary for the last command.
 
 ## Projection contract
 
 - `accountId`: lowercase EVM address already bound to a signed MineMine session
-  by the trusted web server, never taken directly from a browser reducer call.
+  by the trusted web server, never taken directly from a browser reducer call
+  or published in the player directory.
+- `playerId`: the stable `w_` native character ID bound to that account by the
+  private MineMine registry. The bridge reads it from `wallet_profiles`; a
+  later revision cannot change the binding.
 - `displayName`: the already validated MineMine or ENS display name. This table
-  does not claim name ownership or enforce name uniqueness.
+  does not claim name ownership or enforce name uniqueness. The first revision
+  uses only the native character ID; ENS and managed names need a separate
+  fresh-ownership projection before they can replace it.
 - `revision`: a durable per-account integer assigned by the authoritative
   source. Exact retries are idempotent; older revisions cannot overwrite a
   newer projection; a different value at the same revision is rejected.
@@ -62,9 +71,10 @@ absolute path of the 2.14.1 `spacetimedb-cli` binary for the last command.
 
 The MineMine name registry writes a durable profile projection row in the same
 SQLite transaction as a verified wallet sign in. Opening an older registry
-backfills existing wallet profiles. The first revision contains only the stable
-native character ID as `displayName`; this does not project ENS or managed
-names without fresh ownership checks. A bounded one-shot command reads pending
+backfills existing wallet profiles. The bridge joins the pending row to the
+private wallet profile to obtain its stable character ID and fails if that
+binding is missing. The first revision uses the native character ID as its
+display name. A bounded one-shot command reads pending
 rows, obtains a SpacetimeAuth service token with `client_credentials`, sends
 confirmed `upsert_profile` HTTP calls, and acknowledges each successful row.
 If the process stops after a remote commit but before the local acknowledgement,

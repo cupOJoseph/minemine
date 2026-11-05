@@ -87,7 +87,11 @@ display name. A bounded one-shot command reads pending rows, obtains a
 SpacetimeAuth service token with `client_credentials`, rechecks any ENS display
 through the configured mainnet `ENS_RPC_URL`, and sends
 confirmed `upsert_profile` HTTP calls, and acknowledges each successful row.
-If the process stops after a remote commit but before the local acknowledgement,
+Before sending pending rows, the same command rechecks up to ten acknowledged
+ENS displays that have not been checked in two minutes, oldest first. A failed
+ownership or resolver lookup queues a newer stable-ID revision; the command
+then attempts to publish that fallback. The check timestamp is durable, and
+an older registry gains the column on open. If the process stops after a remote commit but before the local acknowledgement,
 the revision is retried safely. Failed rows remain pending. If an ENS check
 fails, the bridge replaces that row with a higher-revision native ID before
 sending; without a verifier it refuses to send the ENS value. The loopback
@@ -99,7 +103,8 @@ and `BRIDGE_SUBJECT` must match the SpacetimeAuth service token's claims. Set
 `SPACETIME_AUTH_CLIENT_SECRET` privately on the Node host. Set `ENS_RPC_URL` to
 a mainnet endpoint for ENS display checks, then run
 `npm run profiles:sync`. Keep the client secret out of the repository and
-browser. The command sends at most 100 rows per invocation, requires HTTPS,
+browser. The command sends at most 100 pending rows and rechecks at most ten
+already-published names per invocation, requires HTTPS,
 and exits on a failed write. `WORLD_DIR=/srv/minemine/world node
 scripts/sync-spacetime-profiles.mjs --status` prints the pending row count
 without needing a service credential. The host archive contains an optional
@@ -117,12 +122,15 @@ defines `OnBootSec` and `OnUnitActiveSec` for first start and repeat runs.
 The profile table is private; do not add a public view or table containing
 wallet addresses.
 
-An ENS name can transfer or expire while its owner is offline. This pilot has
-no autonomous revalidation pass for already-acknowledged names, so the public
-directory can retain a stale name until another verified identity read queues
-a change. Real SpacetimeAuth token issuance, a hosted database, live replay
-after restart, browser subscription, automatic outage recovery, ongoing ENS
-revalidation and host budget measurement remain untested. This bridge does not
+An ENS name can transfer or expire while its owner is offline. The optional
+timer can eventually replace a stale published name, but it is disabled by
+default. The two-minute check interval is not an immediate revocation promise:
+backlogs, RPC failures, service outages, and an unavailable database can delay
+the public update. A failed check falls back to the stable ID, and a later
+verified identity read can restore a valid ENS display. Real SpacetimeAuth token
+issuance, a hosted database, live replay after restart, browser subscription,
+automatic outage recovery, observed recheck lag and host budget measurement
+remain untested. This bridge does not
 increase the native Luanti world's player capacity. Keep the module off the
 public client path until those gates pass.
 

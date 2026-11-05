@@ -36,18 +36,24 @@ npm run test:network:local --prefix spacetimedb
 The unit tests use SpacetimeDB's in-memory datastore and test reducer
 authorization, transaction rollback, replay, and revision ordering. Its test
 harness does not verify JWT signatures, network connections, subscriptions,
-durability, or real OIDC issuance. Those require a running server integration
-test before this projection can serve players.
+durability, or real OIDC issuance. The loopback integration below covers
+network delivery with disposable identities; real OIDC and durability remain
+separate gates before this projection can serve players.
 
 The network smoke starts a temporary loopback-only, in-memory standalone host,
 publishes the module with disposable development-token claims, accepts one
 authorized profile write and exact replay, rejects a second identity and an
-anonymous writer with **403**, then writes a second row through the server bridge
-path. A non-owner identity reads the public directory over SQL but cannot read
-the private wallet table. The in-memory reducer tests check both stored rows. CI
-downloads the official Linux 2.14.1 archive and verifies its SHA-256 before
-running this check. The local development token is scoped to that disposable
-host; a real OIDC bridge write, browser subscription and reconnect are still untested.
+anonymous writer without adding a public row, then writes a second row through
+the server bridge path. The pinned host reports reducer denials with a non-200
+status, which need not be 403. A non-owner identity reads the public directory
+over SQL but cannot read the private wallet table. The test generates client
+bindings with the pinned CLI, confirms that they omit the private table, and
+uses the TypeScript SDK over WebSocket to subscribe to both public rows, receive
+a live revision update, and create a new connection with the same token and
+identity. CI downloads the official Linux 2.14.1 archive and verifies its
+SHA-256 before running this check. The local development token is scoped to
+that disposable host; a real OIDC bridge write, browser subscription,
+automatic reconnect after an outage, and hosted durability remain untested.
 If the `spacetime` command selects an older CLI, set `SPACETIME_CLI` to the
 absolute path of the 2.14.1 `spacetimedb-cli` binary for the last command.
 
@@ -114,5 +120,7 @@ Sources: [SpacetimeDB authentication](https://spacetimedb.com/docs/core-concepts
 [auth claims](https://spacetimedb.com/docs/core-concepts/authentication/usage/),
 [module environment](https://spacetimedb.com/docs/databases/environment-variables/),
 [module tests](https://spacetimedb.com/docs/how-to/unit-testing/),
+[TypeScript subscriptions](https://spacetimedb.com/docs/clients/typescript/),
+[generated client bindings](https://spacetimedb.com/docs/clients/codegen/),
 [Maincloud connection URL](https://spacetimedb.com/docs/how-to/deploy/maincloud/),
 and [HTTP reducer calls](https://spacetimedb.com/docs/http/database/).

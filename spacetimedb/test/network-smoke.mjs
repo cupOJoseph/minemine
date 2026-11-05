@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { syncPendingProfiles } from '../../server/spacetime-profile-sync.mjs';
+import { verifyClientSubscription } from './client-subscription.mjs';
 
 const cli = process.env.SPACETIME_CLI || 'spacetime';
 const moduleDir = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -130,7 +131,12 @@ try {
     'rejected profile must not appear in the public directory');
   assert.ok(!publicText.includes(account) && !publicText.includes(projected.accountId),
     'public directory must not expose wallet addresses');
-  console.log('SpacetimeDB 2.14.1 loopback profile smoke passed: bridge writes, public directory read, private wallet SQL denial.');
+  execFileSync(cli, ['generate', '--lang', 'typescript', '--out-dir',
+    path.join(moduleDir, 'test/module_bindings'), '--module-path', moduleDir,
+    '--import-extension', 'ts', '--no-config', '--yes'], { cwd: scratch, stdio: 'pipe' });
+  await verifyClientSubscription({ moduleDir, origin, database, token: stranger.token,
+    bridgeToken: bridge.token, account, playerId, projectedPlayerId: projected.playerId, call });
+  console.log('SpacetimeDB 2.14.1 loopback profile smoke passed: bridge writes, public subscription and update, reconnect, private wallet denial.');
 } finally {
   if (host && host.exitCode === null && host.signalCode === null) {
     host.kill('SIGINT');

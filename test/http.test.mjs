@@ -435,7 +435,12 @@ test('selected ENS identity is wallet-bound, rechecked, and removed after owners
     if (address !== owner) throw new AuthError('This wallet does not own that ENS name.', 403);
     return { name, version: 'v1' };
   } };
-  const { request } = await fixture(t, {}, null, { ensOwnership });
+  const { request, worldDir } = await fixture(t, {}, null, { ensOwnership });
+  const projected = address => {
+    const registry = createNameRegistry(worldDir);
+    try { return registry.pendingProfileProjections().find(row => row.accountId === address.toLowerCase()); }
+    finally { registry.close(); }
+  };
   const login = async wallet => {
     const challenge = await request('/api/auth/challenge', { address: wallet.address, chainId: 11155111 });
     const signature = await wallet.signMessage((await challenge.json()).message);
@@ -450,17 +455,28 @@ test('selected ENS identity is wallet-bound, rechecked, and removed after owners
   const selected = await request('/api/identity/ens', { name: 'builder.eth' }, aliceCookie);
   assert.equal(selected.status, 200);
   assert.equal((await selected.json()).selectedEnsName, 'builder.eth');
+  assert.deepEqual({ displayName: projected(alice.address).displayName, revision: projected(alice.address).revision },
+    { displayName: 'builder.eth', revision: 2 });
   assert.equal((await (await request('/api/identity', undefined, aliceCookie)).json()).ensName, 'builder.eth');
   offline = true;
   assert.equal((await (await request('/api/identity', undefined, aliceCookie)).json()).ensName, null, 'unverified names are hidden during RPC outages');
+  assert.deepEqual({ displayName: projected(alice.address).displayName, revision: projected(alice.address).revision },
+    { displayName: playerName(alice.address), revision: 3 });
   offline = false;
   assert.equal((await (await request('/api/identity', undefined, aliceCookie)).json()).ensName, 'builder.eth', 'outage does not erase ownership');
+  assert.equal(projected(alice.address).revision, 4);
   owner = bob.address;
   assert.equal((await (await request('/api/identity', undefined, aliceCookie)).json()).selectedEnsName, null);
+  assert.deepEqual({ displayName: projected(alice.address).displayName, revision: projected(alice.address).revision },
+    { displayName: playerName(alice.address), revision: 5 });
   assert.equal((await request('/api/identity/ens', { name: 'builder.eth' }, bobCookie)).status, 200);
+  assert.deepEqual({ displayName: projected(bob.address).displayName, revision: projected(bob.address).revision },
+    { displayName: 'builder.eth', revision: 2 });
   assert.equal((await (await request('/api/identity', undefined, bobCookie)).json()).ensName, 'builder.eth');
   assert.deepEqual(await (await request('/api/identity/ens/clear', {}, bobCookie)).json(), { cleared: true });
   assert.equal((await (await request('/api/identity', undefined, bobCookie)).json()).ensName, null);
+  assert.deepEqual({ displayName: projected(bob.address).displayName, revision: projected(bob.address).revision },
+    { displayName: playerName(bob.address), revision: 3 });
 });
 
 test('paid managed name displays only while ENS resolves to its signed account wallet', async t => {

@@ -65,6 +65,14 @@ it('applies newer profile revisions and tolerates exact replay', () => {
   });
 });
 
+it('keeps a verified ENS display longer than 64 characters intact', () => {
+  const { test, call } = testDatabase();
+  const longEns = `${'a'.repeat(63)}.${'b'.repeat(63)}.eth`;
+  call(caller(), { accountId: ACCOUNT, playerId: PLAYER, displayName: PLAYER, revision: 1n });
+  call(caller(), { accountId: ACCOUNT, playerId: PLAYER, displayName: longEns, revision: 2n });
+  expect(test.db.playerDirectory.playerId.find(PLAYER)).toMatchObject({ displayName: longEns, revision: 2n });
+});
+
 it('rejects conflicting revisions and malformed projections without changing the row', () => {
   const { test, call } = testDatabase();
   call(caller(), { accountId: ACCOUNT, playerId: PLAYER, displayName: PLAYER, revision: 1n });
@@ -75,6 +83,7 @@ it('rejects conflicting revisions and malformed projections without changing the
     { accountId: ACCOUNT, playerId: 'w_22222222222222222', displayName: PLAYER, revision: 2n },
     { accountId: ACCOUNT, playerId: PLAYER, displayName: ' alice', revision: 2n },
     { accountId: ACCOUNT, playerId: PLAYER, displayName: ACCOUNT, revision: 2n },
+    { accountId: ACCOUNT, playerId: PLAYER, displayName: 'a'.repeat(256), revision: 2n },
     { accountId: ACCOUNT, playerId: PLAYER, displayName: 'bad\nname', revision: 2n },
     { accountId: '0x2222222222222222222222222222222222222222', playerId: PLAYER, displayName: PLAYER, revision: 1n },
   ]) expect(() => call(caller(), args)).toThrow();

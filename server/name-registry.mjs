@@ -92,8 +92,8 @@ export function createNameRegistry(worldDir, now = Date.now) {
       revision INTEGER NOT NULL CHECK (revision > 0),
       ack_revision INTEGER NOT NULL DEFAULT 0 CHECK (ack_revision >= 0 AND ack_revision <= revision)
     );`);
-  // Backfill older worlds. The stable native character is the only display
-  // value here until a separately verified public-name sync is implemented.
+  // Backfill older worlds with their stable native character as the initial
+  // public display value. Verified ENS display changes get later revisions.
   db.exec(`INSERT OR IGNORE INTO profile_projection(account_id, display_name, revision)
     SELECT account_id, player_name, 1 FROM wallet_profiles;`);
   // Earlier worlds used a CHECK constraint without paid_active. Rebuild that
@@ -243,6 +243,44 @@ export function createNameRegistry(worldDir, now = Date.now) {
         db.prepare(`INSERT OR IGNORE INTO profile_projection(account_id, display_name, revision)
           VALUES (?, ?, 1)`).run(accountId, session.playerName);
         return this.walletProfile(session.playerName);
+      });
+    },
+    recordVerifiedProfileDisplay(accountId, playerId, displayName) {
+      let address;
+      try { address = getAddress(accountId).toLowerCase(); }
+      catch { throw new NameRegistryError('Invalid profile account.', 'invalid_input'); }
+      if (accountId !== address || playerId !== playerName(address) ||
+          typeof displayName !== 'string' || displayName !== displayName.trim() ||
+          [...displayName].length < 1 || [...displayName].length > 255 ||
+          /[\x00-\x1f\x7f]/.test(displayName) || /^0x[0-9a-fA-F]{40}$/.test(displayName)) {
+        throw new NameRegistryError('Invalid verified profile display.', 'invalid_input');
+      }
+      if (displayName !== playerId) {
+        let normalized;
+        try { normalized = ensNormalize(displayName); }
+        catch { throw new NameRegistryError('Invalid verified ENS display.', 'invalid_input'); }
+        if (normalized !== displayName || !displayName.includes('.')) {
+          throw new NameRegistryError('Invalid verified ENS display.', 'invalid_input');
+        }
+      }
+      return transaction(() => {
+        const bound = db.prepare('SELECT player_name FROM wallet_profiles WHERE account_id = ?').get(address);
+        if (!bound) return false;
+        if (bound.player_name !== playerId) {
+          throw new NameRegistryError('Profile and native character do not match.', 'conflict');
+        }
+        const row = db.prepare('SELECT display_name, revision FROM profile_projection WHERE account_id = ?').get(address);
+        if (!row || !Number.isSafeInteger(row.revision) || row.revision < 1) {
+          throw new NameRegistryError('Profile projection is missing its source revision.', 'conflict');
+        }
+        if (row.display_name === displayName) return row.revision;
+        if (row.revision >= Number.MAX_SAFE_INTEGER) {
+          throw new NameRegistryError('Profile projection revision is exhausted.', 'conflict');
+        }
+        const nextRevision = row.revision + 1;
+        db.prepare('UPDATE profile_projection SET display_name = ?, revision = ? WHERE account_id = ?')
+          .run(displayName, nextRevision, address);
+        return nextRevision;
       });
     },
     pendingProfileProjections(limit = 100) {

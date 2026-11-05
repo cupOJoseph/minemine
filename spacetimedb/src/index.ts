@@ -58,7 +58,7 @@ export const upsertProfile = spacetimedb.reducer(
     }
     if (/^0x[0-9a-fA-F]{40}$/.test(displayName) ||
       displayName !== displayName.trim() ||
-      [...displayName].length < 1 || [...displayName].length > 64 ||
+      [...displayName].length < 1 || [...displayName].length > 255 ||
       /[\u0000-\u001f\u007f]/.test(displayName)) {
       throw new SenderError('Invalid display name');
     }

@@ -10,6 +10,7 @@ runtime/
 artifacts/
 coverage/
 spacetimedb/dist/
+spacetimedb/test/module_bindings/
 spacetime.local.json
 spacetime.*.local.json
 *.log

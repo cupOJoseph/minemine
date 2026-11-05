@@ -48,13 +48,13 @@ test('sync acknowledges confirmed writes and retries only the unacknowledged pro
     await assert.rejects(syncPendingProfiles({ registry,
       databaseOrigin: 'http://127.0.0.1:3000', databaseName: 'minemine-pilot',
       token: jwt, allowLoopback: true, fetchImpl }), /HTTP 503/);
-    assert.deepEqual(called, expected.map(row => [row.accountId, row.displayName, row.revision]));
+    assert.deepEqual(called, expected.map(row => [row.accountId, row.playerId, row.displayName, row.revision]));
     assert.deepEqual(registry.pendingProfileProjections(), [expected[1]]);
     const retried = await syncPendingProfiles({ registry,
       databaseOrigin: 'http://127.0.0.1:3000', databaseName: 'minemine-pilot',
       token: jwt, allowLoopback: true, fetchImpl });
     assert.equal(retried, 1);
-    assert.deepEqual(called[2], [expected[1].accountId, expected[1].displayName, 1]);
+    assert.deepEqual(called[2], [expected[1].accountId, expected[1].playerId, expected[1].displayName, 1]);
     assert.deepEqual(registry.pendingProfileProjections(), []);
     await assert.rejects(syncPendingProfiles({ registry,
       databaseOrigin: 'http://example.com', databaseName: 'minemine-pilot', token: jwt }), /HTTPS endpoint/);

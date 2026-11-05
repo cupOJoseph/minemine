@@ -4,13 +4,25 @@ const playerProfile = table(
   { public: false },
   {
     accountId: t.string().primaryKey(),
+    playerId: t.string(),
+    displayName: t.string(),
+    revision: t.u64(),
+  }
+);
+
+// Only these three fields may be exposed to a client. The wallet mapping stays
+// in playerProfile, which is private even when clients subscribe here.
+const playerDirectory = table(
+  { public: true },
+  {
+    playerId: t.string().primaryKey(),
     displayName: t.string(),
     revision: t.u64(),
   }
 );
 
 const spacetimedb = schema(
-  { playerProfile },
+  { playerProfile, playerDirectory },
   {
     env: {
       BRIDGE_ISSUER: t.string(),
@@ -34,20 +46,18 @@ function requireBridge(ctx: Ctx) {
   }
 }
 
-// A connection guard is useful for subscriptions; the reducer repeats it because
-// calls can also arrive over HTTP without a persistent WebSocket connection.
-export const onConnect = spacetimedb.clientConnected(ctx => {
-  requireBridge(ctx);
-});
-
 export const upsertProfile = spacetimedb.reducer(
-  { accountId: t.string(), displayName: t.string(), revision: t.u64() },
-  (ctx, { accountId, displayName, revision }) => {
+  { accountId: t.string(), playerId: t.string(), displayName: t.string(), revision: t.u64() },
+  (ctx, { accountId, playerId, displayName, revision }) => {
     requireBridge(ctx);
     if (!/^0x[0-9a-f]{40}$/.test(accountId)) {
       throw new SenderError('Account ID must be a lowercase EVM address');
     }
-    if (displayName !== displayName.trim() ||
+    if (!/^w_[a-f0-9]{17}$/.test(playerId)) {
+      throw new SenderError('Invalid stable player ID');
+    }
+    if (/^0x[0-9a-fA-F]{40}$/.test(displayName) ||
+      displayName !== displayName.trim() ||
       [...displayName].length < 1 || [...displayName].length > 64 ||
       /[\u0000-\u001f\u007f]/.test(displayName)) {
       throw new SenderError('Invalid display name');
@@ -56,6 +66,14 @@ export const upsertProfile = spacetimedb.reducer(
 
     const existing = ctx.db.playerProfile.accountId.find(accountId);
     if (existing) {
+      if (existing.playerId !== playerId) {
+        throw new SenderError('Stable player ID cannot change');
+      }
+      const publicRow = ctx.db.playerDirectory.playerId.find(playerId);
+      if (!publicRow || publicRow.revision !== existing.revision ||
+        publicRow.displayName !== existing.displayName) {
+        throw new SenderError('Public profile directory is out of sync');
+      }
       if (revision < existing.revision) return;
       if (revision === existing.revision) {
         if (displayName !== existing.displayName) {
@@ -66,8 +84,15 @@ export const upsertProfile = spacetimedb.reducer(
       existing.displayName = displayName;
       existing.revision = revision;
       ctx.db.playerProfile.accountId.update(existing);
+      publicRow.displayName = displayName;
+      publicRow.revision = revision;
+      ctx.db.playerDirectory.playerId.update(publicRow);
       return;
     }
-    ctx.db.playerProfile.insert({ accountId, displayName, revision });
+    if (ctx.db.playerDirectory.playerId.find(playerId)) {
+      throw new SenderError('Stable player ID is already assigned');
+    }
+    ctx.db.playerProfile.insert({ accountId, playerId, displayName, revision });
+    ctx.db.playerDirectory.insert({ playerId, displayName, revision });
   }
 );

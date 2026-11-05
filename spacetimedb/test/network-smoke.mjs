@@ -73,14 +73,15 @@ try {
       BRIDGE_SUBJECT: bridge.claims.sub },
     stdio: 'pipe',
   });
-  const args = [account, 'alice', 1];
+  const playerId = 'w_11111111111111111';
+  const args = [account, playerId, playerId, 1];
   const created = await call(origin, bridge.token, args);
   assert.equal(created.status, 200, await created.text());
   const replayed = await call(origin, bridge.token, args);
   assert.equal(replayed.status, 200, await replayed.text());
   const stranger = await identity(origin);
   const rejected = await call(origin, stranger.token,
-    ['0x2222222222222222222222222222222222222222', 'mallory', 1]);
+    ['0x2222222222222222222222222222222222222222', 'w_22222222222222222', 'mallory', 1]);
   assert.equal(rejected.status, 403, 'different subject must not write');
   const anonymous = await fetch(`${origin}/v1/database/${database}/call/upsert_profile`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -88,7 +89,7 @@ try {
   });
   assert.equal(anonymous.status, 403, 'anonymous caller must not write');
   const projected = { accountId: '0x3333333333333333333333333333333333333333',
-    displayName: 'w_33333333333333333', revision: 1 };
+    playerId: 'w_33333333333333333', displayName: 'w_33333333333333333', revision: 1 };
   let acknowledged = false;
   assert.equal(await syncPendingProfiles({
     registry: {
@@ -114,7 +115,18 @@ try {
     'private table must be hidden from the non-owner SQL catalog');
   assert.ok(!sqlText.includes(account) && !sqlText.includes(projected.accountId),
     'private profile SQL failure must not leak addresses');
-  console.log('SpacetimeDB 2.14.1 loopback profile smoke passed: write, replay, bridge, private SQL denial.');
+  const publicSql = await fetch(`${origin}/v1/database/${database}/sql`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${stranger.token}`, 'Content-Type': 'text/plain' },
+    body: 'SELECT player_id, display_name, revision FROM player_directory',
+  });
+  const publicText = await publicSql.text();
+  assert.equal(publicSql.status, 200, `non-owner public directory read: ${publicText}`);
+  assert.ok(publicText.includes(playerId) && publicText.includes(projected.playerId),
+    'public directory should expose stable player IDs');
+  assert.ok(!publicText.includes(account) && !publicText.includes(projected.accountId),
+    'public directory must not expose wallet addresses');
+  console.log('SpacetimeDB 2.14.1 loopback profile smoke passed: bridge writes, public directory read, private wallet SQL denial.');
 } finally {
   if (host && host.exitCode === null && host.signalCode === null) {
     host.kill('SIGINT');

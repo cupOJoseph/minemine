@@ -45,7 +45,7 @@ export async function syncPendingProfiles({ registry, databaseOrigin, databaseNa
     const response = await fetchImpl(url, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify([row.accountId, row.displayName, row.revision]),
+      body: JSON.stringify([row.accountId, row.playerId, row.displayName, row.revision]),
       signal: AbortSignal.timeout(10_000),
     });
     if (!response.ok) throw new Error(`Profile projection failed (HTTP ${response.status}).`);

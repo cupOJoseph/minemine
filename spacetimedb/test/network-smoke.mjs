@@ -109,14 +109,10 @@ try {
     body: 'SELECT account_id, display_name, revision FROM player_profile',
   });
   const sqlText = await sql.text();
-  assert.equal(sql.status, 200, sqlText);
-  const rows = JSON.parse(sqlText)[0]?.rows?.sort((a, b) => a[0].localeCompare(b[0]));
-  assert.equal(rows?.length, 2, 'only authorized rows are stored');
-  assert.equal(rows[0][0], account);
-  assert.equal(rows[0][1], 'alice');
-  assert.equal(rows[1][0], projected.accountId);
-  assert.equal(rows[1][1], projected.displayName);
-  console.log('SpacetimeDB 2.14.1 loopback profile smoke passed: write, replay, rejection, bridge, two rows.');
+  assert.equal(sql.status, 403, `non-owner bridge SQL must not expose private profiles: ${sqlText}`);
+  assert.ok(!sqlText.includes(account) && !sqlText.includes(projected.accountId),
+    'private profile SQL failure must not leak addresses');
+  console.log('SpacetimeDB 2.14.1 loopback profile smoke passed: write, replay, bridge, private SQL denial.');
 } finally {
   if (host && host.exitCode === null && host.signalCode === null) {
     host.kill('SIGINT');

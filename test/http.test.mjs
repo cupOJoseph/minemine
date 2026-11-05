@@ -514,10 +514,14 @@ test('paid managed name displays only while ENS resolves to its signed account w
   assert.equal(active.ensName, 'builder.minemine.eth');
   assert.equal(active.managedEnsName, 'builder.minemine.eth');
   assert.equal(active.playerName, playerName(wallet.address), 'display names do not change native identity');
+  assert.equal(names.pendingProfileProjections().find(row => row.accountId === accountId).displayName,
+    'builder.minemine.eth');
   target = other.address;
   const changed = await (await request('/api/identity', undefined, cookie)).json();
   assert.equal(changed.ensName, null, 'a changed record is hidden');
   assert.equal(changed.managedName.status, 'unverified');
+  assert.equal(names.pendingProfileProjections().find(row => row.accountId === accountId).displayName,
+    playerName(wallet.address));
   offline = true;
   const unavailable = await (await request('/api/identity', undefined, cookie)).json();
   assert.equal(unavailable.ensName, null, 'an ENS outage is hidden');
@@ -525,6 +529,8 @@ test('paid managed name displays only while ENS resolves to its signed account w
   offline = false;
   target = wallet.address;
   assert.equal((await (await request('/api/identity', undefined, cookie)).json()).ensName, 'builder.minemine.eth');
+  assert.equal(names.pendingProfileProjections().find(row => row.accountId === accountId).displayName,
+    'builder.minemine.eth');
   now = expiresAt;
   const laterChallenge = await request('/api/auth/challenge', { address: wallet.address, chainId: 11155111 });
   const laterSignature = await wallet.signMessage((await laterChallenge.json()).message);
@@ -533,6 +539,8 @@ test('paid managed name displays only while ENS resolves to its signed account w
   const expired = await (await request('/api/identity', undefined, laterCookie)).json();
   assert.equal(expired.ensName, null);
   assert.deepEqual(expired.managedName, { name: 'builder.minemine.eth', status: 'expired', expiresAt: new Date(expiresAt).toISOString() });
+  assert.equal(names.pendingProfileProjections().find(row => row.accountId === accountId).displayName,
+    playerName(wallet.address));
 });
 
 test('signed loopback checkout reuses a durable hold and rejects unavailable names', async t => {

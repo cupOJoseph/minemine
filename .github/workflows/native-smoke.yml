@@ -60,7 +60,7 @@ permissions:
 jobs:
   native:
     runs-on: ubuntu-22.04
-    timeout-minutes: 50
+    timeout-minutes: 75
     env:
       LOAD_MAX_CLIENTS: ${{ inputs.load_clients || '16' }}
     steps:
@@ -153,7 +153,7 @@ jobs:
         with:
           name: miners-solo-playtest
           github-token: ${{ github.token }}
-          run-id: '39900170530'
+          run-id: '42111328195'
           path: runtime/downloaded-build
       - name: Stage pinned browser engine and adapter
         run: |

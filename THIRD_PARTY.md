@@ -14,7 +14,7 @@ The Git source snapshot excludes the downloaded Luanti engine, WASM binary, and 
 | paradust7/luanti-wasm | Candidate build wrapper | Repository reports MIT for wrapper; bundled dependencies have separate licenses |
 | OpenSSL 3.5.9 | Browser TLS/crypto build dependency | Apache-2.0; upstream `LICENSE.txt` is copied into the staged browser notices. |
 | curl 8.23.0 | Browser HTTP transport | curl license; upstream `COPYING` is copied into the staged browser notices. |
-| libarchive 3.8.10 | Browser game-pack/archive handling | BSD-style license and third-party notices in upstream `COPYING`, copied into the staged browser notices. |
+| libarchive 3.8.11 | Browser game-pack/archive handling | BSD-style license and third-party notices in upstream `COPYING`, copied into the staged browser notices. |
 | libzip 1.11.4 | Browser ZIP handling | Upstream `LICENSE` copied into staged browser notices. |
 | zstd (pinned commit `f8745da6`) | Browser compression | Upstream `LICENSE` copied into staged browser notices. |
 | paradust7/webshims (pinned commit `70653a91`) | Browser socket and system shims | Upstream `LICENSE` copied into staged browser notices. |

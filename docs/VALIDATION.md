@@ -1,5 +1,11 @@
 # Validation record
 
+## Public saved-world lock — 2026-11-06 UTC
+
+`PLAYTEST_URL='https://cupojoseph.github.io/minemine/play/?storage=auto' node scripts/qa-storage-lock.mjs` tested published solo release `22c4727b4d93` in fresh headless Chromium contexts. Two complete runs confirmed that a second tab could not join the same saved world while the first played, then could join after the first used the game menu to exit. A third tab was blocked while the second played, then joined after that tab closed. No Firefox process was started for these runs. The script now accepts a public URL, prints the manifest release and reports browser setup state if Start cannot be clicked.
+
+One intervening run loaded the manifest but left Start disabled with “Browser setup required” for 30 seconds; it did not reach any lock assertion. Its exact setup error was not captured before the diagnostic addition. Six subsequent fresh Chromium contexts each reached an enabled Start button with `crossOriginIsolated=true` and a controlling service worker after two top-level navigations. The one setup failure remains unexplained; this evidence does not establish reliable first-visit startup, crash recovery, or storage persistence after a browser process restart.
+
 ## Browser dependency release review — 2026-11-05–06 UTC
 
 Fresh `npm audit --json` runs against the root and `spacetimedb/` lockfiles each reported zero known advisories. [npm's audit documentation](https://docs.npmjs.com/auditing-package-dependencies-for-security-vulnerabilities/) says this checks the dependency tree against the registry's known advisories; it does not assess the separately built C/WASM libraries or complete a license review. [Libarchive 3.8.11](https://github.com/libarchive/libarchive/releases/tag/v3.8.11), published October 30, is explicitly a security and bugfix release. Its official release asset advertises SHA-256 `a3dc0872b1b39da34dc18ef1b944f0f11ffd37425d70ae04be679279f1cf43d2` for the `.tar.xz` source; an independently downloaded copy matched. The experimental playtest now uses that build. General release still requires the remaining B03 review.

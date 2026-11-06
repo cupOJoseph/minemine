@@ -1,6 +1,6 @@
 # Third-party notices and source obligations
 
-This source snapshot does not include a downloaded Luanti engine, WASM binary, or Minetest Game. Generated `public/engine/` and fetched `vendor/` trees are intentionally excluded from Git.
+The Git source snapshot excludes the downloaded Luanti engine, WASM binary, and Minetest Game. Generated `public/engine/` and fetched `vendor/` trees are intentionally excluded from Git. Staged browser and host distributions include those binaries and copy this notice catalog from the current source revision.
 
 | Component | Role | License / review |
 | --- | --- | --- |

@@ -14,7 +14,9 @@ if (window.crossOriginIsolated) {
 } else if (window.isSecureContext && navigator.serviceWorker) {
   let reloading = false;
   const reloadOnce = () => {
-    if (reloading || sessionStorage.getItem('minemineCoiRecoveryReload')) return;
+    // `ready` means a registration has an active worker, not that this page
+    // is controlled. A reload before control can consume the one recovery try.
+    if (!navigator.serviceWorker.controller || reloading || sessionStorage.getItem('minemineCoiRecoveryReload')) return;
     reloading = true;
     sessionStorage.setItem('minemineCoiRecoveryReload', '1');
     location.reload();

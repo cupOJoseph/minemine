@@ -1,6 +1,6 @@
 # Build and deployment runbook
 
-The source is published at cupOJoseph/minemine and foundation CI passes. [Pages run 41496694370](https://github.com/cupOJoseph/minemine/actions/runs/41496694370) publishes the [MineMine landing](https://cupojoseph.github.io/minemine/), [solo game](https://cupojoseph.github.io/minemine/play/) and [dated test-world map](https://cupojoseph.github.io/minemine/map/). The pinned browser release is 21f97a29c16b; fresh-session Chromium QA passed startup and terrain rendering. The Pages environment permits deployments only from `main`; feature-branch dispatch run 39723016671 failed before steps ran. There is no running shared game server.
+The source is published at cupOJoseph/minemine and foundation CI passes. [Pages run 42157928099](https://github.com/cupOJoseph/minemine/actions/runs/42157928099) publishes the [MineMine landing](https://cupojoseph.github.io/minemine/), [solo game](https://cupojoseph.github.io/minemine/play/) and [dated test-world map](https://cupojoseph.github.io/minemine/map/). The pinned browser release is `22c4727b4d93`; live HTTP served its verified WASM hash, and fresh public Chromium joined and rendered the solo world. The Pages environment permits deployments only from `main`; feature-branch dispatch run 39723016671 failed before steps ran. There is no running shared game server.
 
 ## 1. GitHub and local environment
 

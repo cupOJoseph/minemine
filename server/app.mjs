@@ -78,7 +78,10 @@ export function createApp(config) {
     try {
       const build = JSON.parse(readFileSync(path.join(publicRoot, 'engine/build.json'), 'utf8'));
       if (build.kind !== 'solo-engine-playtest' || !/^[a-f0-9]{12}$/.test(build.release)) return false;
-      return ['index.html', build.release + '/luanti.wasm', build.release + '/packs/minetest.pack'].every(file => existsSync(path.join(publicRoot, 'engine', file)));
+      const pack = build.gamePack ?? build.release + '/packs/minetest.pack';
+      if (!/^[a-f0-9]{12}\/packs\/(?:[a-f0-9]{16}\/)?minetest\.pack$/.test(pack)
+          || !pack.startsWith(build.release + '/')) return false;
+      return ['index.html', build.release + '/luanti.wasm', pack].every(file => existsSync(path.join(publicRoot, 'engine', file)));
     } catch { return false; }
   };
   let provider;

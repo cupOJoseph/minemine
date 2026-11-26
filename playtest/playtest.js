@@ -1,4 +1,9 @@
-import { makeSoloSession } from './session.mjs?v=solo-mode-1';
+import { makeSoloSession } from './session.mjs?v=solo-movement-1';
+import { configureGamePack } from './game-pack.mjs';
+const readBuild = () => fetch('./build.json', { cache: 'no-store' }).then(r => {
+  if (!r.ok) throw new Error('The engine build manifest is missing.');
+  return r.json();
+});
 const start = document.getElementById('start');
 const status = document.getElementById('status');
 const loading = document.getElementById('loading');
@@ -48,7 +53,9 @@ try {
   } else {
     say('The first launch downloads the engine and game. Your browser may ask to keep the saved world.');
   }
-  fetch('./build.json').then(r => r.ok ? r.json() : null).then(build => {
+  readBuild().then(build => {
+    if (build.features?.doubleTapSprint) document.getElementById('sprint-note').hidden = false;
+    if (build.gamePack) document.getElementById('village-note').hidden = false;
     if (build) document.getElementById('build').textContent = 'Engine wrapper ' + build.wrapperCommit.slice(0, 12) + ' · game ' + build.gameCommit.slice(0, 12) + ' · initial heap ' + build.profile.memoryMiB + ' MiB';
   }).catch(() => {});
 } catch (error) { say(error.message, true); start.textContent = 'Browser setup required'; }
@@ -57,9 +64,11 @@ start.addEventListener('click', async () => {
   loading.hidden = false;
   say('Loading the Luanti engine…');
   try {
+    const build = await readBuild();
     const engine = await loadLauncher();
     if (!engine?.LuantiLauncher || !engine?.LuantiArgs) throw new Error('Engine adapter version mismatch. Rebuild the playtest bundle.');
     const launcher = new engine.LuantiLauncher();
+    configureGamePack(launcher, build);
     launcher.onprint = line => {
       engineLog.push(String(line));
       if (engineLog.length > 100) engineLog.shift();
@@ -83,6 +92,7 @@ start.addEventListener('click', async () => {
       controls.appendChild(title);
       for (const text of [
         'WASD move · Mouse look · Space jump',
+        ...(build.features?.doubleTapSprint ? ['Sprint: tap W twice and hold'] : []),
         'Left click dig · Right click build',
         '1–8 / wheel select item · Esc close / menu',
         'Crafting: materials → 3×3 grid → output',

@@ -13,20 +13,29 @@ export function packGame(root = project, outputFile = path.join(root, 'runtime/m
   if (fs.existsSync(outputFile)) throw new Error('Game pack already exists. Review/archive it before replacing it.');
   fs.mkdirSync(path.join(root, 'runtime'), { recursive: true });
   const work = fs.mkdtempSync(path.join(root, 'runtime', 'game-pack-'));
-  const packRoot = path.join(work, 'pack');
-  const bundledGame = path.join(packRoot, 'luanti/games/minetest');
-  fs.mkdirSync(bundledGame, { recursive: true });
-  // Archive only committed game files; never copy its .git, ignored files or credentials.
-  const archive = execFileSync('git', ['archive', '--format=tar', revision], { cwd: game, maxBuffer: 128 * 1024 * 1024 });
-  execFileSync('tar', ['-xf', '-', '-C', bundledGame], { input: archive });
-  fs.cpSync(path.join(root, 'playtest/initial-stuff'), path.join(bundledGame, 'mods/miners_playtest'), { recursive: true });
-  const world = path.join(packRoot, 'luanti/worlds/miners-playtest');
-  fs.mkdirSync(world, { recursive: true });
-  fs.writeFileSync(path.join(world, 'world.mt'), 'gameid = minetest\nbackend = sqlite3\nplayer_backend = sqlite3\nauth_backend = sqlite3\ncreative_mode = true\nenable_damage = false\nload_mod_miners_playtest = true\n');
-  const tarFile = path.join(work, 'minetest.tar');
-  execFileSync('tar', ['-cf', tarFile, '-C', packRoot, '.']);
-  fs.mkdirSync(path.dirname(outputFile), { recursive: true });
-  execFileSync('zstd', ['-q', '-T2', '-10', tarFile, '-o', outputFile], { stdio: 'inherit' });
-  return { path: outputFile, gameCommit: revision, bytes: fs.statSync(outputFile).size };
+  try {
+    const packRoot = path.join(work, 'pack');
+    const bundledGame = path.join(packRoot, 'luanti/games/minetest');
+    fs.mkdirSync(bundledGame, { recursive: true });
+    // Archive only committed game files; never copy its .git, ignored files or credentials.
+    // macOS tar otherwise adds resource-fork sidecars as regular ._png
+    // files, which the browser engine mistakes for textures.
+    const tarEnv = { ...process.env, COPYFILE_DISABLE: '1' };
+    const archive = execFileSync('git', ['archive', '--format=tar', revision], { cwd: game, maxBuffer: 128 * 1024 * 1024 });
+    execFileSync('tar', ['-xf', '-', '-C', bundledGame], { input: archive, env: tarEnv });
+    fs.cpSync(path.join(root, 'playtest/initial-stuff'), path.join(bundledGame, 'mods/miners_playtest'), { recursive: true });
+    fs.cpSync(path.join(root, 'game/mods/minemine_structures'), path.join(bundledGame, 'mods/minemine_structures'), { recursive: true });
+    fs.cpSync(path.join(root, 'game/mods/minemine_movement'), path.join(bundledGame, 'mods/minemine_movement'), { recursive: true });
+    const world = path.join(packRoot, 'luanti/worlds/miners-playtest');
+    fs.mkdirSync(world, { recursive: true });
+    fs.writeFileSync(path.join(world, 'world.mt'), 'gameid = minetest\nbackend = sqlite3\nplayer_backend = sqlite3\nauth_backend = sqlite3\ncreative_mode = true\nenable_damage = false\nload_mod_miners_playtest = true\n');
+    const tarFile = path.join(work, 'minetest.tar');
+    execFileSync('tar', ['-cf', tarFile, '--exclude=._*', '--exclude=*/._*', '-C', packRoot, '.'], { env: tarEnv });
+    fs.mkdirSync(path.dirname(outputFile), { recursive: true });
+    execFileSync('zstd', ['-q', '-T2', '-10', tarFile, '-o', outputFile], { stdio: 'inherit' });
+    return { path: outputFile, gameCommit: revision, bytes: fs.statSync(outputFile).size };
+  } finally {
+    fs.rmSync(work, { recursive: true, force: true });
+  }
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) console.log(JSON.stringify(packGame()));

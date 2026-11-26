@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { packGame } from './pack-game.mjs';
+import { installVersionedGamePack } from './version-game-pack.mjs';
 
 const project = path.resolve(fileURLToPath(new URL('../', import.meta.url)));
 export function releaseId(html) {
@@ -38,25 +38,24 @@ export function stagePlaytest(buildSource, root = project) {
   const work = fs.mkdtempSync(path.join(root, 'runtime', 'playtest-stage-'));
   const staged = path.join(work, 'engine');
   fs.cpSync(www, staged, { recursive: true });
-  const gamePack = path.join(staged, release, 'packs/minetest.pack');
-  const packed = packGame(root, gamePack);
+  const packed = installVersionedGamePack(staged, release, root);
   const revision = packed.gameCommit;
   const template = fs.readFileSync(path.join(root, 'playtest/index.html'), 'utf8');
   if (template.split('%__MINERS_RELEASE__%').length !== 2) throw new Error('Playtest template release marker is missing or duplicated.');
   fs.writeFileSync(path.join(staged, 'index.html'), template.replace('%__MINERS_RELEASE__%', release));
-  for (const file of ['playtest.js', 'playtest.css', 'diagnostics.css', 'session.mjs']) fs.copyFileSync(path.join(root, 'playtest', file), path.join(staged, file));
+  for (const file of ['playtest.js', 'playtest.css', 'diagnostics.css', 'session.mjs', 'game-pack.mjs']) fs.copyFileSync(path.join(root, 'playtest', file), path.join(staged, file));
   for (const file of ['adapter.js', 'connect.html', 'remote.js', 'remote-session.mjs']) fs.copyFileSync(path.join(root, 'playtest', file), path.join(staged, file));
   const launcherFile = path.join(staged, release, 'launcher.js');
   fs.appendFileSync(launcherFile, '\n// Miners adapter: expose inspected APIs without eval or credential URLs.\nglobalThis.MinersEngine = Object.freeze({ LuantiLauncher, LuantiArgs, onMainStarted(callback) { mtScheduler.addCondition("miners-main-started", callback, ["main_called"]); } });\n');
-  const assets = {};
-  for (const file of ['launcher.js', 'worker.js', 'luanti.js', 'luanti.wasm', 'packs/base.pack', 'packs/certs.pack', 'packs/minetest.pack']) {
+  const assets = { [packed.relative]: packed.asset };
+  for (const file of ['launcher.js', 'worker.js', 'luanti.js', 'luanti.wasm', 'packs/base.pack', 'packs/certs.pack']) {
     const target = path.join(staged, release, file);
     assets[release + '/' + file] = { bytes: fs.statSync(target).size, sha256: sha256(target) };
   }
   const build = {
     schema: 1, kind: 'solo-engine-playtest', browserVerified: false,
     builtAt: new Date().toISOString(), release, wrapperCommit: profile.wrapperCommit,
-    gameCommit: revision, profile, sources, assets,
+    gameCommit: revision, gamePack: packed.relative, profile, sources, assets,
     limitations: ['Browser gameplay has not been verified by this build script.', 'No shared server, wallet-gated multiplayer, or token spending.', 'No external network proxy is enabled.'],
   };
   fs.writeFileSync(path.join(staged, 'build.json'), JSON.stringify(build, null, 2) + '\n');

@@ -107,6 +107,7 @@ local function check_workshop(on_complete)
 end
 
 core.register_on_mods_loaded(function()
+    dofile(core.get_modpath("structures_probe") .. "/sprint.lua")
     check_workshop_permissions()
     local totals = {}
     for palette in pairs(village.styles) do

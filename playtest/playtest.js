@@ -1,4 +1,4 @@
-import { makeSoloSession } from './session.mjs?v=solo-mode-1';
+import { makeSoloSession } from './session.mjs?v=solo-movement-1';
 import { configureGamePack } from './game-pack.mjs';
 const readBuild = () => fetch('./build.json', { cache: 'no-store' }).then(r => {
   if (!r.ok) throw new Error('The engine build manifest is missing.');
@@ -54,6 +54,7 @@ try {
     say('The first launch downloads the engine and game. Your browser may ask to keep the saved world.');
   }
   readBuild().then(build => {
+    if (build.features?.doubleTapSprint) document.getElementById('sprint-note').hidden = false;
     if (build.gamePack) document.getElementById('village-note').hidden = false;
     if (build) document.getElementById('build').textContent = 'Engine wrapper ' + build.wrapperCommit.slice(0, 12) + ' · game ' + build.gameCommit.slice(0, 12) + ' · initial heap ' + build.profile.memoryMiB + ' MiB';
   }).catch(() => {});
@@ -91,6 +92,7 @@ start.addEventListener('click', async () => {
       controls.appendChild(title);
       for (const text of [
         'WASD move · Mouse look · Space jump',
+        ...(build.features?.doubleTapSprint ? ['Sprint: tap W twice and hold'] : []),
         'Left click dig · Right click build',
         '1–8 / wheel select item · Esc close / menu',
         'Crafting: materials → 3×3 grid → output',

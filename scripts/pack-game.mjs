@@ -25,6 +25,7 @@ export function packGame(root = project, outputFile = path.join(root, 'runtime/m
     execFileSync('tar', ['-xf', '-', '-C', bundledGame], { input: archive, env: tarEnv });
     fs.cpSync(path.join(root, 'playtest/initial-stuff'), path.join(bundledGame, 'mods/miners_playtest'), { recursive: true });
     fs.cpSync(path.join(root, 'game/mods/minemine_structures'), path.join(bundledGame, 'mods/minemine_structures'), { recursive: true });
+    fs.cpSync(path.join(root, 'game/mods/minemine_movement'), path.join(bundledGame, 'mods/minemine_movement'), { recursive: true });
     const world = path.join(packRoot, 'luanti/worlds/miners-playtest');
     fs.mkdirSync(world, { recursive: true });
     fs.writeFileSync(path.join(world, 'world.mt'), 'gameid = minetest\nbackend = sqlite3\nplayer_backend = sqlite3\nauth_backend = sqlite3\ncreative_mode = true\nenable_damage = false\nload_mod_miners_playtest = true\n');

@@ -37,6 +37,7 @@ try {
     delete build.assets[oldPack];
   }
   build.gamePack = packed.relative;
+  build.features = packed.features;
   build.assets[packed.relative] = packed.asset;
   build.browserVerified = false;
   build.builtAt = new Date().toISOString();

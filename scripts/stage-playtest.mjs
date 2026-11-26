@@ -55,7 +55,7 @@ export function stagePlaytest(buildSource, root = project) {
   const build = {
     schema: 1, kind: 'solo-engine-playtest', browserVerified: false,
     builtAt: new Date().toISOString(), release, wrapperCommit: profile.wrapperCommit,
-    gameCommit: revision, gamePack: packed.relative, profile, sources, assets,
+    gameCommit: revision, gamePack: packed.relative, features: packed.features, profile, sources, assets,
     limitations: ['Browser gameplay has not been verified by this build script.', 'No shared server, wallet-gated multiplayer, or token spending.', 'No external network proxy is enabled.'],
   };
   fs.writeFileSync(path.join(staged, 'build.json'), JSON.stringify(build, null, 2) + '\n');

@@ -35,6 +35,10 @@ try {
   await page.goto('http://127.0.0.1:' + server.address().port + '/play/');
   await page.getByRole('button', {name: 'Start playtest'}).click();
   await joined;
+  // The input is hidden until the command key, but must live in the
+  // engine's replacement DOM before any key can open it.
+  const commandBox = page.locator('#minemine-command-box');
+  await commandBox.waitFor({ state: 'attached' });
 
   const canvas = page.locator('#canvas');
   await canvas.click();

@@ -20,7 +20,7 @@ export function installCommandBox() {
     </div>
     <p id="minemine-command-syntax" aria-live="polite"></p>
     <p id="minemine-command-keys">Tab to complete · ↑/↓ for choices · Enter to send · Esc to close</p>`;
-  document.body.appendChild(panel);
+
   const input = panel.querySelector('input');
   const hint = panel.querySelector('#minemine-command-syntax');
   const [mirror, suffix] = panel.querySelectorAll('.command-ghost span');
@@ -107,5 +107,10 @@ export function installCommandBox() {
       event.stopImmediatePropagation();
     }
   }, true);
-  return value => { bridge = value; };
+  return value => {
+    bridge = value;
+    // The WASM launcher replaces the document body while booting. Register
+    // the keyboard handlers early, then attach the UI after engine startup.
+    if (bridge && !panel.isConnected) document.body.appendChild(panel);
+  };
 }

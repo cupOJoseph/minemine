@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: '24'
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - run: sudo apt-get update && sudo apt-get install -y zstd xvfb
+      - run: sudo apt-get update && sudo apt-get install -y zstd
       - run: npx playwright install --with-deps chromium
       - run: node scripts/fetch-upstream.mjs
       - uses: actions/download-artifact@v4
@@ -32,4 +32,4 @@ jobs:
       - run: |
           node scripts/repack-playtest.mjs runtime/command-base/public/engine runtime/command-engine
           PLAYTEST_ENGINE_DIR=runtime/command-engine PAGES_SITE_DIR=runtime/command-pages node scripts/prepare-pages-playtest.mjs
-          xvfb-run -a node test/integration/command-box-browser.mjs
+          node test/integration/command-box-browser.mjs

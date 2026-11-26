@@ -5,7 +5,7 @@
   <meta name="theme-color" content="#101b17"><title>MineMine — Browser engine playtest</title>
   <link rel="stylesheet" href="playtest.css?v=controls-1">
   <link rel="stylesheet" href="diagnostics.css">
-  <script type="module" src="playtest.js?v=firefox-storage-1"></script>
+  <script type="module" src="playtest.js?v=structure-pack-1"></script>
 </head>
 <body data-launcher="%__MINERS_RELEASE__%/launcher.js">
   <main class="playtest-card">
@@ -22,6 +22,7 @@
     </dl>
     <p><strong>To craft:</strong> press <kbd>I</kbd> and open the <strong>Crafting</strong> tab. Place materials in the 3×3 grid, then take the item from the output slot. The <strong>Recipes</strong> tab shows recipes. Press <kbd>Esc</kbd> to return to the world.</p>
     <p>Start with a steel pickaxe, wood, dirt, and torches. Try digging and building. If browser storage is active, leave through the game menu before closing the tab and try returning to your world.</p>
+    <p id="village-note" hidden>Look for villages as you explore new terrain. To compare designs in solo mode, press <kbd>T</kbd> and type <code>/structure_preview desert 42 6</code> with one leading slash.</p>
     <button id="start" type="button" disabled>Checking browser…</button>
     <p id="status" role="status" aria-live="polite">Checking engine requirements.</p>
     <p id="firefox-storage" hidden>Firefox uses a temporary world by default in this engine build. <a href="?storage=auto">Try browser storage</a> to keep a local world between visits. This experimental mode may be slow; leave through the game menu before closing the tab.</p>

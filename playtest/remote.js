@@ -1,5 +1,7 @@
 import { makeRemoteArgs, sameOriginProxyUrl } from './remote-session.mjs';
 
+import { configureGamePack } from './game-pack.mjs';
+
 const status = document.getElementById('status');
 const loading = document.getElementById('loading');
 function report(message, error = false) {
@@ -46,6 +48,7 @@ try {
   const engine = await loadLauncher(build.release);
   if (!engine?.LuantiLauncher || !engine?.LuantiArgs || !engine?.onMainStarted) throw new Error('Luanti adapter version mismatch.');
   const launcher = new engine.LuantiLauncher();
+  configureGamePack(launcher, build);
   let activeArgs = null;
   launcher.setProxy(sameOriginProxyUrl(location.origin));
   launcher.setLang('en');

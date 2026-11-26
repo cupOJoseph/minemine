@@ -1,6 +1,6 @@
 # Generated structures
 
-MineMine adds villages to newly generated terrain. Existing blocks and saved progress are left in place. Lua plans are seeded and run on Luanti's map generator thread, so solo and native multiplayer use the same content.
+MineMine adds villages and forest treehouses to newly generated terrain. Existing blocks and saved progress are left in place. Lua plans are seeded and run on Luanti's map generator thread, so solo and native multiplayer use the same content.
 
 Villages have **1–6 homes with beds** and **0–3 workplaces** selected from a shop, chapel, smithy and barn. Roads connect the buildings to a small square. Home dimensions, rooflines, lot assignments, beds, occupations and chest contents vary by seed. Chests may be empty or hold up to two modest stacks such as bread, torches, seed or coal. Loot does not refill when the chest is reopened. The shops are scenery and storage for now; there are no villagers or trades.
 
@@ -20,6 +20,10 @@ Villages have **1–6 homes with beds** and **0–3 workplaces** selected from a
 - Ocean, river and steep plots are rejected. The generator tries seven sites, retries with a smaller layout when space is tight, and places at most one structure in a chunk. Houses, paths and foundations are kept inside the new chunk; the actual rate is lower than the attempt rate.
 - Set `minemine_structures_enabled = false` to turn off new generation.
 
+## Forest treehouses
+
+Rare tall pine trees in Taiga and jungle trees in Rainforest have a roofed wooden platform 12–15 blocks above the ground, a ladder leading through its floor, fence windows and a stocked chest. A treehouse attempts generation in 4% of eligible chunks; villages take priority when both fit. No treehouses generate in other biomes. Change `minemine_treehouse_chance` (0–100) to adjust the attempt chance.
+
 ## Compare lots of variations
 
 Press **T** to open chat in solo mode:
@@ -27,6 +31,8 @@ Press **T** to open chat in solo mode:
 ```text
 /structure_preview desert 42 6
 /structure_preview tundra 42 6
+/structure_preview taiga 42 3
+/structure_preview rainforest 42 3
 /structure_return
 ```
 

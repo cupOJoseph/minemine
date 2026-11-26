@@ -12,13 +12,14 @@ function api.new_plan()
     return {plots = {}, roads = {}, counts = {}}
 end
 
-function api.plot(plan, x, z, schematic, foundation, rotation)
+function api.plot(plan, x, z, schematic, foundation, rotation, options)
     local size = schematic.size
     assert(size.x % 2 == 1 and size.z % 2 == 1, "Use odd-sized footprints")
     assert(not rotation or rotation == "0" or rotation == "180", "Use 0° or 180° for rectangular plots")
     plan.plots[#plan.plots + 1] = {
         x = x, z = z, hx = math.floor(size.x / 2), hz = math.floor(size.z / 2),
         height = size.y, schematic = schematic, foundation = foundation, rotation = rotation or "0",
+        preserve_terrain = options and options.preserve_terrain or false,
     }
 end
 
@@ -67,11 +68,13 @@ function api.place(plan, vm, x, y, z, surface, preview)
         for py = y + 1, math.max(ground + 2, y + 2) do set(px, py, pz, "air") end
     end
     for _, plot in ipairs(plan.plots) do
-        for pz = z + plot.z - plot.hz, z + plot.z + plot.hz do
-            for px = x + plot.x - plot.hx, x + plot.x + plot.hx do
-                local ground = surface(px, pz)
-                for py = ground, y - 1 do set(px, py, pz, plot.foundation) end
-                for py = y, y + math.max(plot.height - 1, 6) do set(px, py, pz, "air") end
+        if not plot.preserve_terrain then
+            for pz = z + plot.z - plot.hz, z + plot.z + plot.hz do
+                for px = x + plot.x - plot.hx, x + plot.x + plot.hx do
+                    local ground = surface(px, pz)
+                    for py = ground, y - 1 do set(px, py, pz, plot.foundation) end
+                    for py = y, y + math.max(plot.height - 1, 6) do set(px, py, pz, "air") end
+                end
             end
         end
         local schematic = plot.schematic

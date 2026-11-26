@@ -3,6 +3,8 @@ local api = dofile(modpath .. "/planner.lua")
 local village = assert(loadfile(modpath .. "/village.lua"))(modpath, api)
 village.load_templates()
 api.register(village.definition)
+local treehouse = assert(loadfile(modpath .. "/treehouse.lua"))(modpath, api)
+api.register(treehouse.definition)
 
 local surfaces = {}
 local water_level = tonumber(core.get_mapgen_setting("water_level")) or 1

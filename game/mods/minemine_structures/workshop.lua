@@ -1,6 +1,7 @@
 local modpath, initialize_fixture, markers = ...
 local api = dofile(modpath .. "/planner.lua")
 local village = assert(loadfile(modpath .. "/village.lua"))(modpath, api)
+local treehouse = assert(loadfile(modpath .. "/treehouse.lua"))(modpath, api)
 local storage = core.get_mod_storage()
 local busy = false
 -- The sole local player can use the workshop without Luanti's general
@@ -10,17 +11,19 @@ core.register_on_mods_loaded(village.load_templates)
 
 local style_names = {}
 for style in pairs(village.styles) do style_names[#style_names + 1] = style end
+for style in pairs(treehouse.styles) do style_names[#style_names + 1] = style end
 table.sort(style_names)
 
 core.register_chatcommand("structure_preview", {
     params = "<style> <seed> [count] [compact]",
-    description = "Visit a gallery of 1–12 seeded villages. Styles: " .. table.concat(style_names, ", "),
+    description = "Visit a gallery of 1–12 seeded structures. Styles: " .. table.concat(style_names, ", "),
     privs = workshop_privs,
     func = function(player_name, param)
         local style, seed, count, size = param:match("^%s*(%a+)%s+(%d+)%s*(%d*)%s*(%a*)%s*$")
         seed, count = tonumber(seed), tonumber(count) or 1
-        if not village.styles[style] or not seed or seed + count - 1 > 4294967295 or count < 1 or count > 12
-            or (size ~= "" and size ~= "compact") then
+        local is_treehouse = treehouse.styles[style] ~= nil
+        if not (village.styles[style] or is_treehouse) or not seed or seed + count - 1 > 4294967295 or count < 1 or count > 12
+            or (size ~= "" and (size ~= "compact" or is_treehouse)) then
             return false, "Try /structure_preview tundra 42 6. Styles: " .. table.concat(style_names, ", ")
         end
         if busy then return false, "A preview is already being generated." end
@@ -48,8 +51,13 @@ core.register_chatcommand("structure_preview", {
                 return
             end
             local x = i * 60
+            local layout = is_treehouse and treehouse.definition.plan
+                or (size == "compact" and village.definition.fallback or village.definition.plan)
+            local plan = layout(style, PcgRandom(seed + i, 9001))
+            local height = 10
+            for _, plot in ipairs(plan.plots) do height = math.max(height, plot.height - 1) end
             local minp = {x = x - 26, y = y - 1, z = z - 14}
-            local maxp = {x = x + 33, y = y + 10, z = z + 14}
+            local maxp = {x = x + 33, y = y + height, z = z + 14}
             core.emerge_area(minp, maxp, function(_, _, remaining)
                 if remaining ~= 0 then return end
                 core.after(0, function()
@@ -59,8 +67,6 @@ core.register_chatcommand("structure_preview", {
                         core.chat_send_player(player_name, "Gallery area is occupied or unavailable. Try again for a new site.")
                         return
                     end
-                    local layout = size == "compact" and village.definition.fallback or village.definition.plan
-                    local plan = layout(style, PcgRandom(seed + i, 9001))
                     local function flat() return y end
                     local vm = VoxelManip(minp, maxp)
                     -- A continuous walkway connects each scene.
@@ -74,7 +80,9 @@ core.register_chatcommand("structure_preview", {
                     local label = {x = x, y = y + 1, z = z - 12}
                     vm:set_node_at(label, {name = "default:meselamp"})
                     vm:write_to_map()
-                    core.get_meta(label):set_string("infotext", ("Seed %d · %d homes · %d workplaces"):format(seed + i, plan.counts.homes, plan.counts.occupations))
+                    local description = is_treehouse and ("Seed %d · Treehouse %d blocks up"):format(seed + i, plan.counts.treehouse_height)
+                        or ("Seed %d · %d homes · %d workplaces"):format(seed + i, plan.counts.homes, plan.counts.occupations)
+                    core.get_meta(label):set_string("infotext", description)
                     for _, p in ipairs(core.find_nodes_in_area(minp, maxp, markers)) do
                         initialize_fixture(p, core.get_node(p))
                     end
@@ -83,7 +91,7 @@ core.register_chatcommand("structure_preview", {
             end)
         end
         build(0)
-        return true, ("Building %d %s village previews…"):format(count, style)
+        return true, ("Building %d %s structure previews…"):format(count, style)
     end,
 })
 

@@ -109,11 +109,6 @@ end
 core.register_on_mods_loaded(function()
     dofile(core.get_modpath("structures_probe") .. "/sprint.lua")
     check_workshop_permissions()
-    local day = assert(core.registered_chatcommands.day)
-    local time = core.get_timeofday()
-    assert(day.privs.settime and not day.func("", "extra") and day.func("", ""))
-    assert(math.abs(core.get_timeofday() - 0.5) < 0.0001, "Day command should set noon")
-    core.set_timeofday(time)
     local totals = {}
     for palette in pairs(village.styles) do
         local sizes, occupations = {}, {}
@@ -143,6 +138,11 @@ core.register_on_mods_loaded(function()
 
     local p1, p2 = {x = -32, y = 10, z = -32}, {x = 47, y = 24, z = 47}
     core.after(0, function()
+        local day = assert(core.registered_chatcommands.day)
+        local time = core.get_timeofday()
+        assert(day.privs.settime and not day.func("", "extra") and day.func("", ""))
+        assert(math.abs(core.get_timeofday() - 0.5) < 0.0001, "Day command should set noon")
+        core.set_timeofday(time)
         core.emerge_area(p1, p2, function(_, action, remaining)
             assert(action ~= core.EMERGE_CANCELLED and action ~= core.EMERGE_ERRORED)
             if remaining ~= 0 then return end

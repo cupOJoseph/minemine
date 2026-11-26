@@ -6,6 +6,7 @@ MineMine is a browser-first voxel crafting MMO project built on Luanti (formerly
 
 | Feature | State |
 | --- | --- |
+| Generated villages | New terrain can generate small biome-specific settlements in builds with the structures pack. See [the workshop and template guide](docs/STRUCTURES.md). |
 | Solo browser game | Playable in desktop Chromium; local Playwright WebKit 27.2 rendered the world and inventory. Shipping Safari, Firefox gameplay, storage and stability checks remain. |
 | Public shared server | Two distinct wallet characters joined the same native world in headless Chromium; the town denied an outsider's browser dig/place packets and allowed the owner's browser dig/place. A clean Luanti and Node restart preserved a test inventory stack, separate owner-placed node, and town protection. Production backup recovery and a public host remain. |
 | Wallet identity | EOA Sign-In with Ethereum and short-lived native grants passed browser reconnect in CI. The backend also verifies deployed ERC-1271 and undeployed ERC-6492 smart-wallet signatures against its configured chain. A local-only ZeroDev email-code UI builds and renders; a real provider account and the paid signup flow remain. |

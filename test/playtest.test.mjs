@@ -7,6 +7,7 @@ import vm from 'node:vm';
 import { patchBuildScript, patchBuildAll, patchDependencyScripts, patchWasmArchives, patchOpenSslBuildScript, patchCurlBuildScript } from '../scripts/prepare-wasm.mjs';
 import { removeStartupArgumentDump } from '../scripts/patch-wasm-args.mjs';
 import { releaseId, validateWasm } from '../scripts/stage-playtest.mjs';
+import { configureGamePack } from '../playtest/game-pack.mjs';
 import { configureSoloLauncher, makeSoloArgs, makeSoloSession } from '../playtest/session.mjs';
 import { makeRemoteArgs, sameOriginProxyUrl } from '../playtest/remote-session.mjs';
 
@@ -37,6 +38,20 @@ test('solo playtest uses a local world and never requests a remote wallet creden
   assert.equal(args.name, '', 'An explicit name selects local multiplayer and rejects the reserved singleplayer name');
   assert.equal(args.password, '');
   assert.equal(args.address, '');
+});
+test('versioned packs stay on the playtest origin and change the installed pathname', () => {
+  const calls = [];
+  const launcher = { setPacksDir(...args) { calls.push(args); } };
+  const base = 'https://example.test/minemine/play/';
+  const release = '0123456789ab';
+  configureGamePack(launcher, { release }, base);
+  configureGamePack(launcher, { release, gamePack: release + '/packs/1234567890abcdef/minetest.pack' }, base);
+  configureGamePack(launcher, { release, gamePack: release + '/packs/234567890abcdef1/minetest.pack' }, base);
+  assert.deepEqual(calls, [
+    [base + release + '/packs/1234567890abcdef', false],
+    [base + release + '/packs/234567890abcdef1', false],
+  ]);
+  assert.throws(() => configureGamePack(launcher, { release, gamePack: '//other.test/minetest.pack' }, base));
 });
 test('remote client uses only an unexpired wallet ticket and same-origin proxy', () => {
   const ticket = { name: 'w_1234567890abcdef1', password: 's'.repeat(43), address: '10.0.0.1', port: 30000, expiresAt: 2_000_000 };

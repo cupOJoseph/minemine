@@ -1,0 +1,3 @@
+minemine_structures_enabled (Generate MineMine structures in new terrain) bool true
+minemine_village_chance (Village attempt chance per eligible surface chunk, percent) int 10 0 100
+minemine_structures_workshop (Enable preview/export commands on a private build server) bool false

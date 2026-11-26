@@ -32,6 +32,8 @@ on:
       - 'test/integration/map_edit_probe/**'
       - 'package.json'
       - 'scripts/setup-world.mjs'
+      - 'scripts/test-structures-native.mjs'
+      - 'test/integration/structures_probe/**'
       - 'scripts/sample-stack-memory.sh'
       - 'scripts/sample-client-runner.sh'
       - 'scripts/ci-native-service.sh'
@@ -91,6 +93,8 @@ jobs:
           cmake -S vendor/native -B runtime/native-build -G Ninja -DBUILD_CLIENT=FALSE -DBUILD_SERVER=TRUE -DRUN_IN_PLACE=TRUE -DCMAKE_BUILD_TYPE=Release
           cmake --build runtime/native-build -j 2
           vendor/native/bin/luantiserver --version
+      - name: Test generated villages in the pinned engine
+        run: node scripts/test-structures-native.mjs
       - name: Start world with wallet and town mods
         run: |
           cp -a vendor/game vendor/native/games/minetest

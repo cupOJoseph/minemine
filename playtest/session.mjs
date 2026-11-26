@@ -9,6 +9,8 @@ export function configureSoloLauncher(launcher) {
     viewing_range: 64, max_block_send_distance: 4, max_block_generate_distance: 4,
     fps_max: 60, enable_shaders: false, enable_dynamic_shadows: false,
     enable_clouds: false, num_emerge_threads: 1, num_mesh_threads: 1,
+    // Send local movement often enough to see the release between taps.
+    dedicated_server_step: 0.05,
   };
   for (const [key, value] of Object.entries(defaults)) launcher.setConf(key, value);
   launcher.overrideConf('server_announce', false);

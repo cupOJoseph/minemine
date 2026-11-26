@@ -25,7 +25,7 @@ export function patchBuildScript(source, { memoryMiB = 512, threads = 8 } = {}) 
 export function patchBuildAll(source) {
   const original = './fetch_sources.sh\n\n# Dependencies';
   if (source.split(original).length !== 2) throw new Error('Pinned build order changed; review before patching browser source.');
-  return source.replace(original, './fetch_sources.sh\nnode miners-patch-args.mjs sources/luanti/src/mainloop.cpp\n\n# Dependencies');
+  return source.replace(original, './fetch_sources.sh\nnode miners-patch-args.mjs sources/luanti/src/mainloop.cpp\nnode miners-patch-exit.mjs sources/luanti/src/client/game_formspec.cpp\n\n# Dependencies');
 }
 
 export function patchWasmArchives(source, archives) {
@@ -83,6 +83,7 @@ export function prepareWasm(root = project, env = process.env) {
     'build_openssl.sh': patchOpenSslBuildScript(fs.readFileSync(path.join(source, 'build_openssl.sh'), 'utf8')),
     'build_curl.sh': patchCurlBuildScript(fs.readFileSync(path.join(source, 'build_curl.sh'), 'utf8')),
     [opensslPatchName]: fs.readFileSync(path.join(root, 'scripts', opensslPatchName), 'utf8'),
+    'miners-patch-exit.mjs': fs.readFileSync(path.join(root, 'scripts/patch-wasm-exit.mjs'), 'utf8'),
     'miners-patch-args.mjs': fs.readFileSync(path.join(root, 'scripts/patch-wasm-args.mjs'), 'utf8'),
     ...dependencies,
   };

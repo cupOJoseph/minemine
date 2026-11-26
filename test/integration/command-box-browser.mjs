@@ -28,7 +28,7 @@ let browser;
 try {
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
-  browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader'] });
+  browser = await chromium.launch({ headless: !process.env.DISPLAY, args: ['--enable-unsafe-swiftshader'] });
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   page.on('pageerror', error => console.error(error));
   const joined = page.waitForEvent('console', { predicate: line => /singleplayer.*joins game/.test(line.text()), timeout: 120_000 });

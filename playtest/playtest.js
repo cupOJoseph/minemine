@@ -1,7 +1,5 @@
 import { makeSoloSession } from './session.mjs?v=solo-movement-1';
 import { configureGamePack } from './game-pack.mjs';
-import { installCommandBox } from './command-box.mjs';
-const enableCommandBox = installCommandBox();
 const readBuild = () => fetch('./build.json', { cache: 'no-store' }).then(r => {
   if (!r.ok) throw new Error('The engine build manifest is missing.');
   return r.json();
@@ -34,11 +32,10 @@ function checkBrowser() {
   // Firefox game canvas. The engine checks whether it can create a context.
   if (typeof WebGL2RenderingContext === 'undefined') throw new Error('WebGL 2 is unavailable. Enable hardware acceleration or try another browser.');
 }
-function loadLauncher(hasCommands) {
+function loadLauncher() {
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
     const url = new URL(document.body.dataset.launcher, location.href);
-    if (hasCommands) url.searchParams.set('adapter', 'commands-1');
     if (url.origin !== location.origin) return reject(new Error('The engine must be hosted on the same origin.'));
     script.src = url.href;
     script.onload = () => resolve(globalThis.MinersEngine);
@@ -68,7 +65,7 @@ start.addEventListener('click', async () => {
   say('Loading the Luanti engine…');
   try {
     const build = await readBuild();
-    const engine = await loadLauncher(build.features?.commandCompletion);
+    const engine = await loadLauncher();
     if (!engine?.LuantiLauncher || !engine?.LuantiArgs) throw new Error('Engine adapter version mismatch. Rebuild the playtest bundle.');
     const launcher = new engine.LuantiLauncher();
     configureGamePack(launcher, build);
@@ -87,7 +84,6 @@ start.addEventListener('click', async () => {
       } else if (kind === 'error') { say(String(data), true); showStopped(String(data)); }
     } });
     engine.onMainStarted(() => {
-      if (build.features?.commandCompletion) enableCommandBox?.(globalThis.MineMineChatBridge);
       const controls = document.createElement('aside');
       controls.id = 'miners-controls';
       controls.setAttribute('aria-label', 'Game controls');
@@ -96,7 +92,8 @@ start.addEventListener('click', async () => {
       controls.appendChild(title);
       for (const text of [
         'WASD move · Mouse look · Space jump',
-        ...(build.features?.commandCompletion ? ['T chat · / commands · Tab to complete · /day for noon'] : []),
+        ...(build.features?.commandCompletion ? ['T chat · / commands · Tab to complete'] : []),
+        ...(build.features?.dayCommand ? ['/day for noon'] : []),
         ...(build.features?.doubleTapSprint ? ['Sprint: tap W twice and hold'] : []),
         'Left click dig · Right click build',
         '1–8 / wheel select item · Esc close / menu',

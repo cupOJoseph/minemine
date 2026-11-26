@@ -35,39 +35,19 @@ try {
   await page.goto('http://127.0.0.1:' + server.address().port + '/play/');
   await page.getByRole('button', {name: 'Start playtest'}).click();
   await joined;
-  // The input is hidden until the command key, but must live in the
-  // engine's replacement DOM before any key can open it.
-  const commandBox = page.locator('#minemine-command-box');
-  await commandBox.waitFor({ state: 'attached' });
-
   const canvas = page.locator('#canvas');
+  await canvas.waitFor({state: 'visible'});
+  await page.waitForTimeout(2500); // Wait for the first playable frame after join.
   await canvas.click();
-  // Headless/VM Chromium can deny cursor capture even when SDL is playing.
-  // Model the captured canvas for the opening key only. The real SDL text
-  // prompt, native paste and command dispatch still have to work end to end.
-  const simulatedCapture = await canvas.evaluate(element => {
-    if (document.pointerLockElement === element) return false;
-    Object.defineProperty(document, 'pointerLockElement', { configurable: true, get: () => element });
-    return true;
-  });
-  await page.keyboard.press('/');
-  if (simulatedCapture) await page.evaluate(() => { delete document.pointerLockElement; });
-  const input = page.getByRole('textbox', { name: 'Chat or command' });
-  await input.waitFor({ state: 'visible' });
-  await input.pressSequentially('structure_p');
-  assert.match(await page.locator('.command-ghost').textContent(), /structure_preview <style> <seed> \[count\] \[compact\]/);
-  await input.press('Tab');
-  assert.equal(await input.inputValue(), '/structure_preview ');
-  await input.pressSequentially('de');
-  await input.press('Tab');
-  assert.equal(await input.inputValue(), '/structure_preview desert ');
-
-  await input.fill('/day');
-  const day = page.waitForEvent('console', { predicate: line => line.text().includes('Time set to noon via /day'), timeout: 15_000 });
-  await input.press('Enter');
+  const day = page.waitForEvent('console', { predicate: line => line.text().includes('Time set to noon via /day'), timeout: 30_000 });
+  // The actual engine console handles both the command key and Tab. There
+  // are no mocked mouse-capture properties or synthetic paste events.
+  await page.keyboard.press('/', {delay: 100});
+  await page.keyboard.press('d', {delay: 100});
+  await page.keyboard.press('Tab', {delay: 100});
+  await page.keyboard.press('Enter', {delay: 100});
   await day;
-  await input.waitFor({ state: 'hidden' });
-  console.log('PASS: browser command hint, Tab completion, and /day reached the Luanti world.');
+  console.log('PASS: native chat Tab completed /d and executed /day in the Luanti world.');
 } finally {
   await browser?.close();
   if (server.listening) await new Promise(resolve => server.close(resolve));

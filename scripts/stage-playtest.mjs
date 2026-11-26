@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { installChatBridge } from './patch-chat-bridge.mjs';
 import { installVersionedGamePack } from './version-game-pack.mjs';
 
 const project = path.resolve(fileURLToPath(new URL('../', import.meta.url)));
@@ -44,11 +43,10 @@ export function stagePlaytest(buildSource, root = project) {
   const template = fs.readFileSync(path.join(root, 'playtest/index.html'), 'utf8');
   if (template.split('%__MINERS_RELEASE__%').length !== 2) throw new Error('Playtest template release marker is missing or duplicated.');
   fs.writeFileSync(path.join(staged, 'index.html'), template.replace('%__MINERS_RELEASE__%', release));
-  for (const file of ['playtest.js', 'playtest.css', 'diagnostics.css', 'session.mjs', 'game-pack.mjs', 'command-box.mjs', 'command-completions.mjs']) fs.copyFileSync(path.join(root, 'playtest', file), path.join(staged, file));
+  for (const file of ['playtest.js', 'playtest.css', 'diagnostics.css', 'session.mjs', 'game-pack.mjs']) fs.copyFileSync(path.join(root, 'playtest', file), path.join(staged, file));
   for (const file of ['adapter.js', 'connect.html', 'remote.js', 'remote-session.mjs']) fs.copyFileSync(path.join(root, 'playtest', file), path.join(staged, file));
   const launcherFile = path.join(staged, release, 'launcher.js');
   fs.appendFileSync(launcherFile, '\n// Miners adapter: expose inspected APIs without eval or credential URLs.\nglobalThis.MinersEngine = Object.freeze({ LuantiLauncher, LuantiArgs, onMainStarted(callback) { mtScheduler.addCondition("miners-main-started", callback, ["main_called"]); } });\n');
-  installChatBridge(launcherFile);
   const assets = { [packed.relative]: packed.asset };
   for (const file of ['launcher.js', 'worker.js', 'luanti.js', 'luanti.wasm', 'packs/base.pack', 'packs/certs.pack']) {
     const target = path.join(staged, release, file);
@@ -57,7 +55,7 @@ export function stagePlaytest(buildSource, root = project) {
   const build = {
     schema: 1, kind: 'solo-engine-playtest', browserVerified: false,
     builtAt: new Date().toISOString(), release, wrapperCommit: profile.wrapperCommit,
-    gameCommit: revision, gamePack: packed.relative, features: packed.features, profile, sources, assets,
+    gameCommit: revision, gamePack: packed.relative, features: { ...packed.features, commandCompletion: true }, profile, sources, assets,
     limitations: ['Browser gameplay has not been verified by this build script.', 'No shared server, wallet-gated multiplayer, or token spending.', 'No external network proxy is enabled.'],
   };
   fs.writeFileSync(path.join(staged, 'build.json'), JSON.stringify(build, null, 2) + '\n');
@@ -67,6 +65,8 @@ export function stagePlaytest(buildSource, root = project) {
   for (const name of ['fetch_sources.sh', 'build_openssl.sh', 'build_curl.sh', 'openssl-3.5-wasm.patch']) {
     fs.copyFileSync(path.join(buildSource, name), path.join(staged, 'notices', name + '.txt'));
   }
+  fs.copyFileSync(path.join(buildSource, 'miners-patch-command.mjs'), path.join(staged, 'notices', 'command-console-patch.mjs.txt'));
+  fs.copyFileSync(path.join(buildSource, 'miners-command-hints.h'), path.join(staged, 'notices', 'command-hints.h.txt'));
   fs.copyFileSync(path.join(buildSource, 'miners-patch-exit.mjs'), path.join(staged, 'notices', 'browser-exit-patch.mjs.txt'));
   fs.copyFileSync(path.join(buildSource, 'miners-patch-args.mjs'), path.join(staged, 'notices', 'startup-argument-redaction-patch.mjs.txt'));
   for (const name of ['build_libarchive.sh', 'build_libzip.sh']) fs.copyFileSync(path.join(buildSource, name), path.join(staged, 'notices', name + '.txt'));

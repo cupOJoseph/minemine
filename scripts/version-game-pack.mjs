@@ -14,7 +14,7 @@ export function installVersionedGamePack(engineDir, release, root) {
     const target = path.join(engineDir, relative);
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.renameSync(file, target);
-    return { relative, gameCommit: packed.gameCommit, features: { doubleTapSprint: true, commandCompletion: true }, asset: { sha256, bytes: packed.bytes } };
+    return { relative, gameCommit: packed.gameCommit, features: { doubleTapSprint: true, dayCommand: true }, asset: { sha256, bytes: packed.bytes } };
   } finally {
     fs.rmSync(work, { recursive: true, force: true });
   }

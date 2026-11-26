@@ -1,35 +1,21 @@
-name: Browser command box
+name: Native command completion checks
 on:
   pull_request:
     paths:
       - '.github/workflows/command-box.yml'
       - 'game/mods/minemine_commands/**'
-      - 'playtest/command-*.mjs'
-      - 'scripts/patch-chat-bridge.mjs'
-      - 'test/integration/command-box-browser.mjs'
+      - 'scripts/minemine-command-hints.h'
+      - 'scripts/patch-wasm-command.mjs'
+      - 'test/command-completions.test.mjs'
 permissions:
   contents: read
-  actions: read
 jobs:
   command-box:
     runs-on: ubuntu-22.04
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: npm ci --ignore-scripts --no-audit --no-fund
-      - run: sudo apt-get update && sudo apt-get install -y zstd
-      - run: npx playwright install --with-deps chromium
-      - run: node scripts/fetch-upstream.mjs
-      - uses: actions/download-artifact@v4
-        with:
-          name: miners-solo-playtest
-          github-token: ${{ github.token }}
-          run-id: '42111328195'
-          path: runtime/command-base
-      - run: |
-          node scripts/repack-playtest.mjs runtime/command-base/public/engine runtime/command-engine
-          PLAYTEST_ENGINE_DIR=runtime/command-engine PAGES_SITE_DIR=runtime/command-pages node scripts/prepare-pages-playtest.mjs
-          node test/integration/command-box-browser.mjs
+      - run: node --test test/command-completions.test.mjs

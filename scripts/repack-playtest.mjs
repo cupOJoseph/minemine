@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { installChatBridge } from './patch-chat-bridge.mjs';
 import { installVersionedGamePack } from './version-game-pack.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -37,16 +36,14 @@ try {
     fs.rmSync(path.join(stage, oldPack), { force: true });
     delete build.assets[oldPack];
   }
-  const launcher = build.release + '/launcher.js';
-  installChatBridge(path.join(stage, launcher));
-  const launcherBytes = fs.readFileSync(path.join(stage, launcher));
-  build.assets[launcher] = { bytes: launcherBytes.length, sha256: createHash('sha256').update(launcherBytes).digest('hex') };
   build.gamePack = packed.relative;
-  build.features = packed.features;
+  build.features = { ...packed.features,
+    ...(fs.existsSync(path.join(source, 'notices', 'command-hints.h.txt')) && build.features?.commandCompletion ? { commandCompletion: true } : {}),
+  };
   build.assets[packed.relative] = packed.asset;
   build.browserVerified = false;
   build.builtAt = new Date().toISOString();
-  for (const file of ['playtest.js', 'playtest.css', 'diagnostics.css', 'session.mjs', 'game-pack.mjs', 'command-box.mjs', 'command-completions.mjs',
+  for (const file of ['playtest.js', 'playtest.css', 'diagnostics.css', 'session.mjs', 'game-pack.mjs',
     'adapter.js', 'connect.html', 'remote.js', 'remote-session.mjs']) {
     fs.copyFileSync(path.join(root, 'playtest', file), path.join(stage, file));
   }

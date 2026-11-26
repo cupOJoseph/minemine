@@ -31,7 +31,7 @@ if (!preflight) {
   const template = fs.readFileSync(path.join(root, 'playtest/index.html'), 'utf8');
   if (template.split('%__MINERS_RELEASE__%').length !== 2) throw new Error('Invalid launcher release marker.');
   fs.writeFileSync(index, template.replace('%__MINERS_RELEASE__%', build.release).replace('<head>', '<head>\n<script src="isolation-config.js"></script><script src="coi-serviceworker.js"></script>'));
-  for (const file of ['playtest.js', 'playtest.css', 'diagnostics.css', 'session.mjs', 'game-pack.mjs', 'command-box.mjs', 'command-completions.mjs']) fs.copyFileSync(path.join(root, 'playtest', file), path.join(play, file));
+  for (const file of ['playtest.js', 'playtest.css', 'diagnostics.css', 'session.mjs', 'game-pack.mjs']) fs.copyFileSync(path.join(root, 'playtest', file), path.join(play, file));
   build.launcherRevision = process.env.GITHUB_SHA || null;
   fs.writeFileSync(path.join(play, 'build.json'), JSON.stringify(build, null, 2) + '\n');
   for (const file of ['index.html', 'style.css', 'app.js', 'transfer.mjs', 'wallet-providers.mjs']) fs.copyFileSync(path.join(root, 'public', file), path.join(target, file));

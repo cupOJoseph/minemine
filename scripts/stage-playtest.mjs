@@ -65,6 +65,7 @@ export function stagePlaytest(buildSource, root = project) {
   for (const name of ['fetch_sources.sh', 'build_openssl.sh', 'build_curl.sh', 'openssl-3.5-wasm.patch']) {
     fs.copyFileSync(path.join(buildSource, name), path.join(staged, 'notices', name + '.txt'));
   }
+  fs.copyFileSync(path.join(buildSource, 'miners-patch-exit.mjs'), path.join(staged, 'notices', 'browser-exit-patch.mjs.txt'));
   fs.copyFileSync(path.join(buildSource, 'miners-patch-args.mjs'), path.join(staged, 'notices', 'startup-argument-redaction-patch.mjs.txt'));
   for (const name of ['build_libarchive.sh', 'build_libzip.sh']) fs.copyFileSync(path.join(buildSource, name), path.join(staged, 'notices', name + '.txt'));
   fs.copyFileSync(path.join(buildSource, 'LICENSE'), path.join(staged, 'notices', 'wasm-wrapper-LICENSE.txt'));

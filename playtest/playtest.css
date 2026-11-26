@@ -25,3 +25,13 @@ main.playtest-card{max-width:700px;margin:4vh auto;padding:36px;border:1px solid
 #miners-controls strong{display:block;color:#c6e490;font-size:14px;margin-bottom:3px}
 .playtest-card kbd{padding:2px 6px;border:1px solid #60725b;border-radius:3px;color:#edf0dd;font-family:monospace}
 @media(max-width:500px){main.playtest-card{padding:24px;margin-top:0}.playtest-card dl{grid-template-columns:1fr}}
+
+#minemine-command-box{position:fixed;z-index:1000;top:14px;left:50%;transform:translateX(-50%);width:min(660px,calc(100% - 28px));box-sizing:border-box;padding:13px 16px;background:#13201bed;border:1px solid #6b855f;border-radius:8px;color:#e9f0e4;box-shadow:0 8px 30px #0009}
+#minemine-command-box label{display:block;margin-bottom:8px;font-size:13px;color:#d0e8bf}
+#minemine-command-box p{margin:7px 0 0;font-size:12px;line-height:1.35;color:#b7c6b5}
+#minemine-command-box .command-field{position:relative;font:15px/1.4 ui-monospace,monospace;background:#0f1914;border:1px solid #6b855f;border-radius:4px}
+#minemine-command-input,#minemine-command-box .command-ghost{box-sizing:border-box;width:100%;padding:8px 10px;font:inherit;white-space:pre}
+#minemine-command-input{background:transparent;position:relative;display:block;border:0;color:#f3f7ed;outline:0}
+#minemine-command-box .command-field:focus-within{outline:2px solid #aeca90;outline-offset:2px}
+#minemine-command-box .command-ghost{overflow:hidden;position:absolute;inset:0;pointer-events:none;color:#a6b7a2}
+#minemine-command-box .command-ghost span:first-child{visibility:hidden}

@@ -33,6 +33,8 @@ on:
       - 'package.json'
       - 'scripts/setup-world.mjs'
       - 'scripts/test-structures-native.mjs'
+      - 'scripts/test-sugarcane-native.mjs'
+      - 'test/integration/sugarcane_probe/**'
       - 'test/integration/structures_probe/**'
       - 'scripts/sample-stack-memory.sh'
       - 'scripts/sample-client-runner.sh'

@@ -92,6 +92,8 @@ start.addEventListener('click', async () => {
       controls.appendChild(title);
       for (const text of [
         'WASD move · Mouse look · Space jump',
+        ...(build.features?.commandCompletion ? ['T chat · / commands · Tab to complete'] : []),
+        ...(build.features?.dayCommand ? ['/day for noon'] : []),
         ...(build.features?.doubleTapSprint ? ['Sprint: tap W twice and hold'] : []),
         'Left click dig · Right click build',
         '1–8 / wheel select item · Esc close / menu',

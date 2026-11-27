@@ -37,6 +37,15 @@ local function check_workshop_permissions()
     for _, name in ipairs(commands) do
         assert(solo[name] and not next(solo[name].privs), "Solo workshop must accept the local player without admin privileges")
     end
+    local preview = core.registered_chatcommands.structure_preview.func
+    for _, command in ipairs({"village taiga", "treehouse taiga", "treehouse rainforest 7 3", "village taiga 7 2 compact"}) do
+        local ok, reason = preview("no_player", command)
+        assert(not ok and reason == "Join the world to use the workshop.", "Valid syntax rejected: " .. command)
+    end
+    for _, command in ipairs({"taiga", "treehouse desert", "village taiga -1", "treehouse taiga 7 13", "treehouse taiga 7 3 compact", "village taiga 7.5"}) do
+        local ok, reason = preview("no_player", command)
+        assert(not ok and reason:find("Try /structure_preview", 1, true), "Invalid syntax accepted: " .. command)
+    end
     core.log("action", "[structures_probe] Workshop permissions verified for solo and multiplayer")
 end
 
@@ -103,7 +112,7 @@ local function check_workshop(on_complete)
     core.get_player_by_name = function(player)
         return player == name and visit or old_get_player(player)
     end
-    assert(core.registered_chatcommands.structure_preview.func(name, "desert 42 2"))
+    assert(core.registered_chatcommands.structure_preview.func(name, "village desert 42 2"))
 end
 
 core.register_on_mods_loaded(function()

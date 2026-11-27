@@ -1,8 +1,6 @@
 local modpath = core.get_modpath("minemine_structures")
-local api = dofile(modpath .. "/planner.lua")
-local village = assert(loadfile(modpath .. "/village.lua"))(modpath, api)
-village.load_templates()
-api.register(village.definition)
+local api, load_templates = assert(loadfile(modpath .. "/registry.lua"))(modpath)
+load_templates()
 
 local surfaces = {}
 local water_level = tonumber(core.get_mapgen_setting("water_level")) or 1

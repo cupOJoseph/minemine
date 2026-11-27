@@ -36,7 +36,7 @@ Press **T** to open chat in solo mode:
 /structure_return
 ```
 
-The syntax is `/structure_preview <type> <biome> [seed] [count] [compact]`. Omit the seed and count to see one random design. The numbered commands show consecutive seeds in an in-world gallery, left to right when facing the houses. Look at a lamp on the approach to read its seed and counts. Request up to 12 at once. Reusing a seed and style repeats the same design; preview chests stay empty. For villages, add `compact` after the count to preview the smaller layouts. The native server's info log records each village's style, seed, and whether it used the compact layout. The gallery is built high above the map in a separate area of the same world. Use a disposable world for design work or set `minemine_structures_workshop = true` on a private native server and grant yourself the server privilege.
+The syntax is `/structure_preview <type> <biome> [seed] [count] [compact]`. Omit the seed and count to see one random design. The numbered commands show consecutive seeds in an in-world gallery, left to right when facing the houses. Look at a lamp on the approach to read its seed and counts. Request up to 12 at once. Reusing the same type, biome and seed repeats the same design; preview chests stay empty. For villages, add `compact` after the count to preview the smaller layouts. The native server's info log records each village's style, seed, and whether it used the compact layout. The gallery is built high above the map in a separate area of the same world. Use a disposable world for design work or set `minemine_structures_workshop = true` on a private native server and grant yourself the server privilege.
 
 To try a Lua change in the browser without rebuilding WebAssembly:
 

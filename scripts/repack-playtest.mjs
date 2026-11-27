@@ -37,7 +37,9 @@ try {
     delete build.assets[oldPack];
   }
   build.gamePack = packed.relative;
-  build.features = packed.features;
+  build.features = { ...packed.features,
+    ...(fs.existsSync(path.join(source, 'notices', 'command-hints.h.txt')) && build.features?.commandCompletion ? { commandCompletion: true } : {}),
+  };
   build.assets[packed.relative] = packed.asset;
   build.browserVerified = false;
   build.builtAt = new Date().toISOString();

@@ -55,7 +55,7 @@ export function stagePlaytest(buildSource, root = project) {
   const build = {
     schema: 1, kind: 'solo-engine-playtest', browserVerified: false,
     builtAt: new Date().toISOString(), release, wrapperCommit: profile.wrapperCommit,
-    gameCommit: revision, gamePack: packed.relative, features: packed.features, profile, sources, assets,
+    gameCommit: revision, gamePack: packed.relative, features: { ...packed.features, commandCompletion: true }, profile, sources, assets,
     limitations: ['Browser gameplay has not been verified by this build script.', 'No shared server, wallet-gated multiplayer, or token spending.', 'No external network proxy is enabled.'],
   };
   fs.writeFileSync(path.join(staged, 'build.json'), JSON.stringify(build, null, 2) + '\n');
@@ -65,6 +65,8 @@ export function stagePlaytest(buildSource, root = project) {
   for (const name of ['fetch_sources.sh', 'build_openssl.sh', 'build_curl.sh', 'openssl-3.5-wasm.patch']) {
     fs.copyFileSync(path.join(buildSource, name), path.join(staged, 'notices', name + '.txt'));
   }
+  fs.copyFileSync(path.join(buildSource, 'miners-patch-command.mjs'), path.join(staged, 'notices', 'command-console-patch.mjs.txt'));
+  fs.copyFileSync(path.join(buildSource, 'miners-command-hints.h'), path.join(staged, 'notices', 'command-hints.h.txt'));
   fs.copyFileSync(path.join(buildSource, 'miners-patch-exit.mjs'), path.join(staged, 'notices', 'browser-exit-patch.mjs.txt'));
   fs.copyFileSync(path.join(buildSource, 'miners-patch-args.mjs'), path.join(staged, 'notices', 'startup-argument-redaction-patch.mjs.txt'));
   for (const name of ['build_libarchive.sh', 'build_libzip.sh']) fs.copyFileSync(path.join(buildSource, name), path.join(staged, 'notices', name + '.txt'));

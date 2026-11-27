@@ -14,11 +14,11 @@ try {
     const world = path.join(work, style + '-' + chance);
     const mods = path.join(world, 'worldmods');
     fs.mkdirSync(mods, { recursive: true });
-    for (const mod of ['minemine_structures', 'minemine_movement']) {
+    for (const mod of ['minemine_structures', 'minemine_movement', 'minemine_commands']) {
       fs.cpSync(path.join(root, 'game/mods', mod), path.join(mods, mod), { recursive: true });
     }
     fs.cpSync(path.join(root, 'test/integration/structures_probe'), path.join(mods, 'structures_probe'), { recursive: true });
-    fs.writeFileSync(path.join(world, 'world.mt'), 'gameid = minetest\nbackend = sqlite3\nplayer_backend = sqlite3\nauth_backend = sqlite3\nmod_storage_backend = sqlite3\nload_mod_minemine_structures = true\nload_mod_minemine_movement = true\nload_mod_structures_probe = true\n');
+    fs.writeFileSync(path.join(world, 'world.mt'), 'gameid = minetest\nbackend = sqlite3\nplayer_backend = sqlite3\nauth_backend = sqlite3\nmod_storage_backend = sqlite3\nload_mod_minemine_structures = true\nload_mod_minemine_movement = true\nload_mod_minemine_commands = true\nload_mod_structures_probe = true\n');
     const config = path.join(world, 'test.conf');
     fs.writeFileSync(config, [
       'bind_address = 127.0.0.1', 'port = ' + (49152 + Math.floor(Math.random() * 16384)), 'server_announce = false', 'enable_update_checker = false', 'mg_name = flat',

@@ -1,0 +1,21 @@
+name: Native command completion checks
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/command-box.yml'
+      - 'game/mods/minemine_commands/**'
+      - 'scripts/minemine-command-hints.h'
+      - 'scripts/patch-wasm-command.mjs'
+      - 'test/command-completions.test.mjs'
+permissions:
+  contents: read
+jobs:
+  command-box:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test test/command-completions.test.mjs

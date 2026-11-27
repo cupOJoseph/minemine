@@ -26,6 +26,7 @@ export function packGame(root = project, outputFile = path.join(root, 'runtime/m
     fs.cpSync(path.join(root, 'playtest/initial-stuff'), path.join(bundledGame, 'mods/miners_playtest'), { recursive: true });
     fs.cpSync(path.join(root, 'game/mods/minemine_structures'), path.join(bundledGame, 'mods/minemine_structures'), { recursive: true });
     fs.cpSync(path.join(root, 'game/mods/minemine_movement'), path.join(bundledGame, 'mods/minemine_movement'), { recursive: true });
+    fs.cpSync(path.join(root, 'game/mods/minemine_sugarcane'), path.join(bundledGame, 'mods/minemine_sugarcane'), { recursive: true });
     fs.cpSync(path.join(root, 'game/mods/minemine_commands'), path.join(bundledGame, 'mods/minemine_commands'), { recursive: true });
     const world = path.join(packRoot, 'luanti/worlds/miners-playtest');
     fs.mkdirSync(world, { recursive: true });

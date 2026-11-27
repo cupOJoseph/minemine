@@ -221,6 +221,7 @@ return {
     definition = {
         id = "village", biomes = biomes, plan = village,
         fallback = function(style, rng) return village(style, rng, true) end,
+        preview_label = function(plan) return ("%d homes · %d workplaces"):format(plan.counts.homes, plan.counts.occupations) end,
         default_chance = math.max(0, math.min(100, math.floor(tonumber(core.settings:get("minemine_village_chance")) or 10))),
     },
     styles = palettes, load_templates = load_templates,

@@ -1,31 +1,41 @@
 local modpath, initialize_fixture, markers = ...
-local api = dofile(modpath .. "/planner.lua")
-local village = assert(loadfile(modpath .. "/village.lua"))(modpath, api)
-local treehouse = assert(loadfile(modpath .. "/treehouse.lua"))(modpath, api)
+local api, load_templates = assert(loadfile(modpath .. "/registry.lua"))(modpath)
 local storage = core.get_mod_storage()
 local busy = false
 -- The sole local player can use the workshop without Luanti's general
 -- maintenance privilege. An opted-in multiplayer workshop stays admin-only.
 local workshop_privs = core.is_singleplayer() and {} or {server = true}
-core.register_on_mods_loaded(village.load_templates)
+core.register_on_mods_loaded(load_templates)
 
-local style_names = {}
-for style in pairs(village.styles) do style_names[#style_names + 1] = style end
-for style in pairs(treehouse.styles) do style_names[#style_names + 1] = style end
-table.sort(style_names)
+local types, choices = {}, {}
+for _, def in ipairs(api.types) do
+    types[def.id] = def
+    local biomes = {}
+    for biome in pairs(def.biomes) do biomes[#biomes + 1] = biome end
+    table.sort(biomes)
+    choices[#choices + 1] = def.id .. ": " .. table.concat(biomes, ", ")
+end
+local usage = "Try /structure_preview treehouse taiga or /structure_preview village taiga. " .. table.concat(choices, "; ")
 
 core.register_chatcommand("structure_preview", {
-    params = "<style> <seed> [count] [compact]",
-    description = "Visit a gallery of 1–12 seeded structures. Styles: " .. table.concat(style_names, ", "),
+    params = "<type> <biome> [seed] [count] [compact]",
+    description = "Visit a gallery of 1–12 structures. Omit the seed for a random design. " .. table.concat(choices, "; "),
     privs = workshop_privs,
     func = function(player_name, param)
-        local style, seed, count, size = param:match("^%s*(%a+)%s+(%d+)%s*(%d*)%s*(%a*)%s*$")
-        seed, count = tonumber(seed), tonumber(count) or 1
-        local is_treehouse = treehouse.styles[style] ~= nil
-        if not (village.styles[style] or is_treehouse) or not seed or seed + count - 1 > 4294967295 or count < 1 or count > 12
-            or (size ~= "" and (size ~= "compact" or is_treehouse)) then
-            return false, "Try /structure_preview tundra 42 6. Styles: " .. table.concat(style_names, ", ")
+        local args = {}
+        for arg in param:gmatch("%S+") do args[#args + 1] = arg end
+        local def = types[args[1]]
+        local biome = args[2]
+        local rule = def and def.biomes[biome]
+        local seed = tonumber(args[3] or math.random(0, 1073741823))
+        local count = tonumber(args[4] or "1")
+        local size = args[5]
+        if not rule or not seed or seed < 0 or seed % 1 ~= 0 or not count or count % 1 ~= 0
+            or count < 1 or count > 12 or seed + count - 1 > 4294967295 or #args > 5
+            or (size and (size ~= "compact" or not def.fallback)) then
+            return false, usage
         end
+        local layout = size == "compact" and def.fallback or def.plan
         if busy then return false, "A preview is already being generated." end
         local player = core.get_player_by_name(player_name)
         if not player then return false, "Join the world to use the workshop." end
@@ -46,14 +56,12 @@ core.register_chatcommand("structure_preview", {
                     if storage:get_string(key) == "" then storage:set_string(key, core.pos_to_string(return_pos, 1)) end
                     visitor:set_pos({x = 0, y = y + 1, z = z - 13})
                     visitor:set_look_horizontal(0)
-                    core.chat_send_player(player_name, ("Gallery ready: %s, seeds %d through %d, west to east. /structure_return to go back."):format(style, seed, seed + count - 1))
+                    core.chat_send_player(player_name, ("Gallery ready: %s %s, seeds %d through %d, west to east. /structure_return to go back."):format(def.id, biome, seed, seed + count - 1))
                 end
                 return
             end
             local x = i * 60
-            local layout = is_treehouse and treehouse.definition.plan
-                or (size == "compact" and village.definition.fallback or village.definition.plan)
-            local plan = layout(style, PcgRandom(seed + i, 9001))
+            local plan = layout(rule.style, PcgRandom(seed + i, 9001))
             local height = 10
             for _, plot in ipairs(plan.plots) do height = math.max(height, plot.height - 1) end
             local minp = {x = x - 26, y = y - 1, z = z - 14}
@@ -80,8 +88,8 @@ core.register_chatcommand("structure_preview", {
                     local label = {x = x, y = y + 1, z = z - 12}
                     vm:set_node_at(label, {name = "default:meselamp"})
                     vm:write_to_map()
-                    local description = is_treehouse and ("Seed %d · Treehouse %d blocks up"):format(seed + i, plan.counts.treehouse_height)
-                        or ("Seed %d · %d homes · %d workplaces"):format(seed + i, plan.counts.homes, plan.counts.occupations)
+                    local description = ("Seed %d · %s · %s"):format(seed + i, def.id, biome)
+                    if def.preview_label then description = description .. " · " .. def.preview_label(plan) end
                     core.get_meta(label):set_string("infotext", description)
                     for _, p in ipairs(core.find_nodes_in_area(minp, maxp, markers)) do
                         initialize_fixture(p, core.get_node(p))
@@ -91,7 +99,7 @@ core.register_chatcommand("structure_preview", {
             end)
         end
         build(0)
-        return true, ("Building %d %s structure previews…"):format(count, style)
+        return true, ("Building %d %s %s previews…"):format(count, biome, def.id)
     end,
 })
 

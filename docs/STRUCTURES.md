@@ -29,14 +29,14 @@ Rare tall pine trees in Taiga and jungle trees in Rainforest have a roofed woode
 Press **T** to open chat in solo mode:
 
 ```text
-/structure_preview desert 42 6
-/structure_preview tundra 42 6
-/structure_preview taiga 42 3
-/structure_preview rainforest 42 3
+/structure_preview village desert 42 6
+/structure_preview village taiga 42 6
+/structure_preview treehouse taiga 42 3
+/structure_preview treehouse rainforest 42 3
 /structure_return
 ```
 
-The commands show six consecutive seeds in an in-world gallery, left to right when facing the houses. Look at a lamp on the approach to read its seed and counts. Request up to 12 at once. Reusing a seed and style repeats the same design; preview chests stay empty. Add `compact` after the count to preview the smaller layouts. The native server's info log records each village's style, seed, and whether it used the compact layout. The gallery is built high above the map in a separate area of the same world. Use a disposable world for design work or set `minemine_structures_workshop = true` on a private native server and grant yourself the server privilege.
+The syntax is `/structure_preview <type> <biome> [seed] [count] [compact]`. Omit the seed and count to see one random design. The numbered commands show consecutive seeds in an in-world gallery, left to right when facing the houses. Look at a lamp on the approach to read its seed and counts. Request up to 12 at once. Reusing a seed and style repeats the same design; preview chests stay empty. For villages, add `compact` after the count to preview the smaller layouts. The native server's info log records each village's style, seed, and whether it used the compact layout. The gallery is built high above the map in a separate area of the same world. Use a disposable world for design work or set `minemine_structures_workshop = true` on a private native server and grant yourself the server privilege.
 
 To try a Lua change in the browser without rebuilding WebAssembly:
 

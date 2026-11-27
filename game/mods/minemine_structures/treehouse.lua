@@ -84,5 +84,6 @@ return {
         biomes = {taiga = {style = "taiga"}, rainforest = {style = "rainforest"}},
         default_chance = math.max(0, math.min(100, math.floor(tonumber(core.settings:get("minemine_treehouse_chance")) or 4))),
         plan = treehouse,
+        preview_label = function(plan) return ("%d blocks up"):format(plan.counts.treehouse_height) end,
     },
 }
